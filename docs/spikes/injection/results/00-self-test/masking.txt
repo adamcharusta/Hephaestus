@@ -1,0 +1,13 @@
+# harness: bdfdba94e1fa
+# image: hephaestus-spike-image-debian
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --env ANTHROPIC_API_KEY --env CODEX_AUTH_JSON_B64 
+# command: bash -c      echo "key=$ANTHROPIC_API_KEY"     echo "file=$(printf "%s" "$CODEX_AUTH_JSON_B64" | base64 -d)"     echo "quoted by a vendor: ***key-shaped***"     u=37; echo "{\"utilization\":0.$u}"     echo "ordinary text: disk-full-read-access"    
+# exit: 0
+# --- stdout ---
+key=***ANTHROPIC_API_KEY***
+file={"tokens":{"refresh_token":"***CODEX_AUTH_JSON***"}}
+quoted by a vendor: ***key-shaped***
+{"utilization":"***masked***"}
+ordinary text: disk-full-read-access
+
+# --- stderr ---

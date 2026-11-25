@@ -1,0 +1,31 @@
+# harness: bdfdba94e1fa
+# image: hephaestus-spike-image-alpine
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --network hephaestus-spike-workspace 
+# command: sh -c    echo "--- name resolution of a public host ---"   nslookup -timeout=5 api.anthropic.com 2>&1 | tail -n 4   echo "--- direct HTTPS to a public host ---"   wget -T 8 -q -O /dev/null https://api.anthropic.com/ 2>&1; echo "wget exit: $?"   echo "--- direct HTTP to a public address ---"   wget -T 8 -q -O /dev/null http://1.1.1.1/ 2>&1; echo "wget exit: $?"   echo "--- the network gateway (the Docker host side of the bridge) ---"   gw="$(ip route 2>/dev/null | grep "^default" | cut -d" " -f3)"   echo "default route: ${gw:-none}"   first="$(ip -4 addr show eth0 | grep -o "inet [0-9.]*" | cut -d" " -f2 | cut -d. -f1-3).1"   echo "first address of the subnet: $first"   wget -T 5 -q -O /dev/null "http://$first/" 2>&1; echo "wget exit: $?"   echo "--- a link-local address (cloud metadata) ---"   wget -T 5 -q -O /dev/null http://169.254.169.254/ 2>&1; echo "wget exit: $?"   echo "--- the proxy is reachable by name ---"   nslookup -timeout=5 hephaestus-spike-proxy 2>&1 | tail -n 3  
+# exit: 0
+# --- stdout ---
+--- name resolution of a public host ---
+** server can't find api.anthropic.com: SERVFAIL
+
+** server can't find api.anthropic.com: SERVFAIL
+
+--- direct HTTPS to a public host ---
+wget: bad address 'api.anthropic.com'
+wget exit: 1
+--- direct HTTP to a public address ---
+wget: can't connect to remote host (1.1.1.1): Network unreachable
+wget exit: 1
+--- the network gateway (the Docker host side of the bridge) ---
+default route: none
+first address of the subnet: 172.22.0.1
+wget: can't connect to remote host (172.22.0.1): Connection refused
+wget exit: 1
+--- a link-local address (cloud metadata) ---
+wget: can't connect to remote host (169.254.169.254): Network unreachable
+wget exit: 1
+--- the proxy is reachable by name ---
+Name:	hephaestus-spike-proxy
+Address: 172.22.0.2
+
+
+# --- stderr ---

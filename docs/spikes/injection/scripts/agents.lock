@@ -1,0 +1,22 @@
+# Agent CLI pins used by the injection spike (Story 1.1).
+# Input for deploy/agents.lock; the format here is the spike's own.
+#
+# Columns: agent  version  platform  kind  sha256  url  [file]
+#   kind "binary": the URL is the executable; sha256 is the vendor's checksum of it.
+#   kind "tar.gz": the URL is an archive holding one executable; sha256 is the
+#                  vendor's digest of the archive.
+#
+# Sources, read 2026-11-25:
+#   Claude Code: https://downloads.claude.ai/claude-code-releases/2.1.332/manifest.json
+#   Codex CLI:   https://github.com/openai/codex/releases/tag/rust-v0.172.0 (asset digests)
+claude 2.1.332 linux-x64        binary a2df1f41bb00250992926420d0063f89b127cb81abdd284dbefb80c50ff1d026 https://downloads.claude.ai/claude-code-releases/2.1.332/linux-x64/claude
+claude 2.1.332 linux-x64-musl   binary 81f466623d672aed9504ad29b8bb2f240b24f3cc05c255054649250720a1900f https://downloads.claude.ai/claude-code-releases/2.1.332/linux-x64-musl/claude
+claude 2.1.332 linux-arm64      binary 50c305fcb8912851ce774429131d94ed6f84edbe3d8d0ed7a59dade5d893acc0 https://downloads.claude.ai/claude-code-releases/2.1.332/linux-arm64/claude
+claude 2.1.332 linux-arm64-musl binary 122dd3751257a9e769d8c08b19d16e45f3e86c43a09e18d7182fc01c81143246 https://downloads.claude.ai/claude-code-releases/2.1.332/linux-arm64-musl/claude
+codex  0.172.0 linux-x64-musl   tar.gz a2342a8f7f68f088be30620ccfe9cb84162c93a6b56177855961cda3ed6be392 https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-x86_64-unknown-linux-musl.tar.gz
+codex  0.172.0 linux-arm64-musl tar.gz 0b99526c185a4425fe96a2214fb7b6a6a7f7c1471883b7afbebe97e15e83e79e https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-aarch64-unknown-linux-musl.tar.gz
+# Codex runs model-written tool calls through a helper that ships as its own
+# release asset. Without it, some models cannot run a command at all. A seventh
+# column names the file inside the agent's directory when it is not the agent.
+codex  0.172.0 linux-x64-musl   tar.gz 20b0a4bcf332415a5997914c943d04af6c3627af0c379fdbf65400550e352bb4 https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-code-mode-host-x86_64-unknown-linux-musl.tar.gz codex-code-mode-host
+codex  0.172.0 linux-arm64-musl tar.gz b6637ebaa353ea3a934d40e3751289a9a39ed81cf96fe3fa3afea11e3840dc68 https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-code-mode-host-aarch64-unknown-linux-musl.tar.gz codex-code-mode-host
