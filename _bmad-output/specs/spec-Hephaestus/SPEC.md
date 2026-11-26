@@ -15,6 +15,7 @@ sources:
   - ../../planning-artifacts/prds/prd-Hephaestus-2026-11-25/addendum.md
   - ../../planning-artifacts/sprint-change-proposal-2026-11-25.md
   - ../../planning-artifacts/sprint-change-proposal-2026-11-25-language-and-ci.md
+  - ../../planning-artifacts/sprint-change-proposal-2026-11-26.md
 ---
 
 > **Canonical contract.** This SPEC and the files in `companions:` are the complete, preservation-validated contract for what to build, test, and validate. Source documents listed in frontmatter are for traceability — consult them only if you need narrative rationale or prose color this contract intentionally omits.
@@ -141,18 +142,17 @@ The Owner labels well-described issues in a registered Project and, with no furt
 ## Assumptions
 
 - Invoked with no input, this spec took the only PRD on disk (with its addendum) and the architecture spine as its sources, as the architecture run recommended.
-- Where the spine refines a PRD requirement, the refinement is carried as a note on that requirement in `requirements.md` and the spine governs: FR-11 (additional Task states), FR-25 (Codex CLI with an API key only for now), FR-35 (a failed Task with no commit gets an issue comment, not a draft pull request), FR-65 (the plan is rendered into the pull request description, not committed), FR-67 (changes arrive as a stream of ids; step output is not shown while a step runs), FR-68 (the Dashboard's listener maps reads only; the token travels in a request header).
+- Where the spine refines a PRD requirement, the refinement is carried as a note on that requirement in `requirements.md` and the spine governs: FR-11 (additional Task states), FR-25 (Codex CLI with an API key only), FR-35 (a failed Task with no commit gets an issue comment, not a draft pull request), FR-65 (the plan is rendered into the pull request description, not committed), FR-67 (changes arrive as a stream of ids; step output is not shown while a step runs), FR-68 (the Dashboard's listener maps reads only; the token travels in a request header).
 - Before v0.2 the notifier is a no-op, so the "Owner is notified" consequences of FR-35 and FR-48 (both v0.1) are met through issue comments (FR-52) until FR-50 ships.
 - `docs/architecture.md`, `docs/adr/`, and `docs/architecture-c4.md` are rendered from the spine and add no contract, so they are not companions. The research report is reference only; where it and the spine differ, the spine wins.
 
 ## Open Questions
 
-- **Injection spike (first story of v0.1; conditions AD-7 and AD-8).** Do both pinned CLIs run from a read-only mount as user `10001:10001` with a throwaway `HOME` and all capabilities dropped, on Debian-, Ubuntu-, and Alpine-based images? Can account-linked tools and repository-supplied executable configuration be disabled in each authentication mode? Do both CLIs, and the common package managers (npm, `dotnet restore`, pip, cargo, go, Maven, Gradle), work through `HTTPS_PROXY`, which the egress proxy of NFR-4 depends on? Do the vendors' terms allow fetching the binaries this way?
 - **BMAD spike (before the Methodology epic; v0.1 depends on it).** Which BMAD workflows complete unattended under `claude -p` and `codex exec` with their files at `/hephaestus/methodology`, what do they need in the image, which workflow serves each step kind, and how does an issue map to the artifacts BMAD works from?
 - **Unsatisfiable dependencies (v0.1 intake epic).** What happens to a Task whose declared dependency fails, is closed without a merge, or is not a Task at all? FR-40 answers this only for Stacks. Also open: what opting in again means for a Task cancelled because someone who is not a Trusted User merged its pull request.
 - **GitHub edit history (to confirm by test).** Does GraphQL `userContentEdits` give a GitHub App's token the editor of an issue body and of a comment? The fail-closed behavior when it does not is settled (NFR-1).
 - **Usage Limit signals (before v0.2 design of FR-27 to FR-29).** What do Claude Code and Codex CLI emit when a real subscription Usage Limit is reached?
-- **Codex subscription sign-in.** Can a credential-only container refresh the credential safely? Is there a per-run reasoning-effort override? Until answered, Codex CLI is supported with an API key only.
+- **Codex subscription sign-in.** Unsupported: Codex CLI is supported with an API key only. Its subscription credential is a full account credential that must be kept and refreshed between runs, and the tools the account brings cannot be listed from the CLI. The per-run reasoning-effort override is confirmed. Open only as a condition for ever supporting it: a safe refresh path, and Models that differ by authentication mode.
 - **Independence detection (v0.3).** How is "this Task does not depend on pending work" determined when the issue declares no dependency?
 - **Design assumptions awaiting the Owner's review (before the first story that adds a command).** `DESIGN.md` and `EXPERIENCE.md` are drafts. The Owner chose the themes, the ember accent, Angular Material, and the noun-then-verb command grammar; the passages marked `[ASSUMPTION]` (colour values, the surface list, the command tree, comment templates, key flows) stand until the Owner changes them. Also open: whether a pull request names its Task's issue with a closing keyword.
 - **Story identity (Methodology epic).** How is a Story matched to its issue across runs, and what happens when a Story changes after its issue exists?

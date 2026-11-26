@@ -2,7 +2,7 @@
 title: "Hephaestus — Product Requirements Document"
 status: final
 created: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 ---
 
 # PRD: Hephaestus
@@ -157,6 +157,8 @@ A Project in any language or framework that can be built and tested in a Linux c
 - The environment a Project's Tasks run in is chosen per Project.
 
 **Out of Scope:** Windows-only execution environments in v1.
+
+**Notes:** The execution environment needs only Linux with glibc or musl and `bash`; Hephaestus supplies the Agent CLIs and the certificates they need. A build tool that does not honor the standard proxy variables (Maven, Gradle) needs its proxy settings supplied by the Project. Installation documentation lists them.
 
 ### 4.2 Task Intake
 
@@ -329,7 +331,7 @@ For each Agent, the Owner chooses whether it authenticates with an API key or wi
 - Sign-in always completes through the Agent's own tool; Hephaestus never presents a provider's sign-in itself and only uses the credential the Owner supplies to their own installation.
 - Installation documentation presents both modes on an equal footing and states, for each, the provider terms that apply and the risk of using a subscription for automated work.
 
-**Notes:** The architecture supports Codex CLI with an API key only until its subscription credential can be refreshed without taking a file back from a Workspace. See the architecture spine, Open Question 3.
+**Notes:** Claude Code is supported with an API key and with a subscription sign-in, the latter through a token from the vendor's `claude setup-token`. Codex CLI is supported with an API key only: its subscription credential is a file holding a full account credential that must be kept and refreshed between runs, and the tools the account brings cannot be listed from the CLI. See the architecture spine, Open Question 3, and the injection spike report.
 
 #### FR-26: Agent availability check
 

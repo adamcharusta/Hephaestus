@@ -90,6 +90,7 @@ Full report: `_bmad-output/planning-artifacts/research/technical-agent-clis-and-
 - **Windows containers** — no documentation or published image for either CLI. Stays out of scope.
 - **Integration surface** — CLI child processes (`claude -p --output-format stream-json`, `codex exec --json`). The Claude Agent SDK ships for Python and TypeScript only. ACP is adapter-only for both tools and not recommended for early releases.
 - **Security finding** — a non-bare `claude -p` run executes hooks and connects MCP servers defined in the repository with no trust prompt; `--bare` avoids this but requires an API key. In subscription mode the repository is executable configuration inside the workspace.
+  - Superseded by the injection spike (2026-11-26): `--bare` and `--safe-mode` both still apply the `env` block of the repository's settings; `--safe-mode --setting-sources user` leaves nothing and works in both authentication modes. See `docs/spikes/injection/README.md`.
 - **Usage-limit detection** — depends on an undocumented Claude Code event and an unconfirmed Codex error shape; a spike against real limits is required before designing FR-27 to FR-29 in detail.
 - **GitHub** — a pull request author cannot approve it (separate identity required); installation tokens get at least 5,000 requests/hour; conditional requests make polling cheap; the issue timeline `labeled` event names the user who applied a label.
 - **Closest comparable** — OpenAI Symphony (open spec + Elixir reference implementation). Read its SPEC before the architecture.

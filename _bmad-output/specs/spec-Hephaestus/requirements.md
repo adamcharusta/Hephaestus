@@ -25,6 +25,7 @@ Behavior settings are versioned and reviewed with the code and take effect only 
   - Adding such a Project requires no change to Hephaestus's code.
   - The environment a Project's Tasks run in is chosen per Project.
   - Out of scope: Windows-only execution environments in v1.
+  - **Note:** the execution environment needs only Linux with glibc or musl and `bash`; Hephaestus supplies the Agent CLIs and the certificates they need. A build tool that does not honor the standard proxy variables (Maven, Gradle) needs its proxy settings supplied by the Project. Installation documentation lists them.
   - **Note (addendum):** the execution environment is a per-Project abstraction (image and platform), so a Windows execution image can be added later without touching the orchestration core.
 
 ## CAP-2 — Task intake
@@ -105,7 +106,7 @@ Agents are interchangeable workers with differing capabilities. Realizes UJ-4.
 - **FR-25 — Owner-chosen authentication mode** [v0.1]. For each Agent, the Owner chooses whether it authenticates with an API key or with a subscription login, within what the provider officially permits.
   - Sign-in always completes through the Agent's own tool; Hephaestus never presents a provider's sign-in itself and only uses the credential the Owner supplies to their own installation.
   - Installation documentation presents both modes on an equal footing and states, for each, the provider terms that apply and the risk of using a subscription for automated work.
-  - **Note (spine):** Codex CLI is supported with an API key only until its subscription credential can be refreshed without taking a file back from a Workspace.
+  - **Note (spine):** Claude Code is supported with an API key and with a subscription sign-in, the latter through a token from the vendor's `claude setup-token`. Codex CLI is supported with an API key only: its subscription credential is a file holding a full account credential that must be kept and refreshed between runs, and the tools the account brings cannot be listed from the CLI.
   - **Note (addendum):** subscription sign-in for unattended use is a policy risk, not a settled permission. Anthropic's terms reserve it for ordinary individual use and allow enforcement without notice.
 - **FR-26 — Agent availability check** [v0.1]. Before using an Agent, Hephaestus verifies that it is installed and authenticated.
   - An unavailable Agent is reported to the Owner with the reason and is treated as having no capacity.
@@ -260,7 +261,7 @@ Hephaestus supplies scheduling, Agent selection, state, Handoff, Validation, and
   - Only workflows that can run without human input are used; where one needs a decision, Hephaestus raises an Escalation (FR-48).
   - **Note:** which BMAD workflows complete unattended under each Agent is unverified and needs the BMAD spike before work on this feature starts.
   - **Note (addendum):** BMAD skills call `uv` and Python scripts under `_bmad/`; the execution image of a BMAD Project must provide them.
-  - **Note (addendum):** one BMAD install writes the same skills for both Agents (`.claude/skills/` and `.agents/skills/`). Claude Code's `--bare` mode skips skill auto-discovery, so a BMAD step in API-key mode must name the skill explicitly; to verify in the spike.
+  - **Note (addendum, spine):** one BMAD install writes the same skills for both Agents (`.claude/skills/` and `.agents/skills/`). Hardened Claude Code offers no `Skill` tool and neither Agent reads a repository instruction file, so a BMAD workflow is started from its files; to verify in the BMAD spike.
 - **FR-64 — Methodology is optional and replaceable** [v0.1]. Hephaestus works on a Project that has no Methodology installed, and adding support for another Methodology requires no change to how Tasks are scheduled, validated, or approved.
   - A Project with no Methodology files in its repository completes a Task from issue to pull request using the built-in default.
   - **Note (addendum):** the built-in default is plain role prompts per step.
@@ -324,7 +325,7 @@ Agents run commands and read content that Hephaestus cannot fully trust. These h
   - **Note (owner decision):** the workspace network is a Docker internal network whose only exit is a separate, unprivileged egress proxy container. The proxy enforces both network rules. It refuses any destination that resolves to a loopback, link-local, or private address (AD-7), and it applies the Project's allowlist by host name; with no allowlist it passes any public host.
   - **Note (owner decision):** allowed hosts are set per step. The hosts an Agent's CLI needs are declared by its adapter and allowed automatically, only in the container that runs that Agent; a Validation container gets the Project's list alone. A Project never lists vendor hosts.
   - **Note (owner decision):** a tool that cannot use an HTTP proxy has no network access from a Workspace. Hephaestus sets the proxy variables in every step container, with loopback excluded, and makes git fetch `github.com` over HTTPS where an SSH address is given. Proxy settings specific to one ecosystem belong in the Project's image and in the installation documentation. A host the proxy refused is recorded with the step. Out for v1: traffic that is not HTTP or HTTPS, and intercepting traffic without the client's cooperation.
-  - **Note (owner decision):** the proxy never runs inside the orchestrator process, which holds the Docker socket. The choice is conditional on the injection spike showing that both CLIs work through `HTTPS_PROXY`. Which proxy is used and how it is started are left to the v0.1 execution epic.
+  - **Note (owner decision):** the proxy never runs inside the orchestrator process, which holds the Docker socket. A step container reaches it at one fixed, documented host name and port, which is part of the versioned public surface. Which proxy is used, how it is started, and that address are left to the v0.1 execution epic.
 - **NFR-5 — Resource and spend limits.** Each Project has limits on Task duration, processor, and memory. When an Agent runs on an API key, a spend limit stops new work and notifies the Owner once reached. Where an Agent reports no usage data, the spend limit cannot be enforced and Hephaestus says so.
 - **NFR-6 — Least privilege on GitHub.** Hephaestus's own GitHub identity has only the permissions its features need, and only on registered Projects.
 - **NFR-7 — Audit trail.** Every action Hephaestus takes that is visible outside it — push, pull request, comment, label change, merge — is recorded with its cause.

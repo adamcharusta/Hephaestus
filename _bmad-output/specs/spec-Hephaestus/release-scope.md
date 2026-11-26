@@ -51,7 +51,7 @@ NFR-1 to NFR-18 hold from v0.1, with these timings:
 
 ## Ordering
 
-- **Injection spike** is the first story of v0.1. It conditions how Agent CLIs reach a step container (AD-7, AD-8).
+- **Injection spike** was the first story of v0.1. It is done and confirmed how Agent CLIs reach a step container (AD-7, AD-8).
 - **BMAD spike** comes before the Methodology epic. v0.1 depends on it; schedule it first.
 - **Usage Limit spike** comes before FR-27 to FR-29 are designed in v0.2.
 - Recommended when epics are written: carve a proof-of-concept milestone inside v0.1.
