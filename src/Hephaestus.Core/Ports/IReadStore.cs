@@ -8,4 +8,7 @@ public interface IReadStore
 {
     /// <summary>The names of the stored secrets in ascending order, and nothing else about them.</summary>
     Task<IReadOnlyList<string>> ListSecretNamesAsync(CancellationToken cancellationToken);
+
+    /// <summary>The id of Hephaestus's own GitHub App, or null when none was connected.</summary>
+    Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken);
 }

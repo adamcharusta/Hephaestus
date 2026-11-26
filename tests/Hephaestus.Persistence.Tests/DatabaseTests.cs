@@ -24,7 +24,7 @@ public class DatabaseTests
         Assert.True(File.Exists(installation.Options.DatabasePath));
         Assert.Equal(PersistenceOptions.DatabaseFileName, Path.GetFileName(installation.Options.DatabasePath));
         await using var context = installation.Database.OpenWriter();
-        Assert.Equal(["20261126194024_InitialCreate"], await context.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(["20261126194024_InitialCreate", "20261126220000_AddGitHubAppConnection"], await context.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken));
         Assert.Empty(await context.Database.GetPendingMigrationsAsync(TestContext.Current.CancellationToken));
     }
 
@@ -76,7 +76,7 @@ public class DatabaseTests
         await installation.MigrateAsync();
 
         await using var context = installation.Database.OpenWriter();
-        Assert.Single(await context.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken));
+        Assert.Equal(2, (await context.Database.GetAppliedMigrationsAsync(TestContext.Current.CancellationToken)).Count());
     }
 
     [Fact]

@@ -11,6 +11,26 @@ internal sealed record SecretNameDocument(string Name);
 /// <summary>The stored secrets, by name only.</summary>
 internal sealed record SecretListDocument(IReadOnlyList<SecretNameDocument> Secrets);
 
+/// <summary>One place the GitHub App is installed, with the repositories it reaches there.</summary>
+internal sealed record GitHubInstallationDocument(long Id, string Account, string AccountType, string RepositorySelection, bool Suspended, IReadOnlyList<string> Repositories);
+
+/// <summary>One required permission: what the App needs, what it has (<c>none</c>, <c>read</c>, <c>write</c>, <c>admin</c>), and whether that is enough.</summary>
+internal sealed record GitHubPermissionDocument(string Name, string Required, string Granted, bool Present);
+
+/// <summary>A permission the App must not have, and the level at which it has it.</summary>
+internal sealed record GitHubWarningDocument(string Name, string Granted);
+
+/// <summary>Hephaestus's own GitHub App as GitHub reports it. It holds no credential.</summary>
+internal sealed record GitHubIdentityDocument(
+    long AppId,
+    string Slug,
+    string Name,
+    string Owner,
+    bool Ready,
+    IReadOnlyList<GitHubInstallationDocument> Installations,
+    IReadOnlyList<GitHubPermissionDocument> Permissions,
+    IReadOnlyList<GitHubWarningDocument> Warnings);
+
 /// <summary>An RFC 9457 problem details document. <c>type</c> is never translated; <c>title</c> and <c>detail</c> are.</summary>
 internal sealed record ProblemDocument(string Type, string Title, int Status, string Detail);
 
@@ -19,5 +39,6 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(VersionDocument))]
 [JsonSerializable(typeof(SecretNameDocument))]
 [JsonSerializable(typeof(SecretListDocument))]
+[JsonSerializable(typeof(GitHubIdentityDocument))]
 [JsonSerializable(typeof(ProblemDocument))]
 internal sealed partial class ApiJson : JsonSerializerContext;

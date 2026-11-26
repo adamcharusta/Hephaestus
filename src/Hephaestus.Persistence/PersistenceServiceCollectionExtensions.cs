@@ -15,6 +15,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddSingleton(provider => new DatabaseMigrator(provider.GetRequiredService<HephaestusDatabase>()));
         services.AddSingleton<IReadStore, SqliteReadStore>();
         services.AddSingleton<ISecretStore, FileSecretStore>();
+        services.AddSingleton<IInstallationConfiguration, SqliteInstallationConfiguration>();
         return services;
     }
 }

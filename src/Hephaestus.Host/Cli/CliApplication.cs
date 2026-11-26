@@ -41,6 +41,13 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return NotUnderstood;
         }
 
+        // The same for the App's private key: any token that is not understood may be the key, so none is echoed, not even beside --help.
+        if (parse.CommandResult.Command == tree.GitHubConnect && (parse.UnmatchedTokens.Count > 0 || (!help && parse.Errors.Count > 0)))
+        {
+            WriteFailure(MessageIds.CliGitHubConnectArgumentsTitle, new Message(MessageIds.CliGitHubConnectArgumentsDetail));
+            return NotUnderstood;
+        }
+
         // Help is answered even when a required argument is missing: `secret set --help` has no name to give.
         if (parse.UnmatchedTokens.Count > 0 || (parse.Errors.Count > 0 && !help))
         {
@@ -73,6 +80,16 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
         if (command == tree.SecretRemove)
         {
             return await RemoveSecretAsync(parse.GetValue(tree.SecretRemoveName)!, json, cancellationToken);
+        }
+
+        if (command == tree.GitHubConnect)
+        {
+            return await ConnectGitHubAsync(parse.GetValue(tree.GitHubAppId), json, cancellationToken);
+        }
+
+        if (command == tree.GitHubCheck)
+        {
+            return await CheckGitHubAsync(json, cancellationToken);
         }
 
         HelpWriter.Write(command, tree.Help, output, language);
@@ -173,10 +190,59 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
         return Success;
     }
 
+    private async Task<int> ConnectGitHubAsync(long appId, bool json, CancellationToken cancellationToken)
+    {
+        var privateKey = await ReadValueAsync(cancellationToken);
+        var answer = await CallAsync(HttpMethod.Put, "/api/github/app/" + appId.ToString(System.Globalization.CultureInfo.InvariantCulture), privateKey, cancellationToken);
+        return answer is null ? Failure : RenderGitHubIdentity(answer, json, connected: true);
+    }
+
+    private async Task<int> CheckGitHubAsync(bool json, CancellationToken cancellationToken)
+    {
+        var answer = await CallAsync(HttpMethod.Get, "/api/github/identity", body: null, cancellationToken);
+        return answer is null ? Failure : RenderGitHubIdentity(answer, json, connected: false);
+    }
+
+    private int RenderGitHubIdentity(ApiAnswer answer, bool json, bool connected)
+    {
+        if (!answer.IsSuccess)
+        {
+            return Report(answer);
+        }
+
+        if (json)
+        {
+            output.WriteLine(answer.Body.Trim());
+            return Success;
+        }
+
+        var identity = ReadGitHubIdentity(answer.Body);
+        if (identity is null)
+        {
+            return Report(answer with { Problem = null });
+        }
+
+        GitHubReport.Write(identity, connected, _catalog, settings.Language, output);
+        return Success;
+    }
+
+    private static GitHubIdentityDocument? ReadGitHubIdentity(string body)
+    {
+        try
+        {
+            var identity = JsonSerializer.Deserialize(body, ApiJson.Default.GitHubIdentityDocument);
+            return identity is { Installations: not null, Permissions: not null, Warnings: not null } ? identity : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Everything standard input holds, up to what a value of the longest length and its line break take, plus one character; the API
     /// refuses what is too long. One trailing line break is dropped so that <c>echo value |</c> works. The value is never echoed,
-    /// logged, or kept after the request.
+    /// logged, or kept after the request. It is a secret's value, or the GitHub App's private key.
     /// </summary>
     private async Task<string> ReadValueAsync(CancellationToken cancellationToken)
     {

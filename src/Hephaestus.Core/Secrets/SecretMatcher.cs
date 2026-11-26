@@ -19,7 +19,7 @@ internal sealed class SecretMatcher
     public SecretMatcher(IEnumerable<string> values)
     {
         var forms = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var value in values.SelectMany(value => new[] { value, SecretPolicy.TrimTrailingLineBreak(value) }))
+        foreach (var value in values.SelectMany(Candidates))
         {
             // A value below the policy's minimum, or one that is only white space, would mask ordinary text, so a file that holds
             // one is ignored. The value without its trailing line break is a form too: the command line never stores a line break,
@@ -42,6 +42,31 @@ internal sealed class SecretMatcher
     }
 
     public bool IsEmpty => _forms.Length == 0;
+
+    /// <summary>
+    /// What to look for in one stored value: the value, the value without its trailing line break, and, when it spans lines (a PEM
+    /// private key), each line on its own, because a tool may log it one line at a time. The lines of a PEM block that frame the
+    /// key are not secret and are left out; so is any line too short to be told from ordinary text, which the check above drops.
+    /// </summary>
+    private static IEnumerable<string> Candidates(string value)
+    {
+        yield return value;
+        yield return SecretPolicy.TrimTrailingLineBreak(value);
+
+        if (!value.Contains('\n'))
+        {
+            yield break;
+        }
+
+        foreach (var line in value.Split('\n'))
+        {
+            var trimmed = line.TrimEnd('\r');
+            if (!trimmed.StartsWith("-----", StringComparison.Ordinal))
+            {
+                yield return trimmed;
+            }
+        }
+    }
 
     /// <summary>
     /// Appends <paramref name="text"/> to <paramref name="output"/> with every run that holds a secret replaced by

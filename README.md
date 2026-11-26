@@ -46,7 +46,24 @@ volumes are the whole installation state, so back up both, with the container st
 Hephaestus writes its own log lines through a masker: a stored value that a line holds is replaced by `***`, and so are its
 base64 and URL-encoded forms. A secret you add, change, or remove is masked, or no longer masked, from the next line, without a
 restart; a file placed on the volume by hand is noticed at the next change or restart. A value shorter than 8 characters is never
-masked. Only the host's own log lines pass through the masker so far, and other encodings of a value are not caught.
+masked. A value that spans lines, such as a PEM private key, is masked whole and line by line. Only the host's own log lines pass
+through the masker so far, and other encodings of a value are not caught.
+
+## GitHub identity
+
+Hephaestus acts on GitHub as its own GitHub App, so that you can approve the pull requests it opens. Create the App with exactly the
+permissions it needs, install it on your repositories, and connect it, as [`docs/github-app.md`](docs/github-app.md) describes:
+
+```bash
+docker exec -i hephaestus hephaestus github connect --app-id 123456 < hephaestus.pem   # the App's private key on standard input
+docker exec hephaestus hephaestus github check                                          # identity, repositories, permissions
+```
+
+Both print the App, the repositories it is installed on, and each required permission as present or missing (on the App and on
+every installation of it), and warn when `workflows` or administration is granted. The exit code says whether GitHub answered;
+`--json` has a `ready` field for whether the permissions are enough. The private key is stored as the secret `github-app-private-key`; it is stored only
+once GitHub has accepted it, and a failure says whether GitHub was unreachable or refused the credential. No feature uses the
+identity yet.
 
 ## Build and test
 

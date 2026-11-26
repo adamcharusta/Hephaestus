@@ -1,5 +1,7 @@
 using System.Net.Sockets;
+using Hephaestus.Core.Ports;
 using Hephaestus.Core.Secrets;
+using Hephaestus.GitHub;
 using Hephaestus.Host.Api;
 using Hephaestus.Persistence;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -27,6 +29,11 @@ internal static class ControlHost
 
         builder.Services.AddSingleton(settings);
         builder.Services.AddHephaestusPersistence(settings.Persistence);
+        builder.Services.TryAddSingleton<ICodeHost>(provider => new GitHubGateway(
+            provider.GetRequiredService<ISecretStore>(),
+            provider.GetRequiredService<IReadStore>(),
+            provider.GetRequiredService<IInstallationConfiguration>(),
+            provider.GetRequiredService<TimeProvider>()));
         builder.Logging.ClearProviders();
         // The container's health check calls the API every few seconds; its request lines are not worth a log line each.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
