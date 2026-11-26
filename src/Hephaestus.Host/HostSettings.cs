@@ -4,9 +4,10 @@ using Hephaestus.Persistence;
 namespace Hephaestus.Host;
 
 /// <summary>
-/// What the host and the command line read from the environment. The language is the installation's; Story 1.9 moves it
-/// into Installation Configuration, where the Owner sets it from the command line. The two directories are the mount points of
-/// the <c>hephaestus-data</c> and <c>hephaestus-secrets</c> volumes (AR-39); only the host reads them.
+/// What the host and the command line read from the environment. The installation's language is a setting the Owner stores
+/// (Story 1.9); <see cref="Language"/> is what the environment names, English when it names none, and serves only an installation that has
+/// stored none and a command that cannot ask the host. The two directories are the mount points of the <c>hephaestus-data</c> and
+/// <c>hephaestus-secrets</c> volumes (AR-39); only the host reads them.
 /// </summary>
 internal sealed record HostSettings(string ControlSocketPath, Language Language, string DataDirectory, string SecretsDirectory)
 {

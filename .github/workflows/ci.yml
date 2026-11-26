@@ -145,6 +145,10 @@ jobs:
         run: |
           docker exec -e HEPHAESTUS_LANGUAGE=pl hephaestus hephaestus version | grep -q 'Hephaestus w wersji'
           docker exec hephaestus hephaestus version | grep -q 'Hephaestus version'
+          docker exec hephaestus hephaestus setting set language pl
+          docker exec hephaestus hephaestus version | grep -q 'Hephaestus w wersji'
+          docker exec hephaestus hephaestus setting set language en
+          docker exec hephaestus hephaestus version | grep -q 'Hephaestus version'
 
       - name: Logs are JSON objects, one per line
         run: docker logs hephaestus 2>/dev/null | python3 -c 'import json, sys; lines = sys.stdin.read().splitlines(); assert lines; [json.loads(l) for l in lines]'

@@ -1,3 +1,5 @@
+using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Trust;
 using Hephaestus.Persistence.Model;
@@ -47,5 +49,91 @@ internal sealed class SqliteInstallationConfiguration(HephaestusDatabase databas
     {
         await using var context = database.OpenWriter();
         return await context.TrustedUsers.Where(u => u.UserId == userId).ExecuteDeleteAsync(cancellationToken) > 0;
+    }
+
+    public async Task<AliasWrite> AddAliasAsync(Alias alias, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        var addedAt = UtcInstantConverter.ToText(alias.AddedAt);
+        var agent = alias.Agent?.Tag();
+        var effort = alias.Effort?.Tag();
+
+        // One transaction: the insert is the statement that knows whether the name was free, and the row read back is the one now stored.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var inserted = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "Aliases" ("Name", "Agent", "Model", "Effort", "AddedAt") VALUES ({alias.Name}, {agent}, {alias.Model}, {effort}, {addedAt})
+            ON CONFLICT ("Name") DO NOTHING
+            """,
+            cancellationToken);
+        var stored = await context.Aliases.AsNoTracking().SingleAsync(a => a.Name == alias.Name, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new AliasWrite(SqliteReadStore.ToAlias(stored), inserted > 0);
+    }
+
+    public async Task<Alias?> RemoveAliasAsync(string name, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // A write first: a transaction that reads and then writes fails at once, past the busy timeout, when another writer has
+        // committed in between, and this one must answer "not an Alias" or the Alias, never an error.
+        var touched = await context.Database.ExecuteSqlInterpolatedAsync($"""UPDATE "Aliases" SET "Name" = "Name" WHERE "Name" = {name}""", cancellationToken);
+        if (touched == 0)
+        {
+            return null;
+        }
+
+        var stored = await context.Aliases.AsNoTracking().SingleAsync(a => a.Name == name, cancellationToken);
+        await context.Aliases.Where(a => a.Name == name).ExecuteDeleteAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return SqliteReadStore.ToAlias(stored);
+    }
+
+    public async Task<InstallationLimits> SetLimitsAsync(LimitsChange change, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        var seconds = change.TaskDuration is { } duration ? (long?)duration.TotalSeconds : null;
+
+        // One statement per change keeps the limits that were not named; the row read back is what is stored now.
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "InstallationLimits" ("Id", "TaskDurationSeconds", "CpuMillis", "MemoryBytes")
+            VALUES ({InstallationLimitsEntry.TheOnlyId}, {seconds}, {change.CpuMillis}, {change.MemoryBytes})
+            ON CONFLICT ("Id") DO UPDATE SET
+                "TaskDurationSeconds" = COALESCE(excluded."TaskDurationSeconds", "InstallationLimits"."TaskDurationSeconds"),
+                "CpuMillis" = COALESCE(excluded."CpuMillis", "InstallationLimits"."CpuMillis"),
+                "MemoryBytes" = COALESCE(excluded."MemoryBytes", "InstallationLimits"."MemoryBytes")
+            """,
+            cancellationToken);
+        var stored = await context.InstallationLimits.AsNoTracking().SingleAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return SqliteReadStore.ToLimits(stored);
+    }
+
+    public async Task<bool> AddProtectedPathAsync(string glob, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        return await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""INSERT INTO "ProtectedPaths" ("Pattern") VALUES ({glob}) ON CONFLICT ("Pattern") DO NOTHING""",
+            cancellationToken) > 0;
+    }
+
+    public async Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        return await context.ProtectedPaths.Where(p => p.Pattern == glob).ExecuteDeleteAsync(cancellationToken) > 0;
+    }
+
+    public async Task SetSettingAsync(string name, string value, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "Settings" ("Name", "Value") VALUES ({name}, {value})
+            ON CONFLICT ("Name") DO UPDATE SET "Value" = excluded."Value"
+            """,
+            cancellationToken);
     }
 }

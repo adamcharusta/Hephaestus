@@ -46,7 +46,50 @@ internal sealed class CommandTree
 
         TrustedUser.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub, TrustedUser };
+        AliasAddName = new Argument<string>("name");
+        AliasRemoveName = new Argument<string>("name");
+        AliasAgent = new Option<string>("--agent") { Description = Describe(MessageIds.CliAliasOptionAgent) };
+        AliasModel = new Option<string>("--model") { Description = Describe(MessageIds.CliAliasOptionModel) };
+        AliasEffort = new Option<string>("--effort") { Description = Describe(MessageIds.CliAliasOptionEffort) };
+        AliasAdd = new Command("add", Describe(MessageIds.CliAliasAddDescription)) { AliasAddName, AliasAgent, AliasModel, AliasEffort, Json };
+        AliasList = new Command("list", Describe(MessageIds.CliAliasListDescription)) { Json };
+        AliasRemove = new Command("remove", Describe(MessageIds.CliAliasRemoveDescription)) { AliasRemoveName, Json };
+        Alias = new Command("alias", Describe(MessageIds.CliAliasDescription)) { AliasAdd, AliasList, AliasRemove };
+
+        Alias.SetAction(_ => 0);
+
+        LimitTaskDuration = new Option<string>("--task-duration") { Description = Describe(MessageIds.CliLimitOptionTaskDuration) };
+        LimitCpus = new Option<string>("--cpus") { Description = Describe(MessageIds.CliLimitOptionCpus) };
+        LimitMemory = new Option<string>("--memory") { Description = Describe(MessageIds.CliLimitOptionMemory) };
+        LimitSet = new Command("set", Describe(MessageIds.CliLimitSetDescription)) { LimitTaskDuration, LimitCpus, LimitMemory, Json };
+        LimitShow = new Command("show", Describe(MessageIds.CliLimitShowDescription)) { Json };
+        Limit = new Command("limit", Describe(MessageIds.CliLimitDescription)) { LimitSet, LimitShow };
+
+        Limit.SetAction(_ => 0);
+
+        ProtectedPathAddGlob = new Argument<string>("glob");
+        ProtectedPathRemoveGlob = new Argument<string>("glob");
+        ProtectedPathAdd = new Command("add", Describe(MessageIds.CliProtectedPathAddDescription)) { ProtectedPathAddGlob, Json };
+        ProtectedPathList = new Command("list", Describe(MessageIds.CliProtectedPathListDescription)) { Json };
+        ProtectedPathRemove = new Command("remove", Describe(MessageIds.CliProtectedPathRemoveDescription)) { ProtectedPathRemoveGlob, Json };
+        ProtectedPath = new Command("protected-path", Describe(MessageIds.CliProtectedPathDescription)) { ProtectedPathAdd, ProtectedPathList, ProtectedPathRemove };
+
+        ProtectedPath.SetAction(_ => 0);
+
+        SettingSetName = new Argument<string>("name");
+        SettingSetValue = new Argument<string>("value");
+        SettingList = new Command("list", Describe(MessageIds.CliSettingListDescription)) { Json };
+        SettingSet = new Command("set", Describe(MessageIds.CliSettingSetDescription)) { SettingSetName, SettingSetValue, Json };
+        Setting = new Command("setting", Describe(MessageIds.CliSettingDescription)) { SettingList, SettingSet };
+
+        Setting.SetAction(_ => 0);
+
+        ConfigShow = new Command("show", Describe(MessageIds.CliConfigShowDescription)) { Json };
+        Config = new Command("config", Describe(MessageIds.CliConfigDescription)) { ConfigShow };
+
+        Config.SetAction(_ => 0);
+
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -80,6 +123,62 @@ internal sealed class CommandTree
     public Argument<string> TrustedUserAddLogin { get; }
 
     public Argument<string> TrustedUserRemoveLogin { get; }
+
+    public Command Alias { get; }
+
+    public Command AliasAdd { get; }
+
+    public Command AliasList { get; }
+
+    public Command AliasRemove { get; }
+
+    public Argument<string> AliasAddName { get; }
+
+    public Argument<string> AliasRemoveName { get; }
+
+    public Option<string> AliasAgent { get; }
+
+    public Option<string> AliasModel { get; }
+
+    public Option<string> AliasEffort { get; }
+
+    public Command Limit { get; }
+
+    public Command LimitSet { get; }
+
+    public Command LimitShow { get; }
+
+    public Option<string> LimitTaskDuration { get; }
+
+    public Option<string> LimitCpus { get; }
+
+    public Option<string> LimitMemory { get; }
+
+    public Command ProtectedPath { get; }
+
+    public Command ProtectedPathAdd { get; }
+
+    public Command ProtectedPathList { get; }
+
+    public Command ProtectedPathRemove { get; }
+
+    public Argument<string> ProtectedPathAddGlob { get; }
+
+    public Argument<string> ProtectedPathRemoveGlob { get; }
+
+    public Command Setting { get; }
+
+    public Command SettingList { get; }
+
+    public Command SettingSet { get; }
+
+    public Argument<string> SettingSetName { get; }
+
+    public Argument<string> SettingSetValue { get; }
+
+    public Command Config { get; }
+
+    public Command ConfigShow { get; }
 
     public Option<long> GitHubAppId { get; }
 

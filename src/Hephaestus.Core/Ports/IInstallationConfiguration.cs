@@ -1,3 +1,5 @@
+using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Limits;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
@@ -19,4 +21,25 @@ public interface IInstallationConfiguration
 
     /// <summary>Removes the Trusted User with that id; false when none was stored.</summary>
     Task<bool> RemoveTrustedUserAsync(long userId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stores an Alias. An Alias of that name already stored is returned unchanged with <see cref="AliasWrite.Added"/> false; Core
+    /// decides whether that is the same Alias again or a conflict.
+    /// </summary>
+    Task<AliasWrite> AddAliasAsync(Alias alias, CancellationToken cancellationToken);
+
+    /// <summary>Removes the Alias of that name and returns it; null when none was stored.</summary>
+    Task<Alias?> RemoveAliasAsync(string name, CancellationToken cancellationToken);
+
+    /// <summary>Changes the limits that <paramref name="change"/> names and keeps the others; returns the limits as stored now.</summary>
+    Task<InstallationLimits> SetLimitsAsync(LimitsChange change, CancellationToken cancellationToken);
+
+    /// <summary>Adds a protected path; false when it was already listed.</summary>
+    Task<bool> AddProtectedPathAsync(string glob, CancellationToken cancellationToken);
+
+    /// <summary>Removes a protected path; false when it was not listed.</summary>
+    Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken);
+
+    /// <summary>Stores the value of an installation setting, replacing an earlier one. Core has checked the name and the value.</summary>
+    Task SetSettingAsync(string name, string value, CancellationToken cancellationToken);
 }

@@ -44,6 +44,13 @@ internal sealed class ControlApiClient : IDisposable
             BaseAddress = BaseAddress,
             Timeout = TimeSpan.FromSeconds(30),
         };
+        UseLanguage(language);
+    }
+
+    /// <summary>Names the language the command line writes in, so that the host answers its problems in the same one.</summary>
+    public void UseLanguage(Language language)
+    {
+        _http.DefaultRequestHeaders.AcceptLanguage.Clear();
         _http.DefaultRequestHeaders.AcceptLanguage.Add(new StringWithQualityHeaderValue(language.Tag()));
     }
 

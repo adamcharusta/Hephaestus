@@ -24,6 +24,11 @@ internal static class ControlApi
 
         GitHubApi.Map(routes);
         TrustedUserApi.Map(routes);
+        AliasApi.Map(routes);
+        LimitApi.Map(routes);
+        ProtectedPathApi.Map(routes);
+        SettingApi.Map(routes);
+        ConfigurationApi.Map(routes);
     }
 
     private static async Task<IResult> ListSecretsAsync(IReadStore store, CancellationToken cancellationToken)

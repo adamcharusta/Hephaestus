@@ -1,3 +1,5 @@
+using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Trust;
 
@@ -42,6 +44,26 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
     public Task<IReadOnlyList<string>> ReadAllAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([.. Secrets.Values]);
 
     public Task<IReadOnlyList<string>> ListSecretNamesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([.. Secrets.Keys.Order()]);
+
+    public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<AliasWrite> AddAliasAsync(Alias alias, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Alias?> RemoveAliasAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstallationLimits> SetLimitsAsync(LimitsChange change, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<bool> AddProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task SetSettingAsync(string name, string value, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => Task.FromResult(AppId);
 

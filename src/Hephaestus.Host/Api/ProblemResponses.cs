@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using Hephaestus.Core.Localization;
+using Hephaestus.Core.Ports;
+using Hephaestus.Core.Settings;
 
 namespace Hephaestus.Host.Api;
 
@@ -31,15 +33,32 @@ internal static class ProblemResponses
     }
 
     /// <summary>Writes a problem the handler chose: its status, the <c>type</c> slug, the title id, and the detail message.</summary>
-    public static Task WriteAsync(HttpContext context, HostSettings settings, int status, string slug, string titleId, Message detail)
+    public static async Task WriteAsync(HttpContext context, HostSettings settings, int status, string slug, string titleId, Message detail)
     {
-        var language = LanguageResolver.ForRequest(context.Request.Headers.AcceptLanguage.ToString(), settings.Language);
+        var language = LanguageResolver.FromHeader(context.Request.Headers.AcceptLanguage.ToString()) ?? await InstallationLanguageAsync(context, settings);
         var catalog = MessageCatalog.Instance;
         var problem = new ProblemDocument(TypePrefix + slug, catalog.Resolve(titleId, language), status, catalog.Resolve(detail, language));
 
         context.Response.StatusCode = status;
         context.Response.ContentType = ContentType;
-        return JsonSerializer.SerializeAsync(context.Response.Body, problem, ApiJson.Default.ProblemDocument, context.RequestAborted);
+        await JsonSerializer.SerializeAsync(context.Response.Body, problem, ApiJson.Default.ProblemDocument, context.RequestAborted);
+    }
+
+    /// <summary>
+    /// The language the Owner stored; the environment's when none was stored, or when the database cannot be read, because a failure
+    /// about the database is still to be told.
+    /// </summary>
+    private static async Task<Language> InstallationLanguageAsync(HttpContext context, HostSettings settings)
+    {
+        try
+        {
+            var stored = await context.RequestServices.GetRequiredService<IReadStore>().ListSettingsAsync(context.RequestAborted);
+            return LanguageResolver.Installation(InstallationSettings.StoredLanguage(stored), settings.Language);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            return settings.Language;
+        }
     }
 
     public static Task WriteUnexpectedAsync(HttpContext context, HostSettings settings)

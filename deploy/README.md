@@ -28,6 +28,8 @@ docker exec hephaestus hephaestus version
 - **Secrets.** `docker exec -i hephaestus hephaestus secret set <name>` reads the value from standard input; see the
   [README](../README.md#secrets).
 - **Health.** The container's health check is `hephaestus version --json`, so it is healthy when the API answers.
-- **Language.** `HEPHAESTUS_LANGUAGE` is `en` (default) or `pl`. Story 1.9 makes it a setting of the installation.
+- **Language.** The installation's language is a setting: `docker exec hephaestus hephaestus setting set language pl` (`en` or `pl`), used by the
+  next command. `HEPHAESTUS_LANGUAGE` (`en` by default) is only the language of an installation that has set none, and of a command that cannot
+  reach the host, so an installation that already sets it keeps its language until the setting is made.
 - **Image.** Compose builds it from this repository when it is not on the machine; the release story (1.13) publishes it.
   Build it by hand from the repository root with `docker build -f deploy/Dockerfile -t hephaestus .`.
