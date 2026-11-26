@@ -1,6 +1,7 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
@@ -58,6 +59,19 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         await using var context = database.OpenReader();
         return await context.Settings.ToDictionaryAsync(s => s.Name, s => s.Value, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.Projects.Where(p => includeRemoved || p.RemovedAt == null).ToListAsync(cancellationToken);
+
+        // The case-insensitive order is the Owner's, not SQLite's binary one.
+        return [.. entries
+            .OrderBy(p => p.FullName, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.FullName, StringComparer.Ordinal).ThenBy(p => p.RepositoryId)
+            .Select(ToProject)];
+    }
+
+    internal static Project ToProject(ProjectEntry entry) => new(entry.RepositoryId, entry.FullName, entry.BaseBranch, entry.RegisteredAt, entry.RemovedAt);
 
     internal static InstallationLimits ToLimits(InstallationLimitsEntry entry) =>
         new(entry.TaskDurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null, entry.CpuMillis, entry.MemoryBytes);

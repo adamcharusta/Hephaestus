@@ -76,6 +76,19 @@ internal sealed record ConfigurationDocument(
     IReadOnlyList<SettingDocument> Settings,
     IReadOnlyList<SecretNameDocument> Secrets);
 
+/// <summary>
+/// A Project (FR-1). <c>repositoryId</c> is GitHub's numeric id and the identity; <c>name</c> (<c>owner/repo</c>) is display only.
+/// <c>removedAt</c> is null while Hephaestus works on the Project. <c>change</c> (<c>registered</c>, <c>updated</c>, <c>unchanged</c>) and
+/// <c>baseBranchProtected</c> are set only in the answer to a registration; <c>baseBranchProtected</c> is what GitHub reports.
+/// </summary>
+internal sealed record ProjectDocument(long RepositoryId, string Name, string BaseBranch, string RegisteredAt, string? RemovedAt, string? Change, bool? BaseBranchProtected);
+
+/// <summary>The Projects, ascending by name.</summary>
+internal sealed record ProjectListDocument(IReadOnlyList<ProjectDocument> Projects);
+
+/// <summary>The Base Branch a Project is to be registered with.</summary>
+internal sealed record ProjectRequest(string? BaseBranch);
+
 /// <summary>An RFC 9457 problem details document. <c>type</c> is never translated; <c>title</c> and <c>detail</c> are.</summary>
 internal sealed record ProblemDocument(string Type, string Title, int Status, string Detail);
 
@@ -97,5 +110,8 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(SettingDocument))]
 [JsonSerializable(typeof(SettingListDocument))]
 [JsonSerializable(typeof(ConfigurationDocument))]
+[JsonSerializable(typeof(ProjectDocument))]
+[JsonSerializable(typeof(ProjectListDocument))]
+[JsonSerializable(typeof(ProjectRequest))]
 [JsonSerializable(typeof(ProblemDocument))]
 internal sealed partial class ApiJson : JsonSerializerContext;

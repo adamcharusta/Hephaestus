@@ -20,6 +20,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<SettingEntry> Settings => Set<SettingEntry>();
 
+    public DbSet<ProjectEntry> Projects => Set<ProjectEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -84,6 +86,15 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             setting.HasKey(s => s.Name);
             setting.Property(s => s.Name).HasMaxLength(64).ValueGeneratedNever();
             setting.Property(s => s.Value).IsRequired().HasMaxLength(200);
+        });
+
+        model.Entity<ProjectEntry>(project =>
+        {
+            project.ToTable("Projects");
+            project.HasKey(p => p.RepositoryId);
+            project.Property(p => p.RepositoryId).ValueGeneratedNever();
+            project.Property(p => p.FullName).IsRequired().HasMaxLength(Core.Projects.ProjectName.MaximumOwnerLength + 1 + Core.Projects.ProjectName.MaximumRepositoryLength);
+            project.Property(p => p.BaseBranch).IsRequired().HasMaxLength(Core.Projects.ProjectName.MaximumBranchLength);
         });
     }
 }

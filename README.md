@@ -111,6 +111,27 @@ number from `0.1` to `1024`, and memory is `512m` or `4g` (64m to 4096g). A limi
 protected paths are stored and shown; nothing checks a Project Configuration against the limits, or a Task's changes against the
 protected paths, yet. Everything is in the database on the `hephaestus-data` volume and survives a restart.
 
+## Projects
+
+A Project is a GitHub repository Hephaestus works on, and on no other. Connect the GitHub App and install it on the repository first
+([`docs/github-app.md`](docs/github-app.md)); then register the repository with its Base Branch, the branch that Tasks start from and
+that approved pull requests are merged into:
+
+```bash
+docker exec hephaestus hephaestus project add acme/shop --base-branch main
+docker exec hephaestus hephaestus project list                  # name, GitHub repository id, Base Branch, when registered; --all adds removed Projects
+docker exec hephaestus hephaestus project remove acme/shop
+```
+
+`project add` looks the repository up as the App, so it fails, and says which is wrong, when the App is not installed on the
+repository (or the repository does not exist) or when the Base Branch does not exist. It then says whether GitHub reports the Base
+Branch as protected (the `protected` flag GitHub gives the branch), and recommends protecting it against direct pushes when it does not; Hephaestus has no administration permission, so
+it cannot read what a protection requires and does not claim anything about it. A Project is stored under GitHub's numeric repository
+id, so a repository that is renamed is still the same Project: register it again under its new name to refresh the name shown, or
+remove it by its new name. Registering a Project again with another Base Branch changes the Base Branch. `project remove` retires the
+Project and keeps its record and everything recorded under it; registering it again brings it back. The Projects live in the database
+on the `hephaestus-data` volume and survive a restart. Nothing reads `hephaestus.yml` or starts a Task yet.
+
 ## Build and test
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Python 3.

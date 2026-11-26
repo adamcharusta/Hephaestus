@@ -40,6 +40,16 @@ internal sealed class FakeGitHub : HttpMessageHandler
         ["hephaestus-test[bot]"] = """{"login":"hephaestus-test[bot]","id":99999,"type":"Bot"}""",
     };
 
+    /// <summary>Branches by repository id and name, as GitHub answers <c>GET /repositories/{id}/branches/{name}</c>: whether each is protected.</summary>
+    public Dictionary<string, bool> Branches { get; } = new()
+    {
+        ["1/main"] = true,
+        ["1/release/1.0"] = true,
+        ["1/a#b"] = false,
+        ["1/a+b"] = true,
+        ["2/main"] = false,
+    };
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -72,6 +82,7 @@ internal sealed class FakeGitHub : HttpMessageHandler
             "/app" => Json(HttpStatusCode.OK, AppJson),
             "/app/installations" => Json(HttpStatusCode.OK, InstallationsJson),
             "/installation/repositories" => Json(HttpStatusCode.OK, RepositoriesOf(request)),
+            _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/branches/", StringComparison.Ordinal) => BranchAt(path),
             _ when path.StartsWith("/users/", StringComparison.Ordinal) => Users.TryGetValue(Uri.UnescapeDataString(path["/users/".Length..]), out var user)
                 ? Json(HttpStatusCode.OK, user)
                 : Json(HttpStatusCode.NotFound, """{"message":"Not Found"}"""),
@@ -79,6 +90,14 @@ internal sealed class FakeGitHub : HttpMessageHandler
                 => Json(HttpStatusCode.Created, $$"""{"token":"{{InstallationToken}}","expires_at":"2099-01-01T00:00:00Z"}"""),
             _ => Json(HttpStatusCode.NotFound, """{"message":"Not Found"}"""),
         };
+    }
+
+    private HttpResponseMessage BranchAt(string path)
+    {
+        var parts = Uri.UnescapeDataString(path["/repositories/".Length..]).Split("/branches/", 2);
+        return Branches.TryGetValue(parts[0] + "/" + parts[1], out var isProtected)
+            ? Json(HttpStatusCode.OK, $$$"""{"name":"{{{parts[1]}}}","protected":{{{(isProtected ? "true" : "false")}}},"commit":{"sha":"abc","url":"https://api.github.com/x"}}""")
+            : Json(HttpStatusCode.NotFound, """{"message":"Branch not found"}""");
     }
 
     /// <summary>The repositories of the installation whose token the request carries; every token here belongs to the last one asked for.</summary>

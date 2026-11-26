@@ -1,6 +1,7 @@
 using System.Globalization;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Settings;
 using Hephaestus.Core.Trust;
 
@@ -22,4 +23,15 @@ internal static class Documents
         limits.MemoryBytes is { } memory ? LimitFormat.FormatMemory(memory) : null);
 
     public static SettingDocument Setting(SettingValue setting) => new(setting.Name, setting.Value, setting.Default, setting.IsSet);
+
+    /// <param name="change">What a registration did; null when the document is not the answer to one.</param>
+    /// <param name="baseBranchProtected">What GitHub reports of the Base Branch; known only when the Project was registered just now.</param>
+    public static ProjectDocument Project(Project project, ProjectChange? change = null, bool? baseBranchProtected = null) => new(
+        project.RepositoryId,
+        project.FullName,
+        project.BaseBranch,
+        Time(project.RegisteredAt),
+        project.RemovedAt is { } removed ? Time(removed) : null,
+        change switch { ProjectChange.Registered => "registered", ProjectChange.Updated => "updated", ProjectChange.Unchanged => "unchanged", _ => null },
+        baseBranchProtected);
 }

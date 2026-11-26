@@ -2,6 +2,7 @@ using Hephaestus.Core.Aliases;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Tests.Trust;
@@ -65,6 +66,13 @@ public class TrustedUserServiceTests
         public Task<GitHubIdentityResult> ConnectIdentityAsync(long appId, string privateKey, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<GitHubIdentityResult> CheckIdentityAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<IReadOnlyList<string>> ListSecretNamesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -297,5 +305,9 @@ public class TrustedUserServiceTests
     public Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task SetSettingAsync(string name, string value, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

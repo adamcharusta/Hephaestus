@@ -76,7 +76,7 @@ internal sealed partial class CliApplication
             return await ShowAsync(HttpMethod.Get, "/api/configuration", null, json, ApiJson.Default.ConfigurationDocument, IsWhole, (configuration, _) => WriteConfiguration(configuration), cancellationToken);
         }
 
-        return null;
+        return await RunProjectAsync(command, parse, tree, json, cancellationToken);
     }
 
     /// <summary>
