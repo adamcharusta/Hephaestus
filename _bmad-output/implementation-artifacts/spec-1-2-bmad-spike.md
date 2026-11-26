@@ -82,6 +82,8 @@ context:
 
 - 2026-11-26. The Owner accepted the report and settled the six decisions it raised; they are recorded in the report's section "Raised with the Owner" and in pull request #4. The story is closed in `sprint-status.yaml` in that pull request, at the Owner's instruction. The 15 findings for the architecture and the six decisions are not applied yet; they go through `bmad-correct-course`.
 
+- 2026-11-26. SonarQube Cloud failed the quality gate of pull request #4 on one condition, the security rating of new code: rule `docker:S6471`, the test image's default user is root. Fixed by `USER 10001:10001` in `bmad.Dockerfile`; no cell is run again, because every container is started with `--user 10001:10001`. The 104 maintainability issues it reported in the shell scripts do not fail the gate and are left: the scripts are the harness as it ran.
+
 ## Spec Change Log
 
 ## Review Triage Log

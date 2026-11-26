@@ -287,6 +287,8 @@ Three rules of [`verdicts.sh`](scripts/verdicts.sh) were written after the runs,
 
 One cell was run after the passes: `review-build-auto-inline-claude-strong`, because the first rule turned its small-model run in pass 1 into one that did not complete, and such a cell is owed a repeat on the strong model. It ran with the unchanged harness and carries the same digest as the other cells.
 
+One line of the harness was added after every run: `USER 10001:10001` at the end of [`bmad.Dockerfile`](scripts/images/bmad.Dockerfile), because static analysis reported an image whose default user is root. No cell ran as that default: each container is started with `--user 10001:10001`, as the second line of every result file shows. The file is part of the digest, so the digests in the results are those of the harness as it ran, at commit `5c7178b`, not of the files as they are now. The self-test was run again with the rebuilt image and passes; its recorded results are the earlier ones.
+
 No BMAD file and no planted configuration was added to this repository for the sample: it is generated in a volume. The injection spike's directory, the installed BMAD, and the planning documents are unchanged.
 
 ## What the spike did not cover

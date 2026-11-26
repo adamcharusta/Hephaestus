@@ -13,3 +13,7 @@ RUN apt-get update \
     && apt-get install --yes --no-install-recommends python3 $EXTRA_PACKAGES \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=astral/uv:0.13.9 /uv /usr/local/bin/uv
+# No cell depends on this line: every container is started with
+# --user 10001:10001. It makes the same step user the image's own default, so
+# that nothing runs as root when the option is left out. Added after the runs.
+USER 10001:10001
