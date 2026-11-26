@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail the build when a NuGet package, direct or transitive, carries a license outside the allowed list (NFR-15).
 
-Reads every `project.assets.json` that a restore leaves under the repository, so the whole resolved closure is covered,
+Takes no arguments. Reads every `project.assets.json` that a restore leaves under the repository, so the whole resolved closure is covered,
 test tooling included. A package's license is the SPDX expression in its `.nuspec`. A package that names no expression
 needs an entry in `eng/license-overrides.txt`, with the reason the license is known to be free and open-source.
 
@@ -21,6 +21,9 @@ import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+ALLOWED_FILE = Path("eng") / "allowed-licenses.txt"
+OVERRIDES_FILE = Path("eng") / "license-overrides.txt"
 TOKEN = re.compile(r"\(|\)|[^\s()]+")
 
 
@@ -55,57 +58,66 @@ def parse_overrides(text: str) -> dict[tuple[str, str], str]:
     return overrides
 
 
+class _Expression:
+    """A recursive-descent reader of one SPDX expression: `OR` binds loosest, then `AND`, then `WITH`, then a license."""
+
+    def __init__(self, expression: str, allowed: set[str]) -> None:
+        self.expression = expression
+        self.allowed = allowed
+        self.tokens = TOKEN.findall(expression)
+        self.position = 0
+
+    def peek_is(self, word: str) -> bool:
+        return self.position < len(self.tokens) and self.tokens[self.position].upper() == word
+
+    def take(self) -> str:
+        if self.position >= len(self.tokens):
+            raise ExpressionError(f"unexpected end of '{self.expression}'")
+        self.position += 1
+        return self.tokens[self.position - 1]
+
+    def evaluate(self) -> bool:
+        result = self.parse_or()
+        if self.position != len(self.tokens):
+            raise ExpressionError(f"unexpected '{self.tokens[self.position]}' in '{self.expression}'")
+        return result
+
+    def parse_or(self) -> bool:
+        result = self.parse_and()
+        while self.peek_is("OR"):
+            self.take()
+            result = self.parse_and() or result
+        return result
+
+    def parse_and(self) -> bool:
+        result = self.parse_term()
+        while self.peek_is("AND"):
+            self.take()
+            result = self.parse_term() and result
+        return result
+
+    def parse_term(self) -> bool:
+        token = self.take()
+        if token == "(":
+            result = self.parse_or()
+            if self.take() != ")":
+                raise ExpressionError(f"missing ')' in '{self.expression}'")
+            return result
+        if token == ")" or token.upper() in {"AND", "OR", "WITH"}:
+            raise ExpressionError(f"unexpected '{token}' in '{self.expression}'")
+        if self.peek_is("WITH"):
+            self.take()
+            self.take()
+        return token.rstrip("+").casefold() in self.allowed
+
+
 def satisfied(expression: str, allowed: set[str]) -> bool:
     """True when the SPDX expression can be satisfied with allowed licenses only.
 
     `A OR B` needs one side, `A AND B` needs both, `A WITH exception` is judged by `A`, and a trailing `+` ("or later")
     is judged by the base identifier.
     """
-    tokens = TOKEN.findall(expression)
-    position = 0
-
-    def peek() -> str | None:
-        return tokens[position] if position < len(tokens) else None
-
-    def take() -> str:
-        nonlocal position
-        if position >= len(tokens):
-            raise ExpressionError(f"unexpected end of '{expression}'")
-        position += 1
-        return tokens[position - 1]
-
-    def parse_or() -> bool:
-        result = parse_and()
-        while (peek() or "").upper() == "OR":
-            take()
-            result = parse_and() or result
-        return result
-
-    def parse_and() -> bool:
-        result = parse_term()
-        while (peek() or "").upper() == "AND":
-            take()
-            result = parse_term() and result
-        return result
-
-    def parse_term() -> bool:
-        token = take()
-        if token == "(":
-            result = parse_or()
-            if take() != ")":
-                raise ExpressionError(f"missing ')' in '{expression}'")
-            return result
-        if token == ")" or token.upper() in {"AND", "OR", "WITH"}:
-            raise ExpressionError(f"unexpected '{token}' in '{expression}'")
-        if (peek() or "").upper() == "WITH":
-            take()
-            take()
-        return token.rstrip("+").casefold() in allowed
-
-    result = parse_or()
-    if position != len(tokens):
-        raise ExpressionError(f"unexpected '{tokens[position]}' in '{expression}'")
-    return result
+    return _Expression(expression, allowed).evaluate()
 
 
 def nuspec_license(nuspec: Path) -> tuple[str | None, str | None]:
@@ -143,6 +155,25 @@ def find_nuspec(name: str, version: str, folders: list[Path]) -> Path | None:
     return None
 
 
+def license_problem(name: str, version: str, folders: list[Path], allowed: set[str], overrides: dict[tuple[str, str], str]) -> str | None:
+    """Why one package's license is not acceptable, or None when it is."""
+    nuspec = find_nuspec(name, version, folders)
+    if nuspec is None:
+        return "package not found in the NuGet cache; restore first"
+    try:
+        expression, legacy = nuspec_license(nuspec)
+    except ET.ParseError as error:
+        return f"unreadable .nuspec ({error})"
+    expression = expression or overrides.get((name.casefold(), version.casefold()))
+    if not expression:
+        return f"no SPDX license expression (declares {legacy or 'nothing'}); add a reasoned override"
+    try:
+        acceptable = satisfied(expression, allowed)
+    except ExpressionError as error:
+        return str(error)
+    return None if acceptable else f"license '{expression}' is not on the allowed list"
+
+
 def check(assets_files: list[Path], allowed: set[str], overrides: dict[tuple[str, str], str]) -> tuple[list[str], int]:
     """Return the violations and the number of distinct packages checked."""
     violations: list[str] = []
@@ -157,45 +188,26 @@ def check(assets_files: list[Path], allowed: set[str], overrides: dict[tuple[str
             if (name, version) in seen:
                 continue
             seen.add((name, version))
-            nuspec = find_nuspec(name, version, folders)
-            if nuspec is None:
-                violations.append(f"{name} {version}: package not found in the NuGet cache; restore first")
-                continue
-            try:
-                expression, legacy = nuspec_license(nuspec)
-            except ET.ParseError as error:
-                violations.append(f"{name} {version}: unreadable .nuspec ({error})")
-                continue
-            expression = expression or overrides.get((name.casefold(), version.casefold()))
-            if not expression:
-                violations.append(f"{name} {version}: no SPDX license expression (declares {legacy or 'nothing'}); add a reasoned override")
-                continue
-            try:
-                ok = satisfied(expression, allowed)
-            except ExpressionError as error:
-                violations.append(f"{name} {version}: {error}")
-                continue
-            if not ok:
-                violations.append(f"{name} {version}: license '{expression}' is not on the allowed list")
+            problem = license_problem(name, version, folders, allowed, overrides)
+            if problem:
+                violations.append(f"{name} {version}: {problem}")
     return sorted(violations), len(seen)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, root: Path = REPOSITORY_ROOT) -> int:
+    """Run the gate. `root` is the repository; it is fixed by where this script lives, never taken from the command line."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--root", default=".", help="repository root; every obj/project.assets.json below it is read")
-    parser.add_argument("--allowed", default="eng/allowed-licenses.txt")
-    parser.add_argument("--overrides", default="eng/license-overrides.txt")
-    args = parser.parse_args(argv)
+    parser.parse_args(argv)
 
     try:
-        allowed = parse_allowed(Path(args.allowed).read_text(encoding="utf-8"))
-        overrides_path = Path(args.overrides)
+        allowed = parse_allowed((root / ALLOWED_FILE).read_text(encoding="utf-8"))
+        overrides_path = root / OVERRIDES_FILE
         overrides = parse_overrides(overrides_path.read_text(encoding="utf-8")) if overrides_path.is_file() else {}
     except (OSError, ExpressionError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
 
-    assets_files = sorted(Path(args.root).rglob("obj/project.assets.json"))
+    assets_files = sorted(root.rglob("obj/project.assets.json"))
     if not assets_files:
         print("error: no project.assets.json found; restore the solution first", file=sys.stderr)
         return 2

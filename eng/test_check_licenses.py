@@ -182,13 +182,13 @@ class Main(unittest.TestCase):
         self._directory = tempfile.TemporaryDirectory()
         self.addCleanup(self._directory.cleanup)
         self.root = Path(self._directory.name)
-        (self.root / "allowed.txt").write_text("MIT\n")
+        (self.root / "eng").mkdir()
+        (self.root / "eng" / "allowed-licenses.txt").write_text("MIT\n")
 
     def run_main(self, *extra: str) -> tuple[int, str]:
         err = io.StringIO()
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            code = check_licenses.main(["--root", str(self.root), "--allowed", str(self.root / "allowed.txt"),
-                                        "--overrides", str(self.root / "none.txt"), *extra])
+            code = check_licenses.main(list(extra), root=self.root)
         return code, err.getvalue()
 
     def test_no_restore_fails(self):
@@ -197,13 +197,24 @@ class Main(unittest.TestCase):
         self.assertIn("restore the solution first", err)
 
     def test_an_unreadable_allowed_list_fails(self):
-        (self.root / "allowed.txt").unlink()
+        (self.root / "eng" / "allowed-licenses.txt").unlink()
         self.assertEqual(self.run_main()[0], 2)
 
     def test_an_empty_restore_passes(self):
         assets = self.root / "src" / "A" / "obj" / "project.assets.json"
         assets.parent.mkdir(parents=True)
         assets.write_text(json.dumps({"libraries": {}}))
+        self.assertEqual(self.run_main()[0], 0)
+
+    def test_an_overrides_file_is_read_from_eng(self):
+        cache = self.root / "cache" / "old" / "1.0.0"
+        cache.mkdir(parents=True)
+        (cache / "old.nuspec").write_text("<package><metadata><licenseUrl>https://example.org</licenseUrl></metadata></package>")
+        assets = self.root / "src" / "A" / "obj" / "project.assets.json"
+        assets.parent.mkdir(parents=True)
+        assets.write_text(json.dumps({"libraries": {"Old/1.0.0": {"type": "package"}}, "packageFolders": {str(self.root / "cache"): {}}}))
+        self.assertEqual(self.run_main()[0], 1)
+        (self.root / "eng" / "license-overrides.txt").write_text("Old 1.0.0 MIT  # read the license\n")
         self.assertEqual(self.run_main()[0], 0)
 
     def test_a_violation_exits_non_zero(self):

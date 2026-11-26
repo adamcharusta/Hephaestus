@@ -18,6 +18,8 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 DEFAULT_THRESHOLD = 80.0
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+EXCLUSIONS_FILE = Path("eng") / "coverage-exclusions.txt"
 
 
 class ExclusionError(ValueError):
@@ -82,9 +84,9 @@ def relative_path(filename: str, root: Path) -> str:
     return text
 
 
-def collect(reports: list[Path], root: Path) -> tuple[dict[tuple[str, int], int], set[str]]:
-    """Merge reports: hits per (file, line), and the names of the packages (assemblies) the reports list."""
-    hits: dict[tuple[str, int], int] = {}
+def collect(reports: list[Path], root: Path) -> tuple[dict[str, dict[int, int]], set[str]]:
+    """Merge reports: hits per line of each source file, and the names of the packages (assemblies) the reports list."""
+    files: dict[str, dict[int, int]] = {}
     packages: set[str] = set()
     for report in reports:
         try:
@@ -94,11 +96,11 @@ def collect(reports: list[Path], root: Path) -> tuple[dict[tuple[str, int], int]
         for package in tree.getroot().iter("package"):
             packages.add(package.get("name", ""))
             for cls in package.iter("class"):
-                filename = relative_path(cls.get("filename", ""), root)
+                lines = files.setdefault(relative_path(cls.get("filename", ""), root), {})
                 for line in cls.iter("line"):
-                    key = (filename, int(line.get("number", "0")))
-                    hits[key] = hits.get(key, 0) + int(line.get("hits", "0"))
-    return hits, packages
+                    number = int(line.get("number", "0"))
+                    lines[number] = lines.get(number, 0) + int(line.get("hits", "0"))
+    return files, packages
 
 
 def find_reports(inputs: list[str]) -> list[Path]:
@@ -114,12 +116,11 @@ def find_reports(inputs: list[str]) -> list[Path]:
     return reports
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, root: Path = REPOSITORY_ROOT) -> int:
+    """Run the gate. `root` is the repository; it is fixed by where this script lives, never taken from the command line."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("reports", nargs="+", help="Cobertura files, or directories searched for them")
     parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD, help="minimum line coverage in percent")
-    parser.add_argument("--exclusions", default="eng/coverage-exclusions.txt", help="the one file of exclusions")
-    parser.add_argument("--root", default=".", help="repository root, to make source paths relative")
     parser.add_argument(
         "--require-package",
         action="append",
@@ -128,11 +129,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    root = Path(args.root)
+    exclusions_file = root / EXCLUSIONS_FILE
     try:
-        exclusions = parse_exclusions(Path(args.exclusions).read_text(encoding="utf-8"))
+        exclusions = parse_exclusions(exclusions_file.read_text(encoding="utf-8"))
     except (OSError, ExclusionError) as error:
-        print(f"error: {args.exclusions}: {error}", file=sys.stderr)
+        print(f"error: {EXCLUSIONS_FILE}: {error}", file=sys.stderr)
         return 2
 
     try:
@@ -140,7 +141,7 @@ def main(argv: list[str] | None = None) -> int:
         if not reports:
             print("error: no Cobertura report found", file=sys.stderr)
             return 2
-        hits, packages = collect(reports, root)
+        files, packages = collect(reports, root)
     except ReportError as error:
         print(f"error: {error}", file=sys.stderr)
         return 2
@@ -152,10 +153,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not in any report: {', '.join(missing)}", file=sys.stderr)
         return 2
 
-    excluded_files = sorted({f for f, _ in hits if any(regex.match(f) for regex, _, _ in exclusions)})
-    counted = {key: value for key, value in hits.items() if key[0] not in excluded_files}
-    valid = len(counted)
-    covered = sum(1 for value in counted.values() if value > 0)
+    excluded_files = sorted(f for f in files if any(regex.match(f) for regex, _, _ in exclusions))
+    counted = {f: lines for f, lines in files.items() if f not in excluded_files}
+    valid = sum(len(lines) for lines in counted.values())
+    covered = sum(1 for lines in counted.values() for hits in lines.values() if hits > 0)
 
     for filename in excluded_files:
         print(f"excluded: {filename}")
@@ -164,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     percent = 100.0 * covered / valid
-    print(f"Line coverage: {percent:.2f}% ({covered}/{valid} lines, {len({f for f, _ in counted})} files); threshold {args.threshold:g}%.")
+    print(f"Line coverage: {percent:.2f}% ({covered}/{valid} lines, {len(counted)} files); threshold {args.threshold:g}%.")
     if percent < args.threshold:
         print(f"error: line coverage {percent:.2f}% is below {args.threshold:g}%", file=sys.stderr)
         return 1

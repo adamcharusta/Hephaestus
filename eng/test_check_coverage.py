@@ -29,13 +29,14 @@ class CheckCoverage(unittest.TestCase):
         self._directory = tempfile.TemporaryDirectory()
         self.root = Path(self._directory.name)
         self.addCleanup(self._directory.cleanup)
-        self.exclusions = self.root / "exclusions.txt"
+        (self.root / "eng").mkdir()
+        self.exclusions = self.root / "eng" / "coverage-exclusions.txt"
         self.exclusions.write_text("# none\n")
 
     def run_gate(self, *extra: str) -> tuple[int, str, str]:
         out, err = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = check_coverage.main([*extra, "--root", str(self.root), "--exclusions", str(self.exclusions)])
+            code = check_coverage.main(list(extra), root=self.root)
         return code, out.getvalue(), err.getvalue()
 
     def test_passes_at_or_above_the_threshold(self):
