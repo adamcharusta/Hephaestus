@@ -3,7 +3,7 @@
 
 ## Hephaestus
 
-A self-hosted orchestrator that turns labelled GitHub issues into validated, independently reviewed pull requests by driving Claude Code and Codex CLI in hardened containers. .NET 10 and C# 14 as a modular monolith over SQLite, an Angular 22 Dashboard, Docker Compose. No code exists yet: the repository holds the plan, written with BMAD Method. Planning lives in `_bmad-output/`; the architecture overview and decision records rendered from it live in `docs/`.
+A self-hosted orchestrator that turns labelled GitHub issues into validated, independently reviewed pull requests by driving Claude Code and Codex CLI in hardened containers. .NET 10 and C# 14 as a modular monolith over SQLite, an Angular 22 Dashboard, Docker Compose. The repository holds the plan, written with BMAD Method, and an empty solution skeleton (Story 1.3); no feature code exists yet. Planning lives in `_bmad-output/`; the architecture overview and decision records rendered from it live in `docs/`.
 
 ## Policy
 
@@ -31,7 +31,7 @@ A self-hosted orchestrator that turns labelled GitHub issues into validated, ind
 
 ## Running and verifying
 
-- TODO (Story 1.3): build and test commands for the .NET 10 solution. TODO (Story 1.14): the same for the Angular workspace in `src/Hephaestus.Dashboard`. Neither exists yet; do not guess an invocation.
+- .NET solution (Story 1.3), from the repository root: `dotnet build Hephaestus.slnx` (warnings are errors), `dotnet test --solution Hephaestus.slnx`. Coverage and its gate, as CI runs them: `dotnet test --solution Hephaestus.slnx --coverlet --coverlet-output-format cobertura --results-directory TestResults`, then `python3 eng/check-coverage.py TestResults`. The license gate: `python3 eng/check-licenses.py` after a restore. The gates' own tests: `python3 -m unittest discover -s eng -p "test_*.py"`. TODO (Story 1.14): the same for the Angular workspace in `src/Hephaestus.Dashboard`; it does not exist yet, do not guess an invocation.
 - Run BMAD scripts with `uv run` from the repository root, for example `uv run _bmad/scripts/resolve_config.py --project-root .`.
 
 ## Conventions that differ from defaults
