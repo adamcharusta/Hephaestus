@@ -1,6 +1,7 @@
 using System.Net;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Trust;
 using Octokit;
 using Octokit.Internal;
 
@@ -84,22 +85,89 @@ public sealed class GitHubGateway : ICodeHost
 
     public async Task<GitHubIdentityResult> CheckIdentityAsync(CancellationToken cancellationToken)
     {
-        long? appId;
-        string? privateKey;
+        var (appId, privateKey) = await ReadCredentialAsync(cancellationToken);
+        return appId is null || privateKey is null
+            ? GitHubIdentityResult.Failed(GitHubIdentityFailure.NotConnected)
+            : await ReadIdentityAsync(appId.Value, privateKey, cancellationToken);
+    }
+
+    public async Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken)
+    {
+        var (appId, privateKey) = await ReadCredentialAsync(cancellationToken);
+        if (appId is null || privateKey is null)
+        {
+            return GitHubUserResult.Failed(GitHubUserFailure.NotConnected);
+        }
+
+        var jwt = GitHubAppJwt.TryCreate(appId.Value, privateKey, _time.GetUtcNow());
+        if (jwt is null)
+        {
+            return GitHubUserResult.Failed(GitHubUserFailure.KeyUnreadable);
+        }
+
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(_deadline);
+        using var transport = new HttpClientAdapter(_handler);
+        transport.SetRequestTimeout(RequestTimeout);
+        try
+        {
+            var app = CreateClient(new Credentials(jwt, AuthenticationType.Bearer), transport);
+            var current = await app.GitHubApps.GetCurrent().WaitAsync(limit.Token);
+            var client = await CreateLookupClientAsync(app, transport, limit.Token);
+
+            User user;
+            try
+            {
+                user = await client.User.Get(login).WaitAsync(limit.Token);
+            }
+            catch (NotFoundException)
+            {
+                return GitHubUserResult.Failed(GitHubUserFailure.NotFound);
+            }
+
+            // An organization has a login too, but it never acts, so it cannot be trusted.
+            return user.Type == AccountType.Organization
+                ? GitHubUserResult.Failed(GitHubUserFailure.NotFound)
+                : GitHubUserResult.Found(new GitHubUser(user.Id, user.Login, GitHubLogin.SameLogin(user.Login, GitHubLogin.BotOf(current.Slug))));
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested && IsOutage(exception))
+        {
+            return GitHubUserResult.Failed(GitHubUserFailure.Unreachable);
+        }
+        catch (ApiException)
+        {
+            return GitHubUserResult.Failed(GitHubUserFailure.Rejected);
+        }
+    }
+
+    /// <summary>
+    /// The client that reads a public user: with an installation's token when the App has a live installation, which gives the
+    /// higher rate limit of an authenticated caller, and without one when it has none.
+    /// </summary>
+    private static async Task<GitHubClient> CreateLookupClientAsync(GitHubClient app, IHttpClient transport, CancellationToken cancellationToken)
+    {
+        var installations = await app.GitHubApps.GetAllInstallationsForCurrent(new ApiOptions { PageSize = PageSize }).WaitAsync(cancellationToken);
+        var live = installations.Where(i => i.SuspendedAt is null).OrderBy(i => i.Id).FirstOrDefault();
+        if (live is null)
+        {
+            return CreateClient(Credentials.Anonymous, transport);
+        }
+
+        var token = await app.GitHubApps.CreateInstallationToken(live.Id).WaitAsync(cancellationToken);
+        return CreateClient(new Credentials(token.Token), transport);
+    }
+
+    private async Task<(long? AppId, string? PrivateKey)> ReadCredentialAsync(CancellationToken cancellationToken)
+    {
         await _credential.WaitAsync(cancellationToken);
         try
         {
-            appId = await _reads.GetGitHubAppIdAsync(cancellationToken);
-            privateKey = await _secrets.ReadAsync(GitHubAppCredential.PrivateKeySecretName, cancellationToken);
+            return (await _reads.GetGitHubAppIdAsync(cancellationToken), await _secrets.ReadAsync(GitHubAppCredential.PrivateKeySecretName, cancellationToken));
         }
         finally
         {
             _credential.Release();
         }
-
-        return appId is null || privateKey is null
-            ? GitHubIdentityResult.Failed(GitHubIdentityFailure.NotConnected)
-            : await ReadIdentityAsync(appId.Value, privateKey, cancellationToken);
     }
 
     private async Task RestoreKeyAsync(string? earlierKey)

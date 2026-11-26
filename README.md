@@ -65,6 +65,23 @@ every installation of it), and warn when `workflows` or administration is grante
 once GitHub has accepted it, and a failure says whether GitHub was unreachable or refused the credential. No feature uses the
 identity yet.
 
+## Trusted Users
+
+The Trusted Users are the GitHub users whose labels, answers, and commands Hephaestus will act on. Connect the GitHub App first (the
+commands look a login up on GitHub), then:
+
+```bash
+docker exec hephaestus hephaestus trusted-user add adamcharusta   # GitHub's numeric id is stored; the login is for display
+docker exec hephaestus hephaestus trusted-user list                # login, GitHub user id, when added (UTC)
+docker exec hephaestus hephaestus trusted-user remove adamcharusta
+```
+
+A user is identified by GitHub's numeric id, so one who changes their login stays trusted and one who takes over an old login does
+not inherit anything. Adding a login GitHub does not know fails, and so does adding the App's own bot account (`<slug>[bot]`).
+`remove` works from what `list` shows, without asking GitHub, so trust can be taken back while GitHub is down; a user who has since changed their login
+can be removed by the new one. The users live in the database on the `hephaestus-data` volume and survive a restart. Nothing reads
+the list yet, so no label, answer, or command is acted on or ignored because of it.
+
 ## Build and test
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Python 3.

@@ -92,4 +92,24 @@ public static class MessageIds
     public const string ProblemGitHubUnreachableDetail = "problem.github-unreachable.detail";
     public const string ProblemGitHubAppIdInvalidTitle = "problem.github-app-id-invalid.title";
     public const string ProblemGitHubAppIdInvalidDetail = "problem.github-app-id-invalid.detail";
+
+    public const string CliTrustedUserDescription = "cli.trusted-user.description";
+    public const string CliTrustedUserAddDescription = "cli.trusted-user.add.description";
+    public const string CliTrustedUserListDescription = "cli.trusted-user.list.description";
+    public const string CliTrustedUserRemoveDescription = "cli.trusted-user.remove.description";
+    public const string CliTrustedUserAdded = "cli.trusted-user.added";
+    public const string CliTrustedUserAlready = "cli.trusted-user.already";
+    public const string CliTrustedUserRemoved = "cli.trusted-user.removed";
+    public const string CliTrustedUserListEmpty = "cli.trusted-user.list.empty";
+    public const string CliTrustedUserColumnLogin = "cli.trusted-user.column.login";
+    public const string CliTrustedUserColumnId = "cli.trusted-user.column.id";
+    public const string CliTrustedUserColumnAdded = "cli.trusted-user.column.added";
+    public const string ProblemTrustedUserLoginInvalidTitle = "problem.trusted-user-login-invalid.title";
+    public const string ProblemTrustedUserLoginInvalidDetail = "problem.trusted-user-login-invalid.detail";
+    public const string ProblemTrustedUserGithubNotFoundTitle = "problem.trusted-user-github-not-found.title";
+    public const string ProblemTrustedUserGithubNotFoundDetail = "problem.trusted-user-github-not-found.detail";
+    public const string ProblemTrustedUserOwnIdentityTitle = "problem.trusted-user-own-identity.title";
+    public const string ProblemTrustedUserOwnIdentityDetail = "problem.trusted-user-own-identity.detail";
+    public const string ProblemTrustedUserNotFoundTitle = "problem.trusted-user-not-found.title";
+    public const string ProblemTrustedUserNotFoundDetail = "problem.trusted-user-not-found.detail";
 }

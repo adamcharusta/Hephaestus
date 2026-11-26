@@ -55,6 +55,25 @@ namespace Hephaestus.Persistence.Migrations
 
                     b.ToTable("SecretNames", (string)null);
                 });
+
+            modelBuilder.Entity("Hephaestus.Persistence.Model.TrustedUserEntry", b =>
+                {
+                    b.Property<long>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AddedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Login")
+                        .IsRequired()
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("UserId");
+
+                    b.ToTable("TrustedUsers", (string)null);
+                });
         }
     }
 }

@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Secrets;
+using Hephaestus.Core.Trust;
 using Hephaestus.GitHub;
 using Hephaestus.Host.Api;
 using Hephaestus.Persistence;
@@ -34,6 +35,7 @@ internal static class ControlHost
             provider.GetRequiredService<IReadStore>(),
             provider.GetRequiredService<IInstallationConfiguration>(),
             provider.GetRequiredService<TimeProvider>()));
+        builder.Services.TryAddSingleton<TrustedUserService>();
         builder.Logging.ClearProviders();
         // The container's health check calls the API every few seconds; its request lines are not worth a log line each.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);

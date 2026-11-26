@@ -23,6 +23,7 @@ internal static class ControlApi
         secrets.MapDelete("/{name}", RemoveSecretAsync);
 
         GitHubApi.Map(routes);
+        TrustedUserApi.Map(routes);
     }
 
     private static async Task<IResult> ListSecretsAsync(IReadStore store, CancellationToken cancellationToken)

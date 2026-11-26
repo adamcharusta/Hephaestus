@@ -1,4 +1,5 @@
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Trust;
 
 namespace Hephaestus.GitHub.Tests;
 
@@ -54,4 +55,26 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
         AppId = appId;
         return Task.CompletedTask;
     }
+
+    public List<TrustedUser> TrustedUsers { get; } = [];
+
+    public Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<TrustedUser>>([.. TrustedUsers]);
+
+    public Task<TrustedUserWrite> AddTrustedUserAsync(long userId, string login, CancellationToken cancellationToken)
+    {
+        var existing = TrustedUsers.FindIndex(u => u.UserId == userId);
+        var user = new TrustedUser(userId, login, existing >= 0 ? TrustedUsers[existing].AddedAt : DateTimeOffset.UnixEpoch);
+        if (existing >= 0)
+        {
+            TrustedUsers[existing] = user;
+        }
+        else
+        {
+            TrustedUsers.Add(user);
+        }
+
+        return Task.FromResult(new TrustedUserWrite(user, existing < 0));
+    }
+
+    public Task<bool> RemoveTrustedUserAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(TrustedUsers.RemoveAll(u => u.UserId == userId) > 0);
 }

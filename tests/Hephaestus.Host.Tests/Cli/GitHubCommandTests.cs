@@ -234,7 +234,7 @@ public class GitHubCommandTests
         var connect = await RunAsync(host, Language.English, "github", "connect", "--help");
         var bare = await RunAsync(host, Language.English, "github");
 
-        Assert.Contains("  github   Connects Hephaestus's own GitHub App and checks what it may do.", root.Output, StringComparison.Ordinal);
+        Assert.Contains("  github        Connects Hephaestus's own GitHub App and checks what it may do.", root.Output, StringComparison.Ordinal);
         Assert.Contains("  connect  Connects the GitHub App; its private key is read from standard input.", group.Output, StringComparison.Ordinal);
         Assert.Contains("  check    Reads the App's identity, installations, and permissions from GitHub.", group.Output, StringComparison.Ordinal);
         Assert.Contains("--app-id", connect.Output, StringComparison.Ordinal);

@@ -37,7 +37,16 @@ internal sealed class CommandTree
 
         GitHub.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub };
+        TrustedUserAddLogin = new Argument<string>("login");
+        TrustedUserRemoveLogin = new Argument<string>("login");
+        TrustedUserAdd = new Command("add", Describe(MessageIds.CliTrustedUserAddDescription)) { TrustedUserAddLogin, Json };
+        TrustedUserList = new Command("list", Describe(MessageIds.CliTrustedUserListDescription)) { Json };
+        TrustedUserRemove = new Command("remove", Describe(MessageIds.CliTrustedUserRemoveDescription)) { TrustedUserRemoveLogin, Json };
+        TrustedUser = new Command("trusted-user", Describe(MessageIds.CliTrustedUserDescription)) { TrustedUserAdd, TrustedUserList, TrustedUserRemove };
+
+        TrustedUser.SetAction(_ => 0);
+
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub, TrustedUser };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -59,6 +68,18 @@ internal sealed class CommandTree
     public Command GitHubConnect { get; }
 
     public Command GitHubCheck { get; }
+
+    public Command TrustedUser { get; }
+
+    public Command TrustedUserAdd { get; }
+
+    public Command TrustedUserList { get; }
+
+    public Command TrustedUserRemove { get; }
+
+    public Argument<string> TrustedUserAddLogin { get; }
+
+    public Argument<string> TrustedUserRemoveLogin { get; }
 
     public Option<long> GitHubAppId { get; }
 

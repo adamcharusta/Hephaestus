@@ -1,5 +1,6 @@
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Host.Tests;
 
@@ -42,5 +43,29 @@ internal sealed class FakeCodeHost : ICodeHost
     {
         Checks++;
         return Task.FromResult(Answer);
+    }
+
+    /// <summary>What GitHub says of a login, ignoring case; a login that is not here is not found.</summary>
+    public Dictionary<string, GitHubUser> Users { get; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["alice"] = new GitHubUser(583231, "Alice", IsHephaestus: false),
+        ["bob"] = new GitHubUser(1001, "bob", IsHephaestus: false),
+        ["hephaestus-test[bot]"] = new GitHubUser(99999, "hephaestus-test[bot]", IsHephaestus: true),
+    };
+
+    /// <summary>When set, every lookup fails with it.</summary>
+    public GitHubUserFailure? LookupFails { get; set; }
+
+    public List<string> Lookups { get; } = [];
+
+    public Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken)
+    {
+        Lookups.Add(login);
+        if (LookupFails is { } failure)
+        {
+            return Task.FromResult(GitHubUserResult.Failed(failure));
+        }
+
+        return Task.FromResult(Users.TryGetValue(login, out var user) ? GitHubUserResult.Found(user) : GitHubUserResult.Failed(GitHubUserFailure.NotFound));
     }
 }
