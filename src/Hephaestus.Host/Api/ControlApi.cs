@@ -21,6 +21,8 @@ internal static class ControlApi
         secrets.MapGet(string.Empty, ListSecretsAsync);
         secrets.MapPut("/{name}", SetSecretAsync);
         secrets.MapDelete("/{name}", RemoveSecretAsync);
+
+        GitHubApi.Map(routes);
     }
 
     private static async Task<IResult> ListSecretsAsync(IReadStore store, CancellationToken cancellationToken)
@@ -37,15 +39,7 @@ internal static class ControlApi
         }
 
         var value = await ReadValueAsync(request.Body, cancellationToken);
-        IResult? refusal = SecretPolicy.CheckValue(value) switch
-        {
-            SecretValueRefusal.Empty => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-empty", MessageIds.ProblemSecretValueEmptyTitle, new Message(MessageIds.ProblemSecretValueEmptyDetail)),
-            SecretValueRefusal.TooShort => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-too-short", MessageIds.ProblemSecretValueTooShortTitle, new Message(MessageIds.ProblemSecretValueTooShortDetail, SecretPolicy.MinimumValueLength)),
-            SecretValueRefusal.TooLong => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-too-long", MessageIds.ProblemSecretValueTooLongTitle, new Message(MessageIds.ProblemSecretValueTooLongDetail, SecretPolicy.MaximumValueLength)),
-            SecretValueRefusal.NotText => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-not-text", MessageIds.ProblemSecretValueNotTextTitle, new Message(MessageIds.ProblemSecretValueNotTextDetail)),
-            _ => null,
-        };
-        if (refusal is not null)
+        if (RefuseValue(value) is { } refusal)
         {
             return refusal;
         }
@@ -65,6 +59,16 @@ internal static class ControlApi
             ? Results.Json(new SecretNameDocument(name), ApiJson.Default.SecretNameDocument)
             : new ProblemResult(StatusCodes.Status404NotFound, "secret-not-found", MessageIds.ProblemSecretNotFoundTitle, new Message(MessageIds.ProblemSecretNotFoundDetail, name));
     }
+
+    /// <summary>The problem to answer when a secret value is not acceptable (<see cref="SecretPolicy.CheckValue"/>), or null when it is.</summary>
+    internal static IResult? RefuseValue(string value) => SecretPolicy.CheckValue(value) switch
+    {
+        SecretValueRefusal.Empty => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-empty", MessageIds.ProblemSecretValueEmptyTitle, new Message(MessageIds.ProblemSecretValueEmptyDetail)),
+        SecretValueRefusal.TooShort => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-too-short", MessageIds.ProblemSecretValueTooShortTitle, new Message(MessageIds.ProblemSecretValueTooShortDetail, SecretPolicy.MinimumValueLength)),
+        SecretValueRefusal.TooLong => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-too-long", MessageIds.ProblemSecretValueTooLongTitle, new Message(MessageIds.ProblemSecretValueTooLongDetail, SecretPolicy.MaximumValueLength)),
+        SecretValueRefusal.NotText => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-not-text", MessageIds.ProblemSecretValueNotTextTitle, new Message(MessageIds.ProblemSecretValueNotTextDetail)),
+        _ => null,
+    };
 
     private static ProblemResult InvalidName() =>
         new(StatusCodes.Status400BadRequest, "secret-name-invalid", MessageIds.ProblemSecretNameInvalidTitle, new Message(MessageIds.ProblemSecretNameInvalidDetail, SecretPolicy.MaximumNameLength));

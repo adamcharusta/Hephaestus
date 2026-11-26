@@ -28,6 +28,8 @@ internal sealed class TempInstallation : IDisposable
 
     public IReadStore Reads => Provider.GetRequiredService<IReadStore>();
 
+    public IInstallationConfiguration Configuration => Provider.GetRequiredService<IInstallationConfiguration>();
+
     public HephaestusDatabase Database => Provider.GetRequiredService<HephaestusDatabase>();
 
     public Task MigrateAsync() => Provider.GetRequiredService<DatabaseMigrator>().MigrateAsync(TestContext.Current.CancellationToken);

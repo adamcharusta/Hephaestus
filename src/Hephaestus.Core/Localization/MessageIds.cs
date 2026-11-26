@@ -36,6 +36,32 @@ public static class MessageIds
     public const string CliSecretValueArgumentTitle = "cli.secret.value-argument.title";
     public const string CliSecretValueArgumentDetail = "cli.secret.value-argument.detail";
 
+    public const string CliGitHubDescription = "cli.github.description";
+    public const string CliGitHubConnectDescription = "cli.github.connect.description";
+    public const string CliGitHubCheckDescription = "cli.github.check.description";
+    public const string CliGitHubOptionAppId = "cli.github.option-app-id";
+    public const string CliGitHubConnectArgumentsTitle = "cli.github.connect-arguments.title";
+    public const string CliGitHubConnectArgumentsDetail = "cli.github.connect-arguments.detail";
+    public const string CliGitHubConnected = "cli.github.connected";
+    public const string CliGitHubApp = "cli.github.app";
+    public const string CliGitHubInstallationsHeader = "cli.github.installations.header";
+    public const string CliGitHubInstallationsNone = "cli.github.installations.none";
+    public const string CliGitHubInstallation = "cli.github.installation";
+    public const string CliGitHubSelectionAll = "cli.github.selection.all";
+    public const string CliGitHubSelectionSelected = "cli.github.selection.selected";
+    public const string CliGitHubInstallationSuspended = "cli.github.installation.suspended";
+    public const string CliGitHubRepositoriesNone = "cli.github.repositories.none";
+    public const string CliGitHubPermissionsHeader = "cli.github.permissions.header";
+    public const string CliGitHubColumnPermission = "cli.github.column.permission";
+    public const string CliGitHubColumnNeeds = "cli.github.column.needs";
+    public const string CliGitHubColumnHas = "cli.github.column.has";
+    public const string CliGitHubColumnStatus = "cli.github.column.status";
+    public const string CliGitHubStatusPresent = "cli.github.status.present";
+    public const string CliGitHubStatusMissing = "cli.github.status.missing";
+    public const string CliGitHubWarning = "cli.github.warning";
+    public const string CliGitHubReady = "cli.github.ready";
+    public const string CliGitHubNotReady = "cli.github.not-ready";
+
     public const string ProblemNotFoundTitle = "problem.not-found.title";
     public const string ProblemNotFoundDetail = "problem.not-found.detail";
     public const string ProblemMethodNotAllowedTitle = "problem.method-not-allowed.title";
@@ -56,4 +82,14 @@ public static class MessageIds
     public const string ProblemSecretNotFoundDetail = "problem.secret-not-found.detail";
     public const string ProblemSecretValueNotTextTitle = "problem.secret-value-not-text.title";
     public const string ProblemSecretValueNotTextDetail = "problem.secret-value-not-text.detail";
+
+    public const string ProblemGitHubNotConnectedTitle = "problem.github-not-connected.title";
+    public const string ProblemGitHubNotConnectedDetail = "problem.github-not-connected.detail";
+    public const string ProblemGitHubCredentialRejectedTitle = "problem.github-credential-rejected.title";
+    public const string ProblemGitHubCredentialRejectedDetail = "problem.github-credential-rejected.detail";
+    public const string ProblemGitHubKeyUnreadableDetail = "problem.github-key-unreadable.detail";
+    public const string ProblemGitHubUnreachableTitle = "problem.github-unreachable.title";
+    public const string ProblemGitHubUnreachableDetail = "problem.github-unreachable.detail";
+    public const string ProblemGitHubAppIdInvalidTitle = "problem.github-app-id-invalid.title";
+    public const string ProblemGitHubAppIdInvalidDetail = "problem.github-app-id-invalid.detail";
 }

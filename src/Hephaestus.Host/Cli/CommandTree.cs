@@ -29,7 +29,15 @@ internal sealed class CommandTree
 
         Secret.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret };
+        // The App's private key is read from standard input like a secret's value, and is never an argument (UX "Command Line").
+        GitHubAppId = new Option<long>("--app-id") { Description = Describe(MessageIds.CliGitHubOptionAppId), Required = true };
+        GitHubConnect = new Command("connect", Describe(MessageIds.CliGitHubConnectDescription)) { GitHubAppId, Json };
+        GitHubCheck = new Command("check", Describe(MessageIds.CliGitHubCheckDescription)) { Json };
+        GitHub = new Command("github", Describe(MessageIds.CliGitHubDescription)) { GitHubConnect, GitHubCheck };
+
+        GitHub.SetAction(_ => 0);
+
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -45,6 +53,14 @@ internal sealed class CommandTree
     public Command SecretList { get; }
 
     public Command SecretRemove { get; }
+
+    public Command GitHub { get; }
+
+    public Command GitHubConnect { get; }
+
+    public Command GitHubCheck { get; }
+
+    public Option<long> GitHubAppId { get; }
 
     public Argument<string> SecretSetName { get; }
 

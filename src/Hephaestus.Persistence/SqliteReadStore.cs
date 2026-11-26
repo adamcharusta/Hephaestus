@@ -11,4 +11,10 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         await using var context = database.OpenReader();
         return await context.SecretNames.OrderBy(s => s.Name).Select(s => s.Name).ToListAsync(cancellationToken);
     }
+
+    public async Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        return await context.GitHubAppConnections.Select(c => (long?)c.AppId).FirstOrDefaultAsync(cancellationToken);
+    }
 }

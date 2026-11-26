@@ -14,6 +14,26 @@ namespace Hephaestus.Persistence.Migrations
         {
             modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
+            modelBuilder.Entity("Hephaestus.Persistence.Model.GitHubAppConnection", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AppId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConnectedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("GitHubAppConnections", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GitHubAppConnections_Single", "\"Id\" = 1");
+                        });
+                });
+
             modelBuilder.Entity("Hephaestus.Persistence.Model.SecretName", b =>
                 {
                     b.Property<string>("Id")
