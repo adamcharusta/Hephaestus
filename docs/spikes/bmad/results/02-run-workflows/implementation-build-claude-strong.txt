@@ -1,0 +1,263 @@
+# harness: bdfdba94e1fa+bmad-56861b8d1ac9
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-implementation-build-claude-strong-a,target=/hephaestus/context,readonly --network hephaestus-spike-workspace-a --env HTTP_PROXY=http://hephaestus-spike-proxy-a:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy-a:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy-a:3128 --env https_proxy=http://hephaestus-spike-proxy-a:3128 --env no_proxy=localhost,127.0.0.1,::1 --env ANTHROPIC_API_KEY --env ENABLE_CLAUDEAI_MCP_SERVERS=false --env CLAUDE_CODE_ENABLE_CFC=0 --env CLAUDE_CODE_DISABLE_ARTIFACT=1 --env CLAUDE_CODE_DISABLE_AGENT_VIEW=1 --env CLAUDE_CODE_DISABLE_CRON=1 --env CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1 --env CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 --env SPIKE_TIMEOUT=1800 --env SPIKE_EXPECT=implementation 
+# command: bash -s -- /hephaestus/agents/claude/linux-x64/claude -p Read /hephaestus/context/instruction.md and follow it. --output-format stream-json --verbose --dangerously-skip-permissions --no-session-persistence --model sonnet --safe-mode --setting-sources user --strict-mcp-config --settings {"disableAllHooks":true,"disableClaudeAiConnectors":true,"enableAllProjectMcpServers":false} --tools Bash,Read,Edit,Write 
+# exit: 0
+# --- stdout ---
+# --- context: instruction.md ---
+You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an offer of further work.
+
+Run the BMAD workflow `bmad-build`. BMAD's files are read-only at `/hephaestus/methodology`:
+
+- The entry file of the workflow is `/hephaestus/methodology/skills/bmad-build/SKILL.md`. Read it and follow it.
+- `{skill-root}` is `/hephaestus/methodology/skills/bmad-build`.
+- BMAD's scripts are in `/hephaestus/methodology/_bmad/scripts/`. Run them from there wherever a workflow names `{project-root}/_bmad/scripts/`.
+- `{project-root}` is `/workspace`, where the project is.
+
+The intent is the Task in `/hephaestus/context/issue.md`. Implement it on the current branch.
+# --- end context: instruction.md ---
+# --- context: task.json ---
+{
+  "stepKind": "Implementation",
+  "branch": "task/low-stock",
+  "baseBranch": "main",
+  "round": 1,
+  "language": "en"
+}
+# --- end context: task.json ---
+# --- repository before ---
+git: absent from the image
+# --- end repository before ---
+{"type":"system","subtype":"ui_invalidate","event":"ui.render","uuid":"8124288e-e226-45d8-8432-e3f79ab7c72c","session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b"}
+{"type":"system","subtype":"init","cwd":"/workspace","session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","tools":["Bash","Edit","Read","Write"],"mcp_servers":[],"model":"claude-sonnet-5-5","permissionMode":"bypassPermissions","slash_commands":["deep-research","dataviz","update-config","verify","debug","code-review","simplify","batch","fewer-permission-prompts","doctor","claude-api","workflow-authoring","run","run-skill-generator","plugin-authoring","agents","auto-mode-setup","autocompact","clear ...[2055 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRs8CgtmkABiXNuPjDE","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01X1kSeNfhKT4DMpwV2CkQvR","name":"Read","input":{"file_path":"/hephaestus/context/instruction.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":0,"cache_read_input_tokens":5261,"cache_creation":{"ephemeral_5m_i ...[416 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01X1kSeNfhKT4DMpwV2CkQvR","type":"tool_result","content":"1\tYou are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an o ...[2064 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsEb9pdVhdH1Cw63eg","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_012K1241F4WL3ZFyFKKg1aEQ","name":"Read","input":{"file_path":"/hephaestus/methodology/skills/bmad-build/SKILL.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":449,"cache_read_input_tokens":5261,"cache_creation ...[436 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_012K1241F4WL3ZFyFKKg1aEQ","type":"tool_result","content":"1\t---\n2\tname: bmad-build\n3\tdescription: 'Turns implementation work into working code, reviewed and verified. Use when the user delegates a feature, story, bug fix, or meaningful change; a bare story or issue link counts. Skip obvious, low-risk mechanical maintenance such as small ignore-file, typo-only, formatting-only, or configuration-hygiene edits. Explicit B ...[2360 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsEb9pdVhdH1Cw63eg","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01NVwuzw7sv6ajrGzxed2LQR","name":"Read","input":{"file_path":"/hephaestus/context/issue.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":449,"cache_read_input_tokens":5261,"cache_creation":{"ephemeral_5m_input ...[414 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01NVwuzw7sv6ajrGzxed2LQR","type":"tool_result","content":"1\t# Report items that are low on stock (#12)\n2\t\n3\tStory 1.2 of Epic 1 in `_bmad-output/planning-artifacts/epics.md`.\n4\t\n5\tAs a shop keeper, I want to list the items that are low on stock, so that I can reorder them in time.\n6\t\n7\t## Requirements\n8\t\n9\t- Add the method `Inventory.low_stock(threshold)` to `shelf/inventory.py`.\n10\t- It returns the names ...[2280 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsLa5dn7gbGKQ7GUbk","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_016dALJcJa3W4Aq1CQgcK9nG","name":"Bash","input":{"command":"cd /hephaestus/methodology/_bmad/scripts && uv run --no-cache \"/workspace/_bmad/scripts/render_skill.py\" --project-root \"/workspace\" --skill \"/hephaestus/methodology/skills/bmad-build\""},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_seq ...[576 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_016dALJcJa3W4Aq1CQgcK9nG","type":"tool_result","content":"read and follow /workspace/_bmad/render/bmad-build/workspace-c52ddf65534b/76b9d50b2d5b9acc6e4f/workflow.md\nShell cwd was reset to /workspace","is_error":false}]},"parent_tool_use_id":null,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"433a16f2-23cc-4415-b79e-d62b7b698226","timestamp":"2026-11-26T11:04:45.243Z","tool_use_result":{"stdout":"read and follo ...[347 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsTnQrV4w6fpSwDDRz","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_011z6S3FikMgB8YKJXAU1RDV","name":"Read","input":{"file_path":"/workspace/_bmad/render/bmad-build/workspace-c52ddf65534b/76b9d50b2d5b9acc6e4f/workflow.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":210,"cache ...[476 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_011z6S3FikMgB8YKJXAU1RDV","type":"tool_result","content":"1\t# Build New Preview Workflow\n2\t\n3\t**Goal:** Turn user intent into a hardened, reviewable artifact.\n4\t\n5\t**CRITICAL:** If a step directs you to another snapshot file, read it fully and follow it. No exceptions.\n6\t\n7\tSubagents, when the capability is available, are an important part of this workflow. Use them as directed by the workflow steps.\n8\tIf you ...[8516 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsYNj4ViYqvBwhHnJe","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01MUhd6NjXtentFVT38Hebti","name":"Read","input":{"file_path":"/workspace/_bmad/render/bmad-build/workspace-c52ddf65534b/76b9d50b2d5b9acc6e4f/step-01-clarify-and-route.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_t ...[495 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01MUhd6NjXtentFVT38Hebti","type":"tool_result","content":"1\t---\n2\tspec_file: '' # set at runtime before leaving this step\n3\tstory_key: '' # set at runtime to the current story's full sprint-status key (e.g. 3-2-digest-delivery) when the intent is an epic story and sprint-status resolution succeeds\n4\t---\n5\t\n6\t# Step 1: Clarify\n7\t\n8\t## RULES\n9\t\n10\t- **Language** — Speak in `English`. Write any file output i ...[24739 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRse72PTwN57fFFDCsQ","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01JN264EoR2g8MZBjkhpRRYu","name":"Bash","input":{"command":"git status --short | head; git log --oneline | head -5; ls _bmad-output/planning-artifacts _bmad-output/implementation-artifacts; cat shelf/inventory.py; ls tests"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":n ...[548 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01JN264EoR2g8MZBjkhpRRYu","type":"tool_result","content":"/bin/bash: line 1: git: command not found\n/bin/bash: line 1: git: command not found\nls: cannot access '_bmad-output/implementation-artifacts': No such file or directory\n_bmad-output/planning-artifacts:\narchitecture.md\nepics.md\nprd.md\n\"\"\"In-memory inventory of a small shop.\"\"\"\n\n\nclass Inventory:\n    \"\"\"Quantities of items, by name.\"\"\"\n\n    def ...[2995 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"4be96a3c-149d-4c76-a890-9ef50c0bc575"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":252,"estimated_tokens_delta":202,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"61504fdb-aaa0-41e3-9bbd-e1159da1b78f"}
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRskDdJmfhZ7QYK9yfU","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQS5AcKEAgUGAI4AUIIdGhpbmtpbmcSDH2FGdv84LCLarvq0BoMZ6JjJCnlV+imxmFNIjDEh7zUIoVXIhBZMzYUvtz/CdKE2IIu98YxouqtFeiFEAdTYJaB1z5m47IUdy5l3sYqgQfGQQ9FS3k9kK+RhT+0gJACG1+tL5TiWzE0Dp+BNeKMmYa59hjcVOb2WFLlxbW+8IqSYPOzpDth9A4ngy20qeCq91/yb659ExQXr+ONEiwpSAhzxfM7Q0dqn1c7/00Vj6a5gQVATwLpRj+ScDNTENxujySp+kz4UsH5HeoN+yBIIqS6 ...[1707 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRskDdJmfhZ7QYK9yfU","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01VXECKqA4sJ2uGCynmj8Jyy","name":"Bash","input":{"command":"cat _bmad-output/planning-artifacts/epics.md; cat tests/test_inventory.py; cat /workspace/_bmad/render/bmad-build/workspace-c52ddf65534b/76b9d50b2d5b9acc6e4f/step-02-plan.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop ...[557 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01VXECKqA4sJ2uGCynmj8Jyy","type":"tool_result","content":"# Epics and Stories: Shelf\n\n## Requirements coverage\n\n- FR-1: Story 1.1\n- FR-2: Story 1.2\n\n## Epic 1: Keep track of stock\n\nThe shop keeper records what comes in and goes out, and sees what is running low.\n\n### Story 1.1: Add and remove items\n\nAs a shop keeper,\nI want to add items to the inventory and remove them,\nSo that the inventory shows what is in  ...[17799 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsvaiKqRyTn6gNoo8a","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQS0AYKEAgUGAI4AUIIdGhpbmtpbmcSDH1I8Gy3+Jcb7QASKhoMiMv3CtsscHV47rnUIjC5fGNid9r6PdEuefbV97UC6JIPodgel9rttOQvGOk1md7//w/7MusANvwD++8zCUoq7QXjykSrKeLTtJTkCbF7Z7B2tDHmTxyLLyzKcjcZCvxeBaA4+M+vRSNlP+ig9ru9KJUOBdwVoFD4YDoKz1amfHWP55pn9U8WPPDfAuattpc8Pxo/nY/6NAVdcvnAb3PIOAbGcvQHZyRGQ1DOnk2jFZSrypDqNEbXRFq+fNzefRKgAmdl ...[1509 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRsvaiKqRyTn6gNoo8a","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01HeKCLYUTqBmTzdB8ergS5g","name":"Bash","input":{"command":"cd /workspace/_bmad/render/bmad-build/workspace-c52ddf65534b/76b9d50b2d5b9acc6e4f/; cat spec-template.md step-oneshot.md; date +%F"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"c ...[516 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01HeKCLYUTqBmTzdB8ergS5g","type":"tool_result","content":"---\ntitle: '{title}'\ntype: 'feature' # feature | bugfix | refactor | chore\ncreated: '{date}'\nstatus: 'draft' # draft | ready-for-dev | in-progress | in-review | done\nroute: '' # oneshot | dispatch — set by step-02's route gate after design\nreview_loop_iteration: 0 # incremented by step-04 before each review loopback\ncontext: [] # optional: `{project-root}/`-pr ...[24451 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"32da070b-94f2-4a72-b7e7-0560d8e47a0d"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":234,"estimated_tokens_delta":184,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"7525a1c1-1904-4b01-84aa-ef0156062367"}
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRt3pXm2qzC1L2JtUyg","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQSoAcKEAgUGAI4AUIIdGhpbmtpbmcSDBSFglvaDb2JDb7z5xoMUOdgX0CG4UJK2XazIjCXeRIo++WJfX0ctYTfrA66TnUjat162M9sRKtfocrz6NyV7APXIGU/yORT0LcIiZIqvQaa6sL9YPUaefJWWdKGn5ylrXAdtdq/z/MSTJNTlPP4ujCo7v4FqnkoHan3el3CosuMLgrp8TiqPslYrvQ9dSGIqB725x0SracIQPcmRH1fvHz5XKj+Anz71iVcoTyiU3zz5BemKUQsVpdmHpit45hy/SfeYNwLq74jkekcb0seFMAo ...[1617 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRt3pXm2qzC1L2JtUyg","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_016AGk16eMQmYuTYYRXWH54k","name":"Bash","input":{"command":"cd /workspace && mkdir -p _bmad-output/implementation-artifacts && cat > _bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md <<'EOF'\n---\ntitle: 'Report items that are low on stock (#12)'\ntype: 'feature'\ncreated: '2026-11-26'\nstatus: 'in-progress'\ ...[2908 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_016AGk16eMQmYuTYYRXWH54k","type":"tool_result","content":"----------------------------------------------------------------------\nRan 8 tests in 0.000s\n\nOK","is_error":false}]},"parent_tool_use_id":null,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"3d0cd226-827a-4981-90c2-3de6cdce1d0e","timestamp":"2026-11-26T11:04:59.439Z","tool_use_result":{"stdout":"-------------------------------------------------------- ...[263 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRtWfZpFVFvxjAKPUca","type":"message","role":"assistant","content":[{"type":"text","text":"Those are my own edits, so nothing to flag. I'll finalize the spec."}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":1829,"cache_read_input_tokens":22519,"cache_creation":{"ephemeral_5m_input_tokens":1829,"ephemeral_1h_input_tokens":0},"output_toke ...[358 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRtWfZpFVFvxjAKPUca","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01GMX2x9ZDzDg2De71mx6j4P","name":"Bash","input":{"command":"cd /workspace/_bmad-output/implementation-artifacts && sed -i \"s/^status: 'in-progress'/status: 'done'/\" spec-1-2-low-stock-report.md && cat >> spec-1-2-low-stock-report.md <<'EOF'\n\nAdded `Inventory.low_stock` in `shelf/inventory.py` and four tests in `tests/test ...[1030 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01GMX2x9ZDzDg2De71mx6j4P","type":"tool_result","content":"(Bash completed with no output)","is_error":false}]},"parent_tool_use_id":null,"session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","uuid":"0949aa31-e88d-48c0-8056-cb66984395fb","timestamp":"2026-11-26T11:05:02.592Z","tool_use_result":{"stdout":"","stderr":"","interrupted":false,"isImage":false,"noOutputExpected":false},"tool_result_meta":[{"id":"toolu_01GMX2x9ZDzDg2D ...[96 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRRtjwmsc6JCcsEEgEkp","type":"message","role":"assistant","content":[{"type":"text","text":"I added `Inventory.low_stock(threshold)` to `shelf/inventory.py`, and the full suite passes (8 tests, via `python3 -m unittest discover -s tests -t .`). It returns the names of items at or below the threshold, sorted. Items at quantity 0 are included, and a negative threshold raises `ValueError`. I added one unit test per acceptance  ...[1388 more characters]
+{"duration_api_ms":25515,"stop_reason":"end_turn","session_id":"9729fa8d-cd46-4c30-89e6-ae933bd2a49b","total_cost_usd":0.0905347,"usage":{"input_tokens":22,"cache_creation_input_tokens":19484,"cache_read_input_tokens":131307,"output_tokens":2865,"output_tokens_details":{"thinking_tokens":176},"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":19484},"inference_geo":"global","iter ...[2731 more characters]
+
+# --- agent exit: 0 ---
+# --- seconds: 27 of 1800 ---
+# --- final message ---
+I added `Inventory.low_stock(threshold)` to `shelf/inventory.py`, and the full suite passes (8 tests, via `python3 -m unittest discover -s tests -t .`). It returns the names of items at or below the threshold, sorted. Items at quantity 0 are included, and a negative threshold raises `ValueError`. I added one unit test per acceptance criterion in `tests/test_inventory.py`, plus one for the zero-quantity case.
+
+- **Review not run:** the workflow's Blind Hunter review needs a subagent, which I can't launch here. I reviewed the diff myself and found nothing to fix, so there are no deferred items.
+- **No input validation:** `low_stock` does not check that `threshold` is a number. That matches how little validation the rest of the module does for this story.
+- **No commit:** `git` isn't installed in this container, so the version-control check and commit were skipped. The changes are uncommitted on `task/low-stock`.
+- **Spec:** the BMAD spec is at `_bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md`, marked `done`. There is no `sprint-status.yaml`, so no status sync.
+# --- end final message ---
+# --- usage ---
+model: claude-sonnet-5-5
+turns: 12
+cost_usd: 0.0905
+tokens: 150813 in, 2865 out
+# --- end usage ---
+# --- tools ---
+offered: Bash Edit Read Write
+called: Bash 6
+called: Read 5
+# --- end tools ---
+# --- paths ---
+methodology-skills: 2
+methodology-bmad: 1
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 1
+workspace-bmad-render: 4
+repository-instruction-file: 0
+context: 2
+# --- end paths ---
+# --- workspace changes ---
+added _bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md
+changed shelf/inventory.py
+changed tests/test_inventory.py
+(and 19 file(s) under _bmad/render/ or __pycache__/)
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: implementation
+info: spec files written: _bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md is done
+ok: the acceptance probe of Story 1.2 passes
+ok: the project's tests pass (OK)
+ok: a spec with status done (_bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md is done)
+# --- end expected artifact ---
+# --- produced files ---
+## _bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md (27 lines)
+| ---
+| title: 'Report items that are low on stock (#12)'
+| type: 'feature'
+| created: '2026-11-26'
+| status: 'done'
+| route: 'oneshot'
+| review_loop_iteration: 0
+| context: []
+| ---
+| 
+| <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+| 
+| ## Intent
+| 
+| **Problem:** The shop keeper cannot list items that are running low (Story 1.2, Epic 1).
+| 
+| **Approach:** Add `Inventory.low_stock(threshold)` in `shelf/inventory.py` returning the alphabetically sorted names of items with quantity at or below `threshold`, including items at 0. A negative `threshold` raises `ValueError`. Standard library only; unit test per acceptance criterion.
+| 
+| </frozen-after-approval>
+| 
+| ## Implementation Notes
+| 
+| Added `Inventory.low_stock` in `shelf/inventory.py` and four tests in `tests/test_inventory.py`. Full suite passes (8 tests). Git is unavailable, so there is no commit. No sprint-status.yaml exists, so no sync.
+| 
+| ## Review Triage Log
+| 
+| - Blind Hunter review was not run: this session cannot launch subagents. I self-reviewed the diff instead and found nothing to fix. Non-numeric thresholds are not validated, which matches the existing code's scope.
+## shelf/inventory.py (46 lines)
+| """In-memory inventory of a small shop."""
+| 
+| 
+| class Inventory:
+|     """Quantities of items, by name."""
+| 
+|     def __init__(self):
+|         self._items = {}
+| 
+|     def add(self, name, quantity):
+|         """Add `quantity` of the item `name`."""
+|         _check_quantity(quantity)
+|         self._items[name] = self._items.get(name, 0) + quantity
+| 
+|     def remove(self, name, quantity):
+|         """Remove `quantity` of the item `name`.
+| 
+|         An item whose quantity reaches zero stays in the inventory.
+|         """
+|         _check_quantity(quantity)
+|         if quantity > self._items.get(name, 0):
+|             raise ValueError(f"not enough of {name!r} in stock")
+|         self._items[name] -= quantity
+| 
+|     def quantity(self, name):
+|         """The quantity of the item `name`; zero for an unknown item."""
+|         return self._items.get(name, 0)
+| 
+|     def names(self):
+|         """The names of all items, sorted."""
+|         return sorted(self._items)
+| 
+|     def low_stock(self, threshold):
+|         """The names of items with quantity at or below `threshold`, sorted.
+| 
+|         Items with quantity zero are listed. A negative `threshold` raises
+|         `ValueError`.
+|         """
+|         if threshold < 0:
+|             raise ValueError("threshold must not be negative")
+|         return sorted(n for n, q in self._items.items() if q <= threshold)
+| 
+| 
+| def _check_quantity(quantity):
+|     if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+|         raise ValueError("quantity must be a positive integer")
+## tests/test_inventory.py (56 lines)
+| import unittest
+| 
+| from shelf.inventory import Inventory
+| 
+| 
+| class InventoryTests(unittest.TestCase):
+|     def test_add_accumulates(self):
+|         inventory = Inventory()
+|         inventory.add("nails", 3)
+|         inventory.add("nails", 2)
+|         self.assertEqual(inventory.quantity("nails"), 5)
+| 
+|     def test_remove_to_zero_keeps_the_item(self):
+|         inventory = Inventory()
+|         inventory.add("glue", 1)
+|         inventory.remove("glue", 1)
+|         self.assertEqual(inventory.quantity("glue"), 0)
+|         self.assertEqual(inventory.names(), ["glue"])
+| 
+|     def test_remove_more_than_in_stock_is_refused(self):
+|         inventory = Inventory()
+|         inventory.add("bolts", 1)
+|         with self.assertRaises(ValueError):
+|             inventory.remove("bolts", 2)
+| 
+|     def test_quantity_must_be_a_positive_integer(self):
+|         inventory = Inventory()
+|         for bad in (0, -1, 1.5, True):
+|             with self.assertRaises(ValueError):
+|                 inventory.add("nails", bad)
+| 
+|     def test_low_stock_lists_items_at_or_below_threshold_sorted(self):
+|         inventory = Inventory()
+|         inventory.add("nails", 5)
+|         inventory.add("bolts", 1)
+|         inventory.add("glue", 9)
+|         self.assertEqual(inventory.low_stock(5), ["bolts", "nails"])
+| 
+|     def test_low_stock_includes_zero_quantity_items(self):
+|         inventory = Inventory()
+|         inventory.add("glue", 1)
+|         inventory.remove("glue", 1)
+|         self.assertEqual(inventory.low_stock(0), ["glue"])
+| 
+|     def test_low_stock_empty_when_nothing_is_low(self):
+|         inventory = Inventory()
+|         inventory.add("nails", 5)
+|         self.assertEqual(inventory.low_stock(4), [])
+| 
+|     def test_low_stock_negative_threshold_is_refused(self):
+|         with self.assertRaises(ValueError):
+|             Inventory().low_stock(-1)
+| 
+| 
+| if __name__ == "__main__":
+|     unittest.main()
+# --- end produced files ---
+# --- language ---
+final message: 820 letters, 0 Polish letters per thousand
+_bmad-output/implementation-artifacts/spec-1-2-low-stock-report.md: 854 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+git: absent from the image
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---
+
+# --- proxy hosts ---
+api.anthropic.com:443
+# --- end proxy hosts ---

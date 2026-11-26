@@ -1,0 +1,116 @@
+# harness: bdfdba94e1fa+bmad-b663473ee4cd
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-selftest,target=/hephaestus/context,readonly --network none --env SPIKE_TIMEOUT=60 --env SPIKE_EXPECT=review-findings 
+# command: bash -s -- bash /hephaestus/context/fake-agent.sh touches-the-spec 
+# exit: 0
+# --- stdout ---
+# --- repository before ---
+git: absent from the image
+# --- end repository before ---
+{"type":"system","subtype":"init","cwd":"/workspace","tools":["Bash","Edit","Read","Write"],"model":"fake-model"}
+{"type": "result", "subtype": "success", "is_error": false, "num_turns": 3, "total_cost_usd": 0.1234, "usage": {"input_tokens": 1000, "cache_creation_input_tokens": 300, "cache_read_input_tokens": 200, "output_tokens": 50}, "result": "Review complete. No findings. Status: done."}
+
+# --- agent exit: 0 ---
+# --- seconds: 0 of 60 ---
+# --- final message ---
+Review complete. No findings. Status: done.
+# --- end final message ---
+# --- usage ---
+model: fake-model
+turns: 3
+cost_usd: 0.1234
+tokens: 1500 in, 50 out
+# --- end usage ---
+# --- tools ---
+offered: Bash Edit Read Write
+# --- end tools ---
+# --- paths ---
+methodology-skills: 0
+methodology-bmad: 0
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 0
+workspace-bmad-render: 0
+repository-instruction-file: 0
+context: 0
+# --- end paths ---
+# --- workspace changes ---
+changed _bmad-output/implementation-artifacts/spec-1-2-low-stock.md
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: review-findings
+info: spec files written: _bmad-output/implementation-artifacts/spec-1-2-low-stock.md is done
+missing: findings that report a seeded defect (neither the threshold boundary nor the negative threshold)
+info: the reviewed code is named in: nowhere
+info: the acceptance probe of Story 1.2 after the run: fails (AssertionError: ['nails'])
+# --- end expected artifact ---
+# --- produced files ---
+## _bmad-output/implementation-artifacts/spec-1-2-low-stock.md (51 lines)
+| ---
+| title: 'Story 1.2: Report items that are low on stock'
+| type: 'feature'
+| created: '2026-11-26'
+| status: 'done'
+| baseline_commit: '7c8f5818b71f578af740a7519df9cb13bfa5e5c9'
+| baseline_revision: '7c8f5818b71f578af740a7519df9cb13bfa5e5c9'
+| review_loop_iteration: 0
+| context: []
+| ---
+| 
+| <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+| 
+| ## Intent
+| 
+| **Problem:** The shop keeper cannot see which items are running low, so reorders come late.
+| 
+| **Approach:** Add `Inventory.low_stock(threshold)`, which returns the sorted names of the items whose quantity is at or below the threshold.
+| 
+| ## Boundaries & Constraints
+| 
+| **Always:** Python standard library only. A negative threshold raises `ValueError`. Every behavior has a unit test.
+| 
+| **Never:** No persistence, no printing, no new module.
+| 
+| </frozen-after-approval>
+| 
+| ## Code Map
+| 
+| - `shelf/inventory.py` -- the class `Inventory`; the new method goes beside `names`
+| - `tests/test_inventory.py` -- the unit tests
+| 
+| ## Tasks & Acceptance
+| 
+| **Execution:**
+| - [x] `shelf/inventory.py` -- add `low_stock(threshold)`
+| - [x] `tests/test_inventory.py` -- test `low_stock`
+| 
+| **Acceptance Criteria:**
+| - Given items with quantities 1, 5, and 9, when `low_stock(5)` is called, then it returns the names of the items with quantity 1 and 5, sorted alphabetically.
+| - Given no item at or below the threshold, when `low_stock(threshold)` is called, then it returns an empty list.
+| - Given a negative threshold, when `low_stock(threshold)` is called, then `ValueError` is raised.
+| 
+| ## Spec Change Log
+| 
+| ## Review Triage Log
+| 
+| ## Verification
+| 
+| **Commands:**
+| - `python3 -m unittest discover -s tests -t .` -- expected: OK
+# --- end produced files ---
+# --- language ---
+final message: 34 letters, 0 Polish letters per thousand
+_bmad-output/implementation-artifacts/spec-1-2-low-stock.md: 1154 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+git: absent from the image
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---

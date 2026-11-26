@@ -15,6 +15,7 @@ A self-hosted orchestrator that turns labelled GitHub issues into validated, ind
 - Never close Story 1.1, 1.16, or 7.1 alone; each needs the Owner's accounts or credentials.
 - Never add a SonarQube token or any other credential to the repository or its secrets; analysis is secretless (`docs/adr/0020-branches-quality-gate-and-image-channels.md`).
 - Add only free and open-source dependencies, at the versions the spine's Stack table pins. Check the registry before proposing a different version.
+- Never report a pull request as ready before its SonarQube Cloud check has finished. Read the result with `gh pr checks <number>` after opening the pull request and after every push to it, and fix what it reports on the new code. Name any issue left open, and why.
 - Keep line coverage at or above 80%, over all code and over the code a change adds. Add tests with the change; an exclusion needs a stated reason.
 - Write everything that is saved in English, whatever language the conversation is in: code, comments, commit messages, pull request text, issues, and documents. The only Polish text in the repository is the `pl` resource files.
 - Update `README.md` in the same pull request whenever a change alters what its reader needs: how to install, run, or configure Hephaestus, a command, a requirement of the host, or what a release can do. Keep it to what exists; link to `docs/` for the rest.

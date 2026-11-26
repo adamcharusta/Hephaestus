@@ -1,0 +1,187 @@
+# harness: bdfdba94e1fa+bmad-17812b74cf35
+# image: hephaestus-spike-image-bmad-git
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-review-bmad-config-claude-small-c,target=/hephaestus/context,readonly --network hephaestus-spike-workspace-c --env HTTP_PROXY=http://hephaestus-spike-proxy-c:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy-c:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy-c:3128 --env https_proxy=http://hephaestus-spike-proxy-c:3128 --env no_proxy=localhost,127.0.0.1,::1 --env ANTHROPIC_API_KEY --env ENABLE_CLAUDEAI_MCP_SERVERS=false --env CLAUDE_CODE_ENABLE_CFC=0 --env CLAUDE_CODE_DISABLE_ARTIFACT=1 --env CLAUDE_CODE_DISABLE_AGENT_VIEW=1 --env CLAUDE_CODE_DISABLE_CRON=1 --env CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1 --env CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 --env SPIKE_TIMEOUT=900 --env SPIKE_EXPECT=review-findings 
+# command: bash -s -- /hephaestus/agents/claude/linux-x64/claude -p Read /hephaestus/context/instruction.md and follow it. --output-format stream-json --verbose --dangerously-skip-permissions --no-session-persistence --model haiku --safe-mode --setting-sources user --strict-mcp-config --settings {"disableAllHooks":true,"disableClaudeAiConnectors":true,"enableAllProjectMcpServers":false} --tools Bash,Read,Edit,Write 
+# exit: 0
+# --- stdout ---
+# --- context: instruction.md ---
+You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an offer of further work.
+
+Run the BMAD workflow `bmad-review`. BMAD's files are read-only at `/hephaestus/methodology`:
+
+- The entry file of the workflow is `/hephaestus/methodology/skills/bmad-review/SKILL.md`. Read it and follow it.
+- `{skill-root}` is `/hephaestus/methodology/skills/bmad-review`.
+- BMAD's scripts are in `/hephaestus/methodology/_bmad/scripts/`. Run them from there wherever a workflow names `{project-root}/_bmad/scripts/`.
+- `{project-root}` is `/workspace`, where the project is.
+
+Review the diff of this branch against `main`, a branch diff. Report the findings as the Output section of the workflow says, and change no file.
+# --- end context: instruction.md ---
+# --- context: task.json ---
+{
+  "stepKind": "Review",
+  "branch": "task/low-stock-implemented",
+  "baseBranch": "main",
+  "round": 1,
+  "language": "pl"
+}
+# --- end context: task.json ---
+# --- repository before ---
+branch: task/low-stock-implemented
+head: ba8855467d44dc9ef8fb944cee9d530af6de9622
+files that differ from the commit, untracked included: 0
+# --- end repository before ---
+{"type":"system","subtype":"ui_invalidate","event":"ui.render","uuid":"8898916c-6ffe-4648-856f-29a7cb4ea34e","session_id":"22ddd470-9000-468c-9532-f9d35ffef065"}
+{"type":"system","subtype":"init","cwd":"/workspace","session_id":"22ddd470-9000-468c-9532-f9d35ffef065","tools":["Bash","Edit","Read","Write"],"mcp_servers":[],"model":"claude-haiku-5-5","permissionMode":"bypassPermissions","slash_commands":["deep-research","dataviz","update-config","verify","debug","code-review","simplify","batch","fewer-permission-prompts","doctor","claude-api","workflow-authoring","run","run-skill-generator","plugin-authoring","agents","auto-mode-setup","autocompact","clear" ...[2054 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSFzd9z3mr2yHdzWrbr","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01UirKH1djWgu9iirLJRm5c2","name":"Read","input":{"file_path":"/hephaestus/context/instruction.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":896,"cache_read_input_tokens":5248,"cache_creation":{"ephemeral_5m_ ...[419 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01UirKH1djWgu9iirLJRm5c2","type":"tool_result","content":"1\tYou are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an o ...[2174 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSG3nAsjQijDSkeupNG","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01VGcKtY9a972BLeWWjNwn16","name":"Read","input":{"file_path":"/hephaestus/methodology/skills/bmad-review/SKILL.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":481,"cache_read_input_tokens":6144,"cache_creation ...[436 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01VGcKtY9a972BLeWWjNwn16","type":"tool_result","content":"1\t---\n2\tname: bmad-review\n3\tdescription: 'Runs one or more installed review lenses — adversarial critique, edge cases, verification gaps, structure, prose — and reports triaged findings. Use when, and only when, the user asks you to review a diff, a pull request, or an artifact — code or documents, one or many — and actually says \"review\"; an explicit skill:bm ...[19145 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSG6vRxie3NoL9sw5ep","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01RCa23Fdgn5HZxY2tmgWhJR","name":"Bash","input":{"command":"git status --short && git branch --show-current && git merge-base main HEAD && git diff --stat main...HEAD && ls /hephaestus/methodology/skills/bmad-review/ /hephaestus/methodology/skills/bmad-review/references/ && cat /hephaestus/methodology/skills/bmad-review/custom ...[783 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01RCa23Fdgn5HZxY2tmgWhJR","type":"tool_result","content":"task/low-stock-implemented\n1cae4c63b152eae71d9192b2166a68882294769c\n .../implementation-artifacts/spec-1-2-low-stock.md | 51 ++++++++++++++++++++++\n _bmad/custom/config.toml                           |  4 ++\n shelf/inventory.py                                 |  4 ++\n tests/test_inventory.py                            |  8 ++++\n 4 files changed, 67 insertions(+ ...[13777 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"e4f2ac81-75c6-47d4-9089-f1402c1fef94"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":300,"estimated_tokens_delta":250,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"670ca1c2-6b0b-4f5a-ab05-5725bc9eab06"}
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGCaFT5nEjvhau4fko","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQSpgkKEAgUGAI4AUIIdGhpbmtpbmcSDJVaWFj2BI+3vAJliBoMtpt1lPZ6l88Citf9IjAGo0fkF+5ZqdYl1b6qbvP215a9wRzzYuvJJ/5Wvhn+30QNiSJtE7eUslfeJvkH0kkqwwiPiGE4YClnjSB37PhOOisHzGlhrSfhPBoDs3nEh6kuPm8Uv4k1EQqvwF+Kp5v/I27hOs9WAJvuepeLg1LETlIgl1C3bj593PMwbAEGBSLJPS5FHYhxlrZoajjSe72zEw0u5uQ5vdjNsvcxvoo7t9w8wwb+Z4GaQlZKVbiYU395d03BV ...[1963 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGCaFT5nEjvhau4fko","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_015JEDzx3RGvTKeJFveorCKK","name":"Bash","input":{"command":"uv run /hephaestus/methodology/_bmad/scripts/resolve_customization.py --skill /hephaestus/methodology/skills/bmad-review --project-root /workspace --key workflow 2>&1 | head -c 4000; echo \"EXIT=$?\"; D=$(mktemp -d /tmp/bmad-review-XXXX); git diff main...HEAD > $D/bra ...[868 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_015JEDzx3RGvTKeJFveorCKK","type":"tool_result","content":"{\n  \"workflow\": {\n    \"activation_steps_prepend\": [],\n    \"activation_steps_append\": [],\n    \"persistent_facts\": [],\n    \"review_guidance\": [],\n    \"on_complete\": \"\",\n    \"output_format\": \"both\",\n    \"report_path\": \"\",\n    \"output_preferences\": \"\",\n    \"reader_type\": \"humans\",\n    \"style_guide\": \"Microsoft Writing Style Gui ...[5227 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"ca822a34-2c15-44fb-b7c5-51b3a5f6464f"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":356,"estimated_tokens_delta":306,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"8b17166a-aa46-4af4-a98d-aecca8f01a40"}
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGPZJgiHyBoDKHYHVu","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQShQsKEAgUGAI4AUIIdGhpbmtpbmcSDJQXx+AFLT1CIzjL8xoMpIzio4Ia/jW+N8y7IjAlvS81T8VV/xsT6Nl+qwj1lNnTDc/0u5Wf2lZdQl5X3lBzWPH4eyODCKCzi+xzzxcqogoFl/FHYhU3oEfMOLpjN7ElbBbjOG7Sb6q4gLr2WSXfKIWqYDfqLe5FPpKj1zxLaIb/yeiuqjBPILoJv6Nf8E1s5ZQSxxbMKX3Nww4Z1r9qKIRpF9ZV4ZVgGF3meSaUbi6c5VfJDkMCbfGMAbNzgOuXfYEFclsuksP7OwJtoANAG0yT0 ...[2264 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGPZJgiHyBoDKHYHVu","type":"message","role":"assistant","content":[{"type":"text","text":"Content class: code (a 102-line branch diff with one spec document and a config change). Lenses: adversarial, edge-case-hunter, and verification-gap. Structure and prose apply only to docs, so they are skipped. I'll run the lenses in sequence myself, since no subagent tool is available."}],"container":null,"stop_reason":null,"stop_seq ...[576 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGPZJgiHyBoDKHYHVu","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_0192csZ3rhKHr71u6iqMBDrm","name":"Bash","input":{"command":"cat /tmp/bmad-review-YNNE/branch.diff; echo ----; cat /hephaestus/methodology/skills/bmad-review/references/lens-adversarial.md; echo ----; cat /hephaestus/methodology/skills/bmad-review/references/lens-edge-case-hunter.md; echo ----; cat /hephaestus/methodology/skill ...[767 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_0192csZ3rhKHr71u6iqMBDrm","type":"tool_result","content":"diff --git a/_bmad-output/implementation-artifacts/spec-1-2-low-stock.md b/_bmad-output/implementation-artifacts/spec-1-2-low-stock.md\nnew file mode 100644\nindex 0000000..bc928d6\n--- /dev/null\n+++ b/_bmad-output/implementation-artifacts/spec-1-2-low-stock.md\n@@ -0,0 +1,51 @@\n+---\n+title: 'Story 1.2: Report items that are low on stock'\n+type: 'feature'\n+creat ...[40089 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"03445ff5-1ff7-4ce2-85a4-7aa95ac644b1"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":300,"estimated_tokens_delta":250,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"8d61c97f-e3c0-4767-bbf2-f37e4020d11b"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":480,"estimated_tokens_delta":180,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"f926470d-c42e-4398-84e5-4fe5071dbc76"}
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGbrDraZsUAuiEWsp1","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQS9A4KEAgUGAI4AUIIdGhpbmtpbmcSDGLfIz3upuExiCnWNxoMdaGKSyMPByXYZYboIjC11dPGsx9sk9HuJmN/EAvsSytkeNEclR9LyqL8Ys5s5EvzPzwU7/AH5G1SPbds560qkQ7dWEW0kt2Zf72UyFsOU8F251MdqZxMU8jF4vyHIsgZ0vB7qXnRC8rL5vx0X9rJOaH3dw9i7oGyo+fGXvRB3uSLNFj/LTEKYGlNj11HoupYjevIrAJ1tu1OkGYpo0Aizw4+55H0HXu6a88mPLpD4KNWHQMRoC9jl7yPcDhEd6mJnM9bm ...[2925 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGbrDraZsUAuiEWsp1","type":"message","role":"assistant","content":[{"type":"text","text":"The diff already shows a likely boundary bug: the spec says \"at or below\", but the code uses `<`. I'll read the full files and run the tests to confirm before reporting."}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":7410,"cache_read_input_token ...[460 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGbrDraZsUAuiEWsp1","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01GZxBo57AcwHSsEsiyXhg9e","name":"Bash","input":{"command":"cat shelf/inventory.py; echo ----; cat tests/test_inventory.py; echo ----; grep -rn \"low_stock\\|ValueError\" --include=*.py . ; echo ----; python3 -m unittest discover -s tests -t . 2>&1 | tail -5; echo ----; python3 -c \"\nfrom shelf.inventory import Inventory\ni=I ...[843 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01GZxBo57AcwHSsEsiyXhg9e","type":"tool_result","content":"\"\"\"In-memory inventory of a small shop.\"\"\"\n\n\nclass Inventory:\n    \"\"\"Quantities of items, by name.\"\"\"\n\n    def __init__(self):\n        self._items = {}\n\n    def add(self, name, quantity):\n        \"\"\"Add `quantity` of the item `name`.\"\"\"\n        _check_quantity(quantity)\n        self._items[name] = self._items.get(name, 0) + quantity\n\n  ...[15009 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"a167513c-e097-44ce-affe-1ceb58e05cc1"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":250,"estimated_tokens_delta":200,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"ce571b4d-51ea-417f-be24-42d1c7dfaf00"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":450,"estimated_tokens_delta":200,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"29cdfff2-f9e6-4d20-a71b-c86f01f39000"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":650,"estimated_tokens_delta":200,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"81a8b19c-2ea5-4eda-9491-a11fb3503b1a"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":950,"estimated_tokens_delta":300,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"9bc71e76-ff9c-4da5-b108-2e15e3d86b12"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":1150,"estimated_tokens_delta":200,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"5ced48c6-def8-4704-8bca-f114d81d6673"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":1400,"estimated_tokens_delta":250,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"0be750e2-e67f-4327-ad63-1567c062ba29"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":1600,"estimated_tokens_delta":200,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"2aa8c5b2-2f6a-4b29-8266-8e6c9760f1b3"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":1850,"estimated_tokens_delta":250,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"38b66439-cfae-46de-949e-1745c3aefd3f"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":2100,"estimated_tokens_delta":250,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"f24d413b-fa10-49ab-9be1-d303760d1a12"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":2400,"estimated_tokens_delta":300,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"cf34ea35-d329-4352-b310-486730f9b612"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":2700,"estimated_tokens_delta":300,"session_id":"22ddd470-9000-468c-9532-f9d35ffef065","uuid":"b2686930-d345-4bbe-9a4e-c84036047141"}
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGtxNiKRAdJRhWjDZv","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQSij8KEAgUGAI4AUIIdGhpbmtpbmcSDKBbDv9Nzaitu6/a+RoM6hbh7vqMWGieZTvIIjBP3hQCuyGVrxvrA4m2vCJ5BXnpjdM8/NwWgg2dAVnZognDgCez3Uqkmcka7RWEZnEqpz7T3Cfm/+4sB4gNlehWT1BSmaTokdIBI6/AZCJmpec6M8uZzeS9GP2qyY+nREM63aKn023vbr25T6KaBjd5Py4jHRkBdQfUSk3HTBhPLSojQ699GS84MKldS2XgFyJA/VE/CfD+tA2E09tmYVDLBA5jRpNneCE+shvicMnCrwufx1pjw ...[11146 more characters]
+{"type":"assistant","message":{"model":"claude-haiku-5-5","id":"msg_011ChRSGtxNiKRAdJRhWjDZv","type":"message","role":"assistant","content":[{"type":"text","text":"```json\n[\n  {\"lens\":\"adversarial\",\"location\":\"shelf/inventory.py:29-31\",\"trigger_condition\":\"Quantity equal to threshold is excluded: low_stock uses strict < instead of at-or-below\",\"guard_snippet\":\"use quantity <= threshold in the comprehension\",\"potential_consequence\":\"Items exactly at the reorder level never ap ...[10937 more characters]
+{"duration_api_ms":41285,"stop_reason":"end_turn","session_id":"22ddd470-9000-468c-9532-f9d35ffef065","total_cost_usd":0.00759013,"usage":{"input_tokens":14,"cache_creation_input_tokens":19912,"cache_read_input_tokens":75873,"output_tokens":8682,"output_tokens_details":{"thinking_tokens":3557},"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":19912},"inference_geo":"global","ite ...[12278 more characters]
+
+# --- agent exit: 0 ---
+# --- seconds: 42 of 900 ---
+# --- final message ---
+```json
+[
+  {"lens":"adversarial","location":"shelf/inventory.py:29-31","trigger_condition":"Quantity equal to threshold is excluded: low_stock uses strict < instead of at-or-below","guard_snippet":"use quantity <= threshold in the comprehension","potential_consequence":"Items exactly at the reorder level never appear, so reorders are still missed; spec AC1 fails (qty 5 at threshold 5 returns [])"},
+  {"lens":"adversarial","location":"shelf/inventory.py:29-31","trigger_condition":"Negative threshold is accepted and silently returns a list","guard_snippet":"if threshold < 0: raise ValueError(\"threshold must not be negative\")","potential_consequence":"Spec 'Always' rule and AC3 are violated; a caller bug passes unnoticed"},
+  {"lens":"adversarial","location":"shelf/inventory.py:30","trigger_condition":"Docstring says 'at or below threshold' but the code implements 'below'","guard_snippet":"make the code match the docstring (<=), or fix the docstring if strict is intended","potential_consequence":"Docstring and behavior disagree; readers and callers trust the wrong rule"},
+  {"lens":"adversarial","location":"tests/test_inventory.py:34","trigger_condition":"Test name 'below_the_threshold' encodes the strict-< behavior","guard_snippet":"rename to match the at-or-below rule and assert the boundary case","potential_consequence":"The test locks in the bug and will keep passing while the spec is violated"},
+  {"lens":"adversarial","location":"tests/test_inventory.py:34-38","trigger_condition":"No test for an item exactly at the threshold","guard_snippet":"add inventory.add('bolts', 5); assertEqual(inventory.low_stock(5), ['bolts', 'nails']) with nails=1","potential_consequence":"Boundary regressions in either direction are not caught"},
+  {"lens":"adversarial","location":"tests/test_inventory.py:34-38","trigger_condition":"No test for the empty-result case (AC2)","guard_snippet":"add a test with all quantities above threshold; assertEqual(low_stock(...), [])","potential_consequence":"Returning None or raising on no matches would pass the suite"},
+  {"lens":"adversarial","location":"tests/test_inventory.py:34-38","trigger_condition":"Only one item matches, so sorted() ordering is never exercised","guard_snippet":"add two matching items inserted out of order and assert alphabetical output","potential_consequence":"Dropping sorted() still passes; AC1 ordering is unverified"},
+  {"lens":"adversarial","location":"tests/test_inventory.py","trigger_condition":"No test for negative threshold ValueError, though spec says every behavior has a test","guard_snippet":"assertRaises(ValueError) on low_stock(-1), after implementing the guard","potential_consequence":"AC3 and the 'Always' rule are unenforced and untested"},
+  {"lens":"adversarial","location":"_bmad-output/implementation-artifacts/spec-1-2-low-stock.md:37-38","trigger_condition":"Tasks are marked [x] done although the negative-threshold ValueError is not implemented or tested","guard_snippet":"leave the task unchecked, or implement the guard and its test before checking it","potential_consequence":"Spec reports completion that is not true; the reviewer relies on a false status"},
+  {"lens":"adversarial","location":"_bmad/custom/config.toml:8-10","trigger_condition":"Story 1.2 branch adds a team-wide [core] language override (Polish) not in the spec's Code Map","guard_snippet":"move the language change to its own change, or document it in the spec and the commit","potential_consequence":"Every developer's tooling language changes silently; scope creep in a feature branch"},
+  {"lens":"adversarial","location":"shelf/inventory.py:29-31","trigger_condition":"Non-numeric threshold raises TypeError on a non-empty inventory but silently returns [] on an empty one","guard_snippet":"validate threshold type at entry (int, not bool) like _check_quantity does","potential_consequence":"Same bad input behaves differently depending on stock, hiding caller bugs"},
+  {"lens":"edge-case-hunter","location":"shelf/inventory.py:30-31","trigger_condition":"quantity == threshold falls into the 'not low' branch (strict < has no equality guard)","guard_snippet":"use quantity <= threshold so the equal case is handled explicitly","potential_consequence":"Items exactly at the threshold are dropped from the low-stock report"},
+  {"lens":"edge-case-hunter","location":"shelf/inventory.py:29","trigger_condition":"Negative threshold has no guard and is not rejected","guard_snippet":"if threshold < 0: raise ValueError(\"threshold must not be negative\")","potential_consequence":"Invalid threshold returns an empty or wrong list without error"},
+  {"lens":"edge-case-hunter","location":"shelf/inventory.py:29-31","trigger_condition":"None or string threshold: TypeError when items exist, silent [] when inventory is empty","guard_snippet":"check isinstance(threshold, int) and not bool before comparing","potential_consequence":"Behavior depends on stock level; bad input is caught only sometimes"},
+  {"lens":"verification-gap","gap_shape":"broken-verification-gap","location":"shelf/inventory.py:30-31","trigger_condition":"Boundary (quantity == threshold) is not pinned by any test","guard_snippet":"add an assertion where one item has quantity exactly equal to the threshold and expect it in the result","consumer":"No in-repo consumer of low_stock; searched the symbol across the repo, only shelf/inventory.py:29 and tests/test_inventory.py:38 reference it","evidence":"tests/test_inventory.py:34-38 uses quantities 1 and 9 with threshold 5; switching < to <= would still pass; the strict-< bug is also not caught","potential_consequence":"Boundary regression ships unnoticed, so low-stock reports miss items at the reorder level"},
+  {"lens":"verification-gap","gap_shape":"regression-gap","location":"shelf/inventory.py:31","trigger_condition":"Sorted output is not verified when more than one item matches","guard_snippet":"add two matching items inserted out of order and assert the result is alphabetical","consumer":"Same symbol search as above; only the single test references low_stock","evidence":"tests/test_inventory.py:38 expects a single-element list, so removing sorted() still passes","potential_consequence":"Unordered report ships; AC1 ordering silently breaks"},
+  {"lens":"verification-gap","gap_shape":"other","location":"shelf/inventory.py:29-31","trigger_condition":"Empty-result path (AC2) has no test","guard_snippet":"assert low_stock returns [] when no item is at or below the threshold","consumer":"Same symbol search as above","evidence":"tests/test_inventory.py contains no test with an empty expected result for low_stock","potential_consequence":"Non-list or None return on no matches would go unnoticed"},
+  {"lens":"verification-gap","gap_shape":"other","location":"shelf/inventory.py:29","trigger_condition":"Negative-threshold ValueError (AC3, spec 'Always' rule) is neither implemented nor tested","guard_snippet":"implement the guard and add assertRaises(ValueError) for low_stock(-1)","consumer":"Same symbol search as above","evidence":"shelf/inventory.py:29-31 has no raise; the only ValueError assertions in tests/test_inventory.py:23 and :29 cover add/remove","potential_consequence":"Spec-required error is missing and no check would catch it"}
+]
+```
+
+# BMad Review: branch `task/low-stock-implemented` vs `main`
+
+**Content:** branch diff against merge base `1cae4c6` (4 files, +67 lines), classed as **code**.
+**Lenses run:** Adversarial, Edge-Case Hunter, Verification Gap. Structure and Prose were skipped because they apply only to docs. No claims file was staged, so the Claims step did not run.
+**Customization:** no team or user overrides; defaults used. Output format is `both`, and no report file was written.
+
+### Adversarial (11 findings)
+- **Boundary is strict:** `shelf/inventory.py:29-31` uses `<`, so an item exactly at the threshold is excluded. The spec and docstring say "at or below". Verified: `add('a', 5)` then `low_stock(5)` returns `[]`.
+- **Negative threshold accepted:** `low_stock(-1)` returns `[]` without error. The spec requires `ValueError` (AC3).
+- **Docstring/code mismatch:** the docstring at line 30 says "at or below", the code does "below".
+- **Test locks in the bug:** `tests/test_inventory.py:34` is named "below_the_threshold" and has no boundary case.
+- **Missing test cases:** no empty-result test (AC2), no multi-item ordering test (so `sorted()` is unverified), and no negative-threshold test.
+- **Spec overstates completion:** `spec-1-2-low-stock.md:37-38` checks all tasks as done, but the ValueError is not implemented.
+- **Out-of-scope config change:** `_bmad/custom/config.toml:8-10` sets team-wide `[core]` language to Polish. It is not in the spec and affects every developer.
+- **Inconsistent type handling:** a non-numeric threshold raises `TypeError` on a non-empty inventory but silently returns `[]` on an empty one.
+
+### Edge-Case Hunter (3 findings)
+- The equal-to-threshold case falls into the "not low" branch (`inventory.py:30-31`).
+- Negative thresholds are unguarded (`inventory.py:29`).
+- Non-numeric thresholds are checked only when the inventory is non-empty (`inventory.py:29-31`).
+- The call site in the test matches the signature. The Deletion check found no removed code, so it added nothing.
+
+### Verification Gap (4 findings)
+- **Broken verification:** the test at `tests/test_inventory.py:34-38` would still pass if `<` were changed to `<=`, so the boundary is not protected.
+- **Regression gap:** removing `sorted()` would still pass the test, because only one item matches.
+- **Other:** the empty-result case (AC2) is untested.
+- **Other:** the negative-threshold `ValueError` (AC3) is neither implemented nor tested.
+- `low_stock` has no in-repo consumers. I searched the symbol across the repo and found only the definition and its test.
+
+### Summary
+The suite passes (`python3 -m unittest discover -s tests -t .`: 5 tests, OK), but it passes while the implementation violates the spec. The two main defects are the strict `<` boundary and the missing negative-threshold guard. Both should be fixed before this branch is merged. No files were changed.
+# --- end final message ---
+# --- usage ---
+model: claude-haiku-5-5
+turns: 7
+cost_usd: 0.0076
+tokens: 95799 in, 8682 out
+# --- end usage ---
+# --- tools ---
+offered: Bash Edit Read Write
+called: Bash 4
+called: Read 2
+# --- end tools ---
+# --- paths ---
+methodology-skills: 8
+methodology-bmad: 2
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 2
+workspace-bmad-render: 0
+repository-instruction-file: 0
+context: 1
+# --- end paths ---
+# --- workspace changes ---
+(and 4 file(s) under _bmad/render/ or __pycache__/)
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: review-findings
+info: spec files written: no spec file written
+ok: findings that report a seeded defect (the threshold boundary, the negative threshold)
+info: the reviewed code is named in: the final result
+info: the acceptance probe of Story 1.2 after the run: fails (AssertionError: ['nails'])
+# --- end expected artifact ---
+# --- produced files ---
+# --- end produced files ---
+# --- language ---
+final message: 7516 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+branch: task/low-stock-implemented
+head: ba8855467d44dc9ef8fb944cee9d530af6de9622
+files that differ from the commit, untracked included: 0
+commits the run added: 0
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---
+
+# --- proxy hosts ---
+api.anthropic.com:443
+# --- end proxy hosts ---
