@@ -1,5 +1,6 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
@@ -42,4 +43,13 @@ public interface IInstallationConfiguration
 
     /// <summary>Stores the value of an installation setting, replacing an earlier one. Core has checked the name and the value.</summary>
     Task SetSettingAsync(string name, string value, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Registers a repository as a Project, by GitHub's numeric id. A repository already registered keeps its id and the time it was
+    /// registered, and its name and Base Branch are replaced; a removed one is registered again from its retained record.
+    /// </summary>
+    Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken);
+
+    /// <summary>Marks the registered Project with that repository id as removed and keeps everything else; null when it is not registered.</summary>
+    Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken);
 }

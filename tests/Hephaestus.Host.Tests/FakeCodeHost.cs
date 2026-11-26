@@ -1,5 +1,6 @@
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Host.Tests;
@@ -67,5 +68,40 @@ internal sealed class FakeCodeHost : ICodeHost
         }
 
         return Task.FromResult(Users.TryGetValue(login, out var user) ? GitHubUserResult.Found(user) : GitHubUserResult.Failed(GitHubUserFailure.NotFound));
+    }
+
+    /// <summary>The repositories the App is installed on, by name (not case sensitive): the id, the name GitHub spells, and the branches with whether each is protected.</summary>
+    public Dictionary<string, (long Id, string FullName, Dictionary<string, bool> Branches)> Repositories { get; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["acme/shop"] = (101, "acme/shop", new Dictionary<string, bool> { ["main"] = true, ["develop"] = false, ["release/1.0"] = true }),
+        ["acme/api"] = (102, "acme/api", new Dictionary<string, bool> { ["main"] = false }),
+    };
+
+    /// <summary>When set, every repository lookup fails with it.</summary>
+    public GitHubRepositoryFailure? RepositoryLookupFails { get; set; }
+
+    public List<(string FullName, string? Branch)> RepositoryLookups { get; } = [];
+
+    public Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken)
+    {
+        RepositoryLookups.Add((fullName, branch));
+        if (RepositoryLookupFails is { } failure)
+        {
+            return Task.FromResult(GitHubRepositoryResult.Failed(failure));
+        }
+
+        if (!Repositories.TryGetValue(fullName, out var repository))
+        {
+            return Task.FromResult(GitHubRepositoryResult.Failed(GitHubRepositoryFailure.NotInstalled));
+        }
+
+        if (branch is null)
+        {
+            return Task.FromResult(GitHubRepositoryResult.Found(new GitHubRepository(repository.Id, repository.FullName, Branch: null)));
+        }
+
+        return Task.FromResult(repository.Branches.TryGetValue(branch, out var isProtected)
+            ? GitHubRepositoryResult.Found(new GitHubRepository(repository.Id, repository.FullName, new GitHubBranch(branch, isProtected)))
+            : GitHubRepositoryResult.Failed(GitHubRepositoryFailure.BranchNotFound));
     }
 }

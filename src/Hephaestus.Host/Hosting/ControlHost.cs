@@ -2,6 +2,7 @@ using System.Net.Sockets;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Protection;
 using Hephaestus.Core.Secrets;
 using Hephaestus.Core.Settings;
@@ -44,6 +45,7 @@ internal static class ControlHost
         builder.Services.TryAddSingleton<LimitService>();
         builder.Services.TryAddSingleton<ProtectedPathService>();
         builder.Services.TryAddSingleton<SettingService>();
+        builder.Services.TryAddSingleton<ProjectService>();
         builder.Logging.ClearProviders();
         // The container's health check calls the API every few seconds; its request lines are not worth a log line each.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);

@@ -1,5 +1,6 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
@@ -30,4 +31,7 @@ public interface IReadStore
 
     /// <summary>The settings the Owner has set, by name; a setting never set is absent and has its default.</summary>
     Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken);
+
+    /// <summary>The Projects, ascending by name and then by repository id: those Hephaestus works on, and the removed ones too when asked.</summary>
+    Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken);
 }

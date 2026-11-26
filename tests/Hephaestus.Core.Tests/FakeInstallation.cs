@@ -1,6 +1,7 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Tests;
@@ -68,4 +69,40 @@ internal sealed class FakeInstallation : IReadStore, IInstallationConfiguration
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Dictionary<long, Project> Projects { get; } = [];
+
+    /// <summary>When set, a removal finds the Project already removed, as when two Owners remove it at once.</summary>
+    public bool RemovalFindsTheProjectGone { get; set; }
+
+    public Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken)
+    {
+        var registeredAt = DateTimeOffset.UnixEpoch.AddDays(Projects.Count);
+        if (!Projects.TryGetValue(repositoryId, out var stored))
+        {
+            var created = new Project(repositoryId, fullName, baseBranch, registeredAt, null);
+            Projects[repositoryId] = created;
+            return Task.FromResult(new ProjectWrite(created, ProjectChange.Registered));
+        }
+
+        var change = stored.RemovedAt is not null ? ProjectChange.Registered : stored.FullName == fullName && stored.BaseBranch == baseBranch ? ProjectChange.Unchanged : ProjectChange.Updated;
+        var updated = stored with { FullName = fullName, BaseBranch = baseBranch, RemovedAt = null };
+        Projects[repositoryId] = updated;
+        return Task.FromResult(new ProjectWrite(updated, change));
+    }
+
+    public Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken)
+    {
+        if (RemovalFindsTheProjectGone || !Projects.TryGetValue(repositoryId, out var stored) || stored.RemovedAt is not null)
+        {
+            return Task.FromResult<Project?>(null);
+        }
+
+        var removed = stored with { RemovedAt = DateTimeOffset.UnixEpoch.AddYears(1) };
+        Projects[repositoryId] = removed;
+        return Task.FromResult<Project?>(removed);
+    }
+
+    public Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Project>>([.. Projects.Values.Where(p => includeRemoved || p.IsActive).OrderBy(p => p.FullName, StringComparer.OrdinalIgnoreCase)]);
 }

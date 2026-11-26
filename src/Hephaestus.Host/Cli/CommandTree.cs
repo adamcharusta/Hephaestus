@@ -89,7 +89,18 @@ internal sealed class CommandTree
 
         Config.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config };
+        ProjectAddName = new Argument<string>("owner/repo");
+        ProjectRemoveName = new Argument<string>("owner/repo");
+        ProjectBaseBranch = new Option<string>("--base-branch") { Description = Describe(MessageIds.CliProjectOptionBaseBranch), Required = true };
+        ProjectAll = new Option<bool>("--all") { Description = Describe(MessageIds.CliProjectOptionAll) };
+        ProjectAdd = new Command("add", Describe(MessageIds.CliProjectAddDescription)) { ProjectAddName, ProjectBaseBranch, Json };
+        ProjectList = new Command("list", Describe(MessageIds.CliProjectListDescription)) { ProjectAll, Json };
+        ProjectRemove = new Command("remove", Describe(MessageIds.CliProjectRemoveDescription)) { ProjectRemoveName, Json };
+        Project = new Command("project", Describe(MessageIds.CliProjectDescription)) { ProjectAdd, ProjectList, ProjectRemove };
+
+        Project.SetAction(_ => 0);
+
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -175,6 +186,22 @@ internal sealed class CommandTree
     public Argument<string> SettingSetName { get; }
 
     public Argument<string> SettingSetValue { get; }
+
+    public Command Project { get; }
+
+    public Command ProjectAdd { get; }
+
+    public Command ProjectList { get; }
+
+    public Command ProjectRemove { get; }
+
+    public Argument<string> ProjectAddName { get; }
+
+    public Argument<string> ProjectRemoveName { get; }
+
+    public Option<string> ProjectBaseBranch { get; }
+
+    public Option<bool> ProjectAll { get; }
 
     public Command Config { get; }
 

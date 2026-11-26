@@ -13,7 +13,7 @@ namespace Hephaestus.GitHub;
 /// judge the permissions (AD-19). It only reads. The installation token it asks for to list repositories is held for that call,
 /// never stored or logged.
 /// </summary>
-public sealed class GitHubGateway : ICodeHost
+public sealed partial class GitHubGateway : ICodeHost
 {
     private const int PageSize = 100;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);

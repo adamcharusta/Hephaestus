@@ -28,6 +28,7 @@ internal static class ControlApi
         LimitApi.Map(routes);
         ProtectedPathApi.Map(routes);
         SettingApi.Map(routes);
+        ProjectApi.Map(routes);
         ConfigurationApi.Map(routes);
     }
 

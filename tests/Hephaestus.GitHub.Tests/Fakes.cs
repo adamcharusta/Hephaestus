@@ -1,6 +1,7 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.GitHub.Tests;
@@ -99,4 +100,10 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
     }
 
     public Task<bool> RemoveTrustedUserAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(TrustedUsers.RemoveAll(u => u.UserId == userId) > 0);
+
+    public Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken) => throw new NotSupportedException();
 }

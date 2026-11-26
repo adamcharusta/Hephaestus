@@ -86,6 +86,33 @@ namespace Hephaestus.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Hephaestus.Persistence.Model.ProjectEntry", b =>
+                {
+                    b.Property<long>("RepositoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BaseBranch")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(140)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RegisteredAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RemovedAt")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("RepositoryId");
+
+                    b.ToTable("Projects", (string)null);
+                });
+
             modelBuilder.Entity("Hephaestus.Persistence.Model.ProtectedPathEntry", b =>
                 {
                     b.Property<string>("Pattern")

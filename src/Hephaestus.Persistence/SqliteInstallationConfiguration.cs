@@ -1,6 +1,7 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
@@ -135,5 +136,54 @@ internal sealed class SqliteInstallationConfiguration(HephaestusDatabase databas
             ON CONFLICT ("Name") DO UPDATE SET "Value" = excluded."Value"
             """,
             cancellationToken);
+    }
+
+    public async Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        var registeredAt = UtcInstantConverter.ToText(time.GetUtcNow());
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // A write first, so that the transaction holds the lock before it reads what the row was: a transaction that reads and then
+        // writes fails at once, past the busy timeout, when another writer has committed in between.
+        var touched = await context.Database.ExecuteSqlInterpolatedAsync($"""UPDATE "Projects" SET "FullName" = "FullName" WHERE "RepositoryId" = {repositoryId}""", cancellationToken);
+        var previous = touched == 0 ? null : await context.Projects.AsNoTracking().SingleAsync(p => p.RepositoryId == repositoryId, cancellationToken);
+        var change = previous is null || previous.RemovedAt is not null
+            ? ProjectChange.Registered
+            : previous.FullName == fullName && previous.BaseBranch == baseBranch ? ProjectChange.Unchanged : ProjectChange.Updated;
+        if (change != ProjectChange.Unchanged)
+        {
+            // The id and the time of the first registration are kept; a removed Project is registered again from its record.
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""
+                INSERT INTO "Projects" ("RepositoryId", "FullName", "BaseBranch", "RegisteredAt", "RemovedAt") VALUES ({repositoryId}, {fullName}, {baseBranch}, {registeredAt}, NULL)
+                ON CONFLICT ("RepositoryId") DO UPDATE SET "FullName" = excluded."FullName", "BaseBranch" = excluded."BaseBranch", "RemovedAt" = NULL
+                """,
+                cancellationToken);
+        }
+
+        var stored = await context.Projects.AsNoTracking().SingleAsync(p => p.RepositoryId == repositoryId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return new ProjectWrite(SqliteReadStore.ToProject(stored), change);
+    }
+
+    public async Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        var removedAt = UtcInstantConverter.ToText(time.GetUtcNow());
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // The row stays: only the time of its removal is written, so that everything recorded under the Project is retained.
+        var removed = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Projects" SET "RemovedAt" = {removedAt} WHERE "RepositoryId" = {repositoryId} AND "RemovedAt" IS NULL""",
+            cancellationToken);
+        if (removed == 0)
+        {
+            return null;
+        }
+
+        var stored = await context.Projects.AsNoTracking().SingleAsync(p => p.RepositoryId == repositoryId, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return SqliteReadStore.ToProject(stored);
     }
 }

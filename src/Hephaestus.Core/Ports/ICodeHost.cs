@@ -1,4 +1,5 @@
 using Hephaestus.Core.GitHub;
+using Hephaestus.Core.Projects;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
@@ -24,4 +25,11 @@ public interface ICodeHost
     /// own bot account. An organization is not a user and is not found. Nothing is stored.
     /// </summary>
     Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Finds a repository the connected App is installed on by its <c>owner/name</c>, and, when <paramref name="branch"/> is given,
+    /// that branch of it and whether GitHub reports it as protected (AD-19). A repository the App is not installed on is not found,
+    /// whether or not it exists. Nothing is stored.
+    /// </summary>
+    Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken);
 }
