@@ -6,9 +6,26 @@ A self-hosted orchestrator that turns labelled GitHub issues into validated, ind
 driving Claude Code and Codex CLI in hardened containers. It is MIT-licensed and free to run; the Agents and their costs
 are your own.
 
-**Status:** under construction. There is no release yet and nothing to install or run. The repository holds the plan
-(`_bmad-output/`), the architecture and its decision records (`docs/`), and the solution skeleton that the stories build
-on. Release channels and installation arrive with Epic 1.
+**Status:** under construction. There is no release yet; the image is built from this repository. The repository holds the
+plan (`_bmad-output/`), the architecture and its decision records (`docs/`), and the code the stories build on. Release
+channels arrive with Epic 1.
+
+## Run
+
+You need Docker Engine 29 or later with Compose v2, and nothing else: no other server, paid service, or cloud service.
+
+```bash
+docker compose -f deploy/compose.yaml up -d      # builds the image, starts the container `hephaestus`, waits until it is healthy
+docker exec hephaestus hephaestus version        # the command line: the same executable, run inside the container
+docker exec hephaestus hephaestus --help         # the commands and options
+docker compose -f deploy/compose.yaml down       # stop it
+```
+
+The command line calls the host's control API over a Unix domain socket inside the container. The container publishes no
+port and listens on no network address. Every command takes `--json` to print one JSON document, prints errors on standard
+error, and exits with 0, 1 (a failure), or 2 (not understood). Set `HEPHAESTUS_LANGUAGE=pl` (in the environment of
+`docker compose up`, or with `docker exec -e`) for Polish sentences; command names, options, and `--json` output never change.
+Logs are one JSON object per line: `docker logs hephaestus`. More in [`deploy/README.md`](deploy/README.md).
 
 ## Build and test
 

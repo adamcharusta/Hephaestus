@@ -50,6 +50,70 @@ jobs:
       - name: License gate
         run: python3 eng/check-licenses.py
 
+  image:
+    name: Image (${{ matrix.platform }})
+    # The image builds and starts on both architectures, each on a runner of its own architecture (Story 1.4): the Compose
+    # file starts one container, it becomes healthy, the command line reaches the API over the socket, and nothing is
+    # published or listening on a network address.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the image
+        run: |
+          docker version --format 'Docker Engine {{.Server.Version}}'
+          docker compose -f deploy/compose.yaml build
+
+      - name: Start with Compose and wait until healthy
+        run: docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 120
+
+      - name: The command line reaches the API
+        run: |
+          docker exec hephaestus hephaestus version
+          docker exec hephaestus hephaestus version --json | python3 -c 'import json, sys; assert list(json.load(sys.stdin)) == ["version"]'
+          set +e
+          docker exec hephaestus hephaestus frobnicate
+          test "$?" -eq 2
+
+      - name: No port is published and nothing listens on a network address
+        run: |
+          test -z "$(docker port hephaestus)"
+          listening="$(docker exec hephaestus cat /proc/net/tcp /proc/net/tcp6 | awk '$4 == "0A"' | wc -l)"
+          test "$listening" -eq 0
+          bound="$(docker exec hephaestus cat /proc/net/udp /proc/net/udp6 | awk '$4 == "07"' | wc -l)"
+          test "$bound" -eq 0
+
+      - name: The host runs as a non-root user and owns a socket only it can open
+        run: |
+          test "$(docker exec hephaestus id -u)" -ne 0
+          test "$(docker exec hephaestus stat -c %a /run/hephaestus/control.sock)" = 600
+
+      - name: The language reaches the command line
+        run: |
+          docker exec -e HEPHAESTUS_LANGUAGE=pl hephaestus hephaestus version | grep -q 'Hephaestus w wersji'
+          docker exec hephaestus hephaestus version | grep -q 'Hephaestus version'
+
+      - name: Logs are JSON objects, one per line
+        run: docker logs hephaestus 2>/dev/null | python3 -c 'import json, sys; lines = sys.stdin.read().splitlines(); assert lines; [json.loads(l) for l in lines]'
+
+      - name: Show the logs and stop
+        if: always()
+        run: |
+          docker compose -f deploy/compose.yaml logs --no-color || true
+          docker compose -f deploy/compose.yaml down --volumes
+
   gate-scripts:
     name: Gate scripts
     runs-on: ubuntu-24.04
