@@ -1,0 +1,194 @@
+# harness: bdfdba94e1fa+bmad-56861b8d1ac9
+# image: hephaestus-spike-image-bmad-git
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-review-build-auto-claude-strong-a,target=/hephaestus/context,readonly --network hephaestus-spike-workspace-a --env HTTP_PROXY=http://hephaestus-spike-proxy-a:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy-a:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy-a:3128 --env https_proxy=http://hephaestus-spike-proxy-a:3128 --env no_proxy=localhost,127.0.0.1,::1 --env ANTHROPIC_API_KEY --env ENABLE_CLAUDEAI_MCP_SERVERS=false --env CLAUDE_CODE_ENABLE_CFC=0 --env CLAUDE_CODE_DISABLE_ARTIFACT=1 --env CLAUDE_CODE_DISABLE_AGENT_VIEW=1 --env CLAUDE_CODE_DISABLE_CRON=1 --env CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL=1 --env CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 --env SPIKE_TIMEOUT=1800 --env SPIKE_EXPECT=review-findings 
+# command: bash -s -- /hephaestus/agents/claude/linux-x64/claude -p Read /hephaestus/context/instruction.md and follow it. --output-format stream-json --verbose --dangerously-skip-permissions --no-session-persistence --model sonnet --safe-mode --setting-sources user --strict-mcp-config --settings {"disableAllHooks":true,"disableClaudeAiConnectors":true,"enableAllProjectMcpServers":false} --tools Bash,Read,Edit,Write 
+# exit: 0
+# --- stdout ---
+# --- context: instruction.md ---
+You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an offer of further work.
+
+Run the BMAD workflow `bmad-build-auto`. BMAD's files are read-only at `/hephaestus/methodology`:
+
+- The entry file of the workflow is `/hephaestus/methodology/skills/bmad-build-auto/SKILL.md`. Read it and follow it.
+- `{skill-root}` is `/hephaestus/methodology/skills/bmad-build-auto`.
+- BMAD's scripts are in `/hephaestus/methodology/_bmad/scripts/`. Run them from there wherever a workflow names `{project-root}/_bmad/scripts/`.
+- `{project-root}` is `/workspace`, where the project is.
+
+The spec file is `_bmad-output/implementation-artifacts/spec-1-2-low-stock.md`. It is in review.
+# --- end context: instruction.md ---
+# --- context: task.json ---
+{
+  "stepKind": "Review",
+  "branch": "task/low-stock-implemented",
+  "baseBranch": "main",
+  "round": 1,
+  "language": "en"
+}
+# --- end context: task.json ---
+# --- repository before ---
+branch: task/low-stock-implemented
+head: 08b0c30d90c6dafedf7ed9ca0a3fffbdf5a34754
+files that differ from the commit, untracked included: 0
+# --- end repository before ---
+{"type":"system","subtype":"ui_invalidate","event":"ui.render","uuid":"5a4b2af9-982f-4756-aaca-5a2dd4857f4e","session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1"}
+{"type":"system","subtype":"init","cwd":"/workspace","session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","tools":["Bash","Edit","Read","Write"],"mcp_servers":[],"model":"claude-sonnet-5-5","permissionMode":"bypassPermissions","slash_commands":["deep-research","dataviz","update-config","verify","debug","code-review","simplify","batch","fewer-permission-prompts","doctor","claude-api","workflow-authoring","run","run-skill-generator","plugin-authoring","agents","auto-mode-setup","autocompact","clear ...[2055 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS6uPPmYVffDMQx8UCE","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01SAsjrR5rjjSapfqMGnxGhN","name":"Read","input":{"file_path":"/hephaestus/context/instruction.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":860,"cache_read_input_tokens":4445,"cache_creation":{"ephemeral_5m ...[420 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01SAsjrR5rjjSapfqMGnxGhN","type":"tool_result","content":"1\tYou are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an o ...[2100 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS6zPH8TgWnQkEpVhvt","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01GiQrpnw6uJWkRSaVn9bVqE","name":"Read","input":{"file_path":"/hephaestus/methodology/skills/bmad-build-auto/SKILL.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":466,"cache_read_input_tokens":5305,"cache_cre ...[441 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01GiQrpnw6uJWkRSaVn9bVqE","type":"tool_result","content":"1\t---\n2\tname: bmad-build-auto\n3\tdescription: 'One iteration of an unattended development loop. Use when invoked by name'\n4\t---\n5\t\n6\tRun the following command exactly once without changing the current working directory. Replace `{project-root}` with the absolute path to the project root and `{skill-root}` with the absolute path to this skill's directory:\n7 ...[1589 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","uuid":"d476e28d-1d6d-43b0-a7eb-5c6fbde68631"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":230,"estimated_tokens_delta":180,"session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","uuid":"c17078a3-bab0-49ae-a1dd-bbc1c7260717"}
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS75TsCtaCG4c1sbjH7","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQSjgcKEAgUGAI4AUIIdGhpbmtpbmcSDE+59P2Ms8ZamwhmKhoM/B0h9DhPHBMVX2tDIjCM0OsIl8PH0O089ISw6bZVEBjTAh2rpszRejzR50xNHKRZJfk8vVApueMTxT3w9AUqqwZ/hj36scNwJyDowrFvTjgEvATGZSJ7Qej6SNb7MD9aBsyLY3LmhvpeMrfZ1H9aOKpntGhlxY68Qrk7By3DXHtE6TW9EF53AEztkrf0HCqPEtwUkF9yB/KB2c0AcDkLdynYC90XTRU3K5m0JvUH9Tmi8uWsw474ii73AgG/ovS1I03v ...[1590 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS75TsCtaCG4c1sbjH7","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01CfxqK3aT3gdufrJjrrfa8V","name":"Bash","input":{"command":"uv run --no-cache \"/hephaestus/methodology/_bmad/scripts/render_skill.py\" --project-root \"/workspace\" --skill \"/hephaestus/methodology/skills/bmad-build-auto\""},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details" ...[547 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01CfxqK3aT3gdufrJjrrfa8V","type":"tool_result","content":"read and follow /workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/workflow.md","is_error":false}]},"parent_tool_use_id":null,"session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","uuid":"b1ea2e57-66fa-4bb1-a4e0-328b39cb0487","timestamp":"2026-11-26T11:07:52.054Z","tool_use_result":{"stdout":"read and follow /workspace/_bmad/render/bmad ...[287 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7ETrVd4YhMkL62KZm","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01W4CARF9NuVhUwvGv97tAjY","name":"Read","input":{"file_path":"/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/workflow.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":271," ...[481 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01W4CARF9NuVhUwvGv97tAjY","type":"tool_result","content":"1\t# Build Auto Workflow\n2\t\n3\t**Goal:** Turn intent into a hardened, reviewable artifact, without human interaction.\n4\t\n5\t**CRITICAL:** If a step directs you to another snapshot file, read it fully and follow it. No exceptions.\n6\t\n7\t## HALT\n8\t\n9\tTo HALT with a final status and optional blocking condition:\n10\t\n11\t1. **Folder+id dispatch** (`{spec_f ...[12099 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7KagbzU1fc2ddRM4f","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_011vXachFhyLYxsErzpoxKxQ","name":"Read","input":{"file_path":"/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/step-01-clarify-and-route.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_in ...[500 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_011vXachFhyLYxsErzpoxKxQ","type":"tool_result","content":"1\t---\n2\tspec_file: '' # set at runtime once a route resolves it; some HALT branches exit before it is set\n3\tspec_folder: '' # set at runtime under folder+id dispatch only\n4\tstory_id: '' # set at runtime under folder+id dispatch only\n5\tfollowup_pass: '' # set at runtime when a `done` spec is re-dispatched for a follow-up review pass; empty on a first pass\n6\ ...[23242 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7RAnfVGhLYqYaCVYC","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_017U24VC9ndvHJXULwG9ghVL","name":"Bash","input":{"command":"head -20 /workspace/_bmad-output/implementation-artifacts/spec-1-2-low-stock.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":4560,"cache_read_input_ ...[465 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_017U24VC9ndvHJXULwG9ghVL","type":"tool_result","content":"---\ntitle: 'Story 1.2: Report items that are low on stock'\ntype: 'feature'\ncreated: '2026-11-26'\nstatus: 'in-review'\nbaseline_commit: '1cae4c63b152eae71d9192b2166a68882294769c'\nbaseline_revision: '1cae4c63b152eae71d9192b2166a68882294769c'\nreview_loop_iteration: 0\ncontext: []\n---\n\n<frozen-after-approval reason=\"human-owned intent — do not modify unless hum ...[1405 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7W7SQGAUS8wYe3b17","type":"message","role":"assistant","content":[{"type":"text","text":"Status is `in-review`, so I'm routing to step 4."}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":355,"cache_read_input_tokens":13351,"cache_creation":{"ephemeral_5m_input_tokens":355,"ephemeral_1h_input_tokens":0},"output_tokens":35,"service_tier" ...[337 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7W7SQGAUS8wYe3b17","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_013ZwWtGqRBoE1yfLjYjRYAe","name":"Read","input":{"file_path":"/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/step-04-review.md"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens" ...[488 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_013ZwWtGqRBoE1yfLjYjRYAe","type":"tool_result","content":"1\t# Step 4: Review\n2\t\n3\t## RULES\n4\t\n5\t- **Language** — Speak in `English`, tailored to `intermediate`. Write files in `English`.\n6\t- No human interaction: do not ask questions or wait for approval in this step.\n7\t- All review subagents must run at the same model capability as the current session.\n8\t\n9\t## INSTRUCTIONS\n10\t\n11\tChange `{spec_file}` s ...[36936 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7dPVog4hXeysh1rZY","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_01VvH49nz73oXVvbfX4Bj7G1","name":"Bash","input":{"command":"cat _bmad-output/implementation-artifacts/spec-1-2-low-stock.md; git log --format=%H; git diff 1cae4c63b152eae71d9192b2166a68882294769c --stat; ls"},"caller":{"type":"direct"}}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"in ...[533 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_01VvH49nz73oXVvbfX4Bj7G1","type":"tool_result","content":"---\ntitle: 'Story 1.2: Report items that are low on stock'\ntype: 'feature'\ncreated: '2026-11-26'\nstatus: 'in-review'\nbaseline_commit: '1cae4c63b152eae71d9192b2166a68882294769c'\nbaseline_revision: '1cae4c63b152eae71d9192b2166a68882294769c'\nreview_loop_iteration: 0\ncontext: []\n---\n\n<frozen-after-approval reason=\"human-owned intent — do not modify unless hum ...[4313 more characters]
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":50,"estimated_tokens_delta":50,"session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","uuid":"dac26f97-5658-4a21-9d50-037c903fd16f"}
+{"type":"system","subtype":"thinking_tokens","estimated_tokens":311,"estimated_tokens_delta":261,"session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","uuid":"b75c5f94-ed16-4683-a416-b0d500ba7a6d"}
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7kpixqBR3gBqKE1Qi","type":"message","role":"assistant","content":[{"type":"thinking","thinking":"","signature":"CAQS0gkKEAgUGAI4AUIIdGhpbmtpbmcSDDqUHrJtX/xfOBRBjxoMqeRu18FGA2m8GgGRIjBnfsoMR8O9qVHeMaNwjz0PFt3NzHBXITD/BGhIF9jV0JnizLf/X6JlS9xmkT/nnoYq7wgL7d1rXE9njpdTV6bATJoYWYPBFOiLBAnwQ5qORtcZ3D5zU4xpkGSGsDPU/iyu6+NEv5Wvh4IZsW3AbbqreY26zcWjiB0mxzVTjWqUjCCH83861DIpZLYvSBDzIKPsoQXbelbkh1Lp5yLQT6swLaGb1V2SIPhGiiwctHsgs6guQV0E ...[2026 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7kpixqBR3gBqKE1Qi","type":"message","role":"assistant","content":[{"type":"text","text":"I have no way to launch subagents in this environment, and step 4 requires them. The workflow says to HALT as `blocked` with the condition `no subagents`, so I'm writing that to the spec."}],"container":null,"stop_reason":null,"stop_sequence":null,"stop_details":null,"usage":{"input_tokens":2,"cache_creation_input_tokens":1001,"cache ...[477 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS7kpixqBR3gBqKE1Qi","type":"message","role":"assistant","content":[{"type":"tool_use","id":"toolu_018EnMPMhKKpemYduSccEy6g","name":"Bash","input":{"command":"sed -i \"s/^status: 'in-review'/status: 'blocked'/\" _bmad-output/implementation-artifacts/spec-1-2-low-stock.md && printf '\\n## Auto Run Result\\n\\nStatus: blocked\\nBlocking condition: no subagents\\n\\nThe review step (step 4) requires launching reviewer subagen ...[837 more characters]
+{"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_018EnMPMhKKpemYduSccEy6g","type":"tool_result","content":" M _bmad-output/implementation-artifacts/spec-1-2-low-stock.md\n[This command modified 1 file you've previously read: _bmad-output/implementation-artifacts/spec-1-2-low-stock.md. Call Read before editing.]","is_error":false}]},"parent_tool_use_id":null,"session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","uuid":"f03ef62c-33d0-4006-8a98-a2cf1b3e19c7","timestamp":"2026- ...[501 more characters]
+{"type":"assistant","message":{"model":"claude-sonnet-5-5","id":"msg_011ChRS83ekyX7RGK936ygTY","type":"message","role":"assistant","content":[{"type":"text","text":"**Status: blocked. Blocking condition: `no subagents`.**\n\nThe spec `spec-1-2-low-stock.md` was `in-review`, so the workflow sent me to step 4. That step has to launch four reviewer subagents: Blind Hunter, Edge Case Hunter, Verification Gap and Intent Alignment. This environment gives me no subagent tool. The workflow says to HALT  ...[1271 more characters]
+{"duration_api_ms":18402,"stop_reason":"end_turn","session_id":"dfae4345-aab0-4a93-a330-f87dd7fd0fe1","total_cost_usd":0.0710266,"usage":{"input_tokens":20,"cache_creation_input_tokens":17293,"cache_read_input_tokens":105241,"output_tokens":1723,"output_tokens_details":{"thinking_tokens":258},"server_tool_use":{"web_search_requests":0,"web_fetch_requests":0},"service_tier":"standard","cache_creation":{"ephemeral_1h_input_tokens":0,"ephemeral_5m_input_tokens":17293},"inference_geo":"global","iter ...[2616 more characters]
+
+# --- agent exit: 0 ---
+# --- seconds: 20 of 1800 ---
+# --- final message ---
+**Status: blocked. Blocking condition: `no subagents`.**
+
+The spec `spec-1-2-low-stock.md` was `in-review`, so the workflow sent me to step 4. That step has to launch four reviewer subagents: Blind Hunter, Edge Case Hunter, Verification Gap and Intent Alignment. This environment gives me no subagent tool. The workflow says to HALT in that case, so I stopped.
+
+- **Spec file:** I changed `status` to `blocked` and added an `## Auto Run Result` section with the blocking condition.
+- **Code:** No code was changed. The diff from baseline is `shelf/inventory.py`, `tests/test_inventory.py` and the spec.
+- **Review and tests:** No review was done, so nothing was triaged. I didn't run the unit tests either.
+- **Git:** The spec edit is uncommitted, so the working tree is dirty. I didn't commit it because the HALT path doesn't call for one.
+
+To finish the story, re-run the workflow somewhere that can launch subagents, after setting the spec's status back to `in-review`.
+# --- end final message ---
+# --- usage ---
+model: claude-sonnet-5-5
+turns: 10
+cost_usd: 0.0710
+tokens: 122554 in, 1723 out
+# --- end usage ---
+# --- tools ---
+offered: Bash Edit Read Write
+called: Bash 4
+called: Read 5
+# --- end tools ---
+# --- paths ---
+methodology-skills: 2
+methodology-bmad: 1
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 0
+workspace-bmad-render: 3
+repository-instruction-file: 0
+context: 1
+# --- end paths ---
+# --- workspace changes ---
+changed _bmad-output/implementation-artifacts/spec-1-2-low-stock.md
+(and 12 file(s) under _bmad/render/ or __pycache__/)
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: review-findings
+info: spec files written: _bmad-output/implementation-artifacts/spec-1-2-low-stock.md is blocked
+missing: findings that report a seeded defect (neither the threshold boundary nor the negative threshold)
+info: the reviewed code is named in: the final result
+info: the acceptance probe of Story 1.2 after the run: fails (AssertionError: ['nails'])
+# --- end expected artifact ---
+# --- produced files ---
+## _bmad-output/implementation-artifacts/spec-1-2-low-stock.md (58 lines)
+| ---
+| title: 'Story 1.2: Report items that are low on stock'
+| type: 'feature'
+| created: '2026-11-26'
+| status: 'blocked'
+| baseline_commit: '1cae4c63b152eae71d9192b2166a68882294769c'
+| baseline_revision: '1cae4c63b152eae71d9192b2166a68882294769c'
+| review_loop_iteration: 0
+| context: []
+| ---
+| 
+| <frozen-after-approval reason="human-owned intent — do not modify unless human renegotiates">
+| 
+| ## Intent
+| 
+| **Problem:** The shop keeper cannot see which items are running low, so reorders come late.
+| 
+| **Approach:** Add `Inventory.low_stock(threshold)`, which returns the sorted names of the items whose quantity is at or below the threshold.
+| 
+| ## Boundaries & Constraints
+| 
+| **Always:** Python standard library only. A negative threshold raises `ValueError`. Every behavior has a unit test.
+| 
+| **Never:** No persistence, no printing, no new module.
+| 
+| </frozen-after-approval>
+| 
+| ## Code Map
+| 
+| - `shelf/inventory.py` -- the class `Inventory`; the new method goes beside `names`
+| - `tests/test_inventory.py` -- the unit tests
+| 
+| ## Tasks & Acceptance
+| 
+| **Execution:**
+| - [x] `shelf/inventory.py` -- add `low_stock(threshold)`
+| - [x] `tests/test_inventory.py` -- test `low_stock`
+| 
+| **Acceptance Criteria:**
+| - Given items with quantities 1, 5, and 9, when `low_stock(5)` is called, then it returns the names of the items with quantity 1 and 5, sorted alphabetically.
+| - Given no item at or below the threshold, when `low_stock(threshold)` is called, then it returns an empty list.
+| - Given a negative threshold, when `low_stock(threshold)` is called, then `ValueError` is raised.
+| 
+| ## Spec Change Log
+| 
+| ## Review Triage Log
+| 
+| ## Verification
+| 
+| **Commands:**
+| - `python3 -m unittest discover -s tests -t .` -- expected: OK
+| 
+| ## Auto Run Result
+| 
+| Status: blocked
+| Blocking condition: no subagents
+| 
+| The review step (step 4) requires launching reviewer subagents, and this environment provides no subagent tool. No review was run, and no code was changed.
+# --- end produced files ---
+# --- language ---
+final message: 721 letters, 0 Polish letters per thousand
+_bmad-output/implementation-artifacts/spec-1-2-low-stock.md: 1327 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+branch: task/low-stock-implemented
+head: 08b0c30d90c6dafedf7ed9ca0a3fffbdf5a34754
+files that differ from the commit, untracked included: 1
+commits the run added: 0
+status:  M _bmad-output/implementation-artifacts/spec-1-2-low-stock.md
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---
+
+# --- proxy hosts ---
+api.anthropic.com:443
+# --- end proxy hosts ---

@@ -1,0 +1,61 @@
+# harness: bdfdba94e1fa+bmad-f91d221624ef
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --network none 
+# command: bash -c    for root in /workspace /hephaestus/methodology /tmp/project; do     mkdir -p /tmp/project     echo "--- resolve_config.py --project-root $root ---"     uv run /hephaestus/methodology/_bmad/scripts/resolve_config.py --project-root $root --key core.communication_language --key core.document_output_language --key modules.bmm.implementation_artifacts 2>&1; echo "exit: $?"     echo "--- resolve_customization.py --project-root $root ---"     uv run /hephaestus/methodology/_bmad/scripts/resolve_customization.py --skill /hephaestus/methodology/skills/bmad-sprint-planning --project-root $root --key workflow 2>&1 | head -c 400; code=${PIPESTATUS[0]}; echo; echo "exit: $code"   done   echo '--- what uv left behind ---'   echo "in the workspace: $(cd /workspace && find . -path ./.git -prune -o -newer /workspace/README.md -type f -print | wc -l) new file(s)"   echo "in HOME: $(du -sh $HOME 2> /dev/null | cut -f1)"  
+# exit: 0
+# --- stdout ---
+--- resolve_config.py --project-root /workspace ---
+{
+  "core.communication_language": "English",
+  "core.document_output_language": "English",
+  "modules.bmm.implementation_artifacts": "{project-root}/_bmad-output/implementation-artifacts"
+}
+exit: 0
+--- resolve_customization.py --project-root /workspace ---
+{
+  "workflow": {
+    "activation_steps_prepend": [],
+    "activation_steps_append": [],
+    "persistent_facts": [],
+    "on_complete": ""
+  }
+}
+
+exit: 0
+--- resolve_config.py --project-root /hephaestus/methodology ---
+{
+  "core.communication_language": "English",
+  "core.document_output_language": "English",
+  "modules.bmm.implementation_artifacts": "{project-root}/_bmad-output/implementation-artifacts"
+}
+exit: 0
+--- resolve_customization.py --project-root /hephaestus/methodology ---
+{
+  "workflow": {
+    "activation_steps_prepend": [],
+    "activation_steps_append": [],
+    "persistent_facts": [],
+    "on_complete": ""
+  }
+}
+
+exit: 0
+--- resolve_config.py --project-root /tmp/project ---
+error: required TOML file not found: /tmp/project/_bmad/config.toml
+exit: 1
+--- resolve_customization.py --project-root /tmp/project ---
+{
+  "workflow": {
+    "activation_steps_prepend": [],
+    "activation_steps_append": [],
+    "persistent_facts": [],
+    "on_complete": ""
+  }
+}
+
+exit: 0
+--- what uv left behind ---
+in the workspace: 0 new file(s)
+in HOME: 140K
+
+# --- stderr ---

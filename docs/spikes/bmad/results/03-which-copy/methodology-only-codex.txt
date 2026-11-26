@@ -1,0 +1,136 @@
+# harness: bdfdba94e1fa+bmad-944c61bbf237
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-methodology-only-codex-small-d,target=/hephaestus/context,readonly --network hephaestus-spike-workspace-d --env HTTP_PROXY=http://hephaestus-spike-proxy-d:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy-d:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy-d:3128 --env https_proxy=http://hephaestus-spike-proxy-d:3128 --env no_proxy=localhost,127.0.0.1,::1 --env CODEX_API_KEY --env CODEX_CA_CERTIFICATE=/hephaestus/agents/certs/ca-certificates.crt --env SPIKE_TIMEOUT=900 --env SPIKE_EXPECT=readiness-verdict 
+# command: bash -s -- /hephaestus/agents/codex/linux-x64-musl/codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox --ephemeral --model gpt-5-mini --ignore-user-config --ignore-rules -c projects."/workspace".trust_level="untrusted" -c web_search="disabled" --disable hooks --disable plugins --disable remote_plugin --disable plugin_sharing --disable apps --disable browser_use --disable browser_use_external --disable computer_use --disable image_generation --disable memories --disable multi_agent --disable skill_mcp_dependency_install -c project_doc_max_bytes=0 Read /hephaestus/context/instruction.md and follow it. 
+# exit: 0
+# --- stdout ---
+# --- context: instruction.md ---
+You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an offer of further work.
+
+Run the BMAD workflow `bmad-sprint-planning`. BMAD's files are read-only at `/hephaestus/methodology`:
+
+- The entry file of the workflow is `/hephaestus/methodology/skills/bmad-sprint-planning/SKILL.md`. Read it and follow it.
+- `{skill-root}` is `/hephaestus/methodology/skills/bmad-sprint-planning`.
+- BMAD's scripts are in `/hephaestus/methodology/_bmad/scripts/`. Run them from there wherever a workflow names `{project-root}/_bmad/scripts/`.
+- `{project-root}` is `/workspace`, where the project is.
+
+Intent: check implementation readiness only, the `readiness` intent of the workflow, headless. Do not generate or change the sprint status file. End with the JSON response the workflow documents for headless mode.
+# --- end context: instruction.md ---
+# --- context: task.json ---
+{
+  "stepKind": "Readiness",
+  "branch": "task/low-stock",
+  "baseBranch": "main",
+  "round": 1,
+  "language": "en"
+}
+# --- end context: task.json ---
+# --- repository before ---
+git: absent from the image
+# --- end repository before ---
+{"type":"thread.started","thread_id":"01a21783-b679-7ab1-8b63-f740fef21421"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `gpt-5-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_1","type":"agent_message","text":"I'll open and read `/hephaestus/context/instruction.md` now to follow its instructions. I'll show its contents."}}
+{"type":"item.started","item":{"id":"item_2","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /hephaestus/context/instruction.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_2","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /hephaestus/context/instruction.md\"","aggregated_output":"You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversati ...[837 more characters]
+{"type":"item.completed","item":{"id":"item_3","type":"agent_message","text":"Next I'll read the BMAD workflow entry file `/hephaestus/methodology/skills/bmad-sprint-planning/SKILL.md` to learn the exact headless readiness checks and output format. I'll print its contents."}}
+{"type":"item.started","item":{"id":"item_4","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/SKILL.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_4","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/SKILL.md\"","aggregated_output":"---\nname: bmad-sprint-planning\ndescription: 'Check that planning is complete enough to implement, then generate the sprint status file from the epics. Can also summarize sprint progress and validate or repair the tracking file. Use when the user says \"run sprint planning\", \"generate sprin ...[5173 more characters]
+{"type":"item.completed","item":{"id":"item_5","type":"reasoning","text":"**Running BMAD readiness gate**\n\nI'm planning to run the BMAD readiness gate in headless mode by using methodology scripts and collecting their JSON output. I'll execute a series of commands, starting with: `uv run {project-root}/_bmad/scripts/resolve_customization.py --skill {skill-root} --project-root {project-root} --key workflow`. But wait, what's 'uv'? Is it referring to 'uvicorn' or the 'uv CLI'? I need to check th ...[47 more characters]
+{"type":"item.completed","item":{"id":"item_6","type":"agent_message","text":"I'll run the BMAD readiness check in headless mode by invoking the methodology scripts. I'll execute `resolve_customization.py`, `resolve_config.py`, and the readiness gate using the repository scripts and capture their outputs."}}
+{"type":"item.started","item":{"id":"item_7","type":"command_execution","command":"/usr/bin/bash -lc 'ls -la /hephaestus/methodology/_bmad/scripts /hephaestus/methodology/skills/bmad-sprint-planning /workspace/_bmad || true'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_7","type":"command_execution","command":"/usr/bin/bash -lc 'ls -la /hephaestus/methodology/_bmad/scripts /hephaestus/methodology/skills/bmad-sprint-planning /workspace/_bmad || true'","aggregated_output":"ls: cannot access '/workspace/_bmad': No such file or directory\n/hephaestus/methodology/_bmad/scripts:\ntotal 56\ndrwxr-xr-x 2 root root  4096 Nov 26 10:53 .\ndrwxr-xr-x 8 root root  4096 Nov 26 10:53 ..\n-rw-r--r-- 1 root root  4197 Nov 26 10:53 con ...[736 more characters]
+{"type":"item.started","item":{"id":"item_8","type":"command_execution","command":"/usr/bin/bash -lc \"ls -la /hephaestus/methodology/skills/bmad-sprint-planning/scripts && sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/customize.toml\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_8","type":"command_execution","command":"/usr/bin/bash -lc \"ls -la /hephaestus/methodology/skills/bmad-sprint-planning/scripts && sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/customize.toml\"","aggregated_output":"total 40\ndrwxr-xr-x 3 root root  4096 Nov 26 10:53 .\ndrwxr-xr-x 4 root root  4096 Nov 26 10:53 ..\n-rw-r--r-- 1 root root 28661 Nov 26 10:53 sprint_plan.py\ndrwxr-xr-x 2 root root  4096 Nov 26 10:53 tests\n# DO NOT E ...[1627 more characters]
+{"type":"item.started","item":{"id":"item_9","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/_bmad/scripts/resolve_customization.py\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_9","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/_bmad/scripts/resolve_customization.py\"","aggregated_output":"#!/usr/bin/env python3\n# /// script\n# requires-python = \">=3.11\"\n# ///\n\"\"\"Resolve a skill's default, team, and user TOML customization layers.\"\"\"\n\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\n\n# Installed scripts are consumer files, not a location for in ...[5234 more characters]
+{"type":"item.started","item":{"id":"item_10","type":"command_execution","command":"/usr/bin/bash -lc 'python3 /hephaestus/methodology/_bmad/scripts/resolve_customization.py --skill /hephaestus/methodology/skills/bmad-sprint-planning --project-root /workspace --key workflow'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_10","type":"command_execution","command":"/usr/bin/bash -lc 'python3 /hephaestus/methodology/_bmad/scripts/resolve_customization.py --skill /hephaestus/methodology/skills/bmad-sprint-planning --project-root /workspace --key workflow'","aggregated_output":"{\n  \"workflow\": {\n    \"activation_steps_prepend\": [],\n    \"activation_steps_append\": [],\n    \"persistent_facts\": [],\n    \"on_complete\": \"\"\n  }\n}\n","exit_code":0,"status":"completed ...[3 more characters]
+{"type":"item.completed","item":{"id":"item_11","type":"reasoning","text":"**Resolving workflow configuration**\n\nI see that the workflow configuration is currently set to default and empty. Next, I need to run the script resolve_config.py to retrieve essential variables such as user_name, communication_language, document_output_language, project_name, and artifacts related to both planning and implementation. I'll also gather project knowledge and the date. Alright, I just need to open resolve ...[37 more characters]
+{"type":"item.started","item":{"id":"item_12","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/_bmad/scripts/resolve_config.py\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_12","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/_bmad/scripts/resolve_config.py\"","aggregated_output":"#!/usr/bin/env python3\n# /// script\n# requires-python = \">=3.11\"\n# ///\n\"\"\"Resolve BMad's four central TOML layers to JSON.\"\"\"\n\nimport argparse\nimport json\nimport sys\nfrom pathlib import Path\n\n# Installed scripts are consumer files, not a location for interpreter caches.\nsys.don ...[2051 more characters]
+{"type":"item.started","item":{"id":"item_13","type":"command_execution","command":"/usr/bin/bash -lc 'python3 /hephaestus/methodology/_bmad/scripts/resolve_config.py --project-root /workspace --key user_name --key communication_language --key document_output_language --key project_name --key planning_artifacts --key implementation_artifacts --key project_knowledge --key date'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_13","type":"command_execution","command":"/usr/bin/bash -lc 'python3 /hephaestus/methodology/_bmad/scripts/resolve_config.py --project-root /workspace --key user_name --key communication_language --key document_output_language --key project_name --key planning_artifacts --key implementation_artifacts --key project_knowledge --key date'","aggregated_output":"error: required TOML file not found: /workspace/_bmad/config.toml\n","exit_code":1,"status":"fai ...[6 more characters]
+{"type":"item.completed","item":{"id":"item_14","type":"reasoning","text":"**Troubleshooting configuration issues**\n\nI see that the project is missing the _bmad/config.toml file, which is causing script errors. I need to consider that the SKILL.md says to read {skill-root}/customize.toml directly for defaults if something fails. The process mentions resolving customization first, but if config fails, it suggests inspecting the central config. I think investigating the config_utils.py might hel ...[126 more characters]
+{"type":"item.started","item":{"id":"item_15","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/_bmad/scripts/config_utils.py\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_15","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/_bmad/scripts/config_utils.py\"","aggregated_output":"\"\"\"Shared strict TOML loading and structural merge support.\"\"\"\n\nfrom __future__ import annotations\n\nimport tomllib\nfrom pathlib import Path\nfrom typing import Any, Iterable\n\n\nclass ConfigError(ValueError):\n    \"\"\"Raised when a present configuration layer cannot be used safely.\"\" ...[4124 more characters]
+{"type":"item.started","item":{"id":"item_16","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/references/readiness-gate.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_16","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/references/readiness-gate.md\"","aggregated_output":"# Readiness Gate\n\nBefore generating any tracking, judge whether the plan can actually be built. If the user only asked to check readiness, this gate is the deliverable — report the verdict and stop.\n\nInventory what planning actually exists: scan `{planning_artifacts}`  ...[1592 more characters]
+{"type":"item.completed","item":{"id":"item_17","type":"reasoning","text":"**Inspecting project readiness**\n\nI need to implement the readiness gate by scanning the project for planning artifacts. I spotted a script called 'sprint_plan.py' that likely includes logic for generating, validating, and checking status. I'll take a look at this script to see if it features a subcommand related to 'gate' or 'readiness.' This might help me understand how to proceed effectively! Let’s dive into this!"}}
+{"type":"item.started","item":{"id":"item_18","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_18","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py\"","aggregated_output":"# /// script\n# requires-python = \">=3.10\"\n# dependencies = [\"ruamel.yaml>=0.18\"]\n# ///\n\"\"\"Parse epic files and deterministically generate or refresh sprint-status.yaml.\n\nPrints ONLY JSON to stdout — argparse failures included. Errors are emitted as\nJSON to stdout w ...[9576 more characters]
+{"type":"item.started","item":{"id":"item_19","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '240,520p' /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_19","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '240,520p' /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py\"","aggregated_output":"\n\ndef _merge_status(kind, computed, existing_raw, key, warnings, report):\n    \"\"\"Return the higher-ranked of computed/existing; never downgrade.\"\"\"\n    rank = RANKS[kind]\n    if existing_raw is None:\n        return computed\n    existing, was_legacy = _normalize(ex ...[11011 more characters]
+{"type":"item.started","item":{"id":"item_20","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '520,999p' /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_20","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '520,999p' /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py\"","aggregated_output":"            epic_nums.add(epic_num)\n            epic_status[epic_num] = status\n        else:\n            retro_status[epic_num] = status\n    for stories in by_status.values():\n        stories.sort(key=_story_sort_key)\n\n    action_items = data.get(\"action_items\") or [] ...[8849 more characters]
+{"type":"item.completed","item":{"id":"item_21","type":"reasoning","text":"**Scanning for planning artifacts**\n\nI think I can scan the repository for specific file headings like \"Epic\" and \"Story,\" as well as terms like \"PRD,\" \"PRFAQ,\" \"spec,\" \"requirements,\" \"UX,\" and \"architecture.\" Using ripgrep (rg) seems like a solid approach here. I’ll run rg to search for these likely artifacts. I just need to include a friendly preamble that explains, \"I'll scan the repository for plan ...[53 more characters]
+{"type":"item.completed","item":{"id":"item_22","type":"agent_message","text":"I'll scan the project for planning artifacts by searching for Epic/Story headings and common planning keywords to evaluate readiness. I'll look for files containing \"Epic\", \"Story\", \"PRD\", \"PRFAQ\", \"spec\", \"requirement\", \"UX\", \"architecture\"."}}
+{"type":"item.started","item":{"id":"item_23","type":"command_execution","command":"/usr/bin/bash -lc \"rg -n --hidden --no-ignore-vcs \\\"\\\\b(Epic|Story|PRD|PRFAQ|Spec|specification|requirement|requirements|UX|architecture)\\\\b\\\" || true\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_23","type":"command_execution","command":"/usr/bin/bash -lc \"rg -n --hidden --no-ignore-vcs \\\"\\\\b(Epic|Story|PRD|PRFAQ|Spec|specification|requirement|requirements|UX|architecture)\\\\b\\\" || true\"","aggregated_output":"/usr/bin/bash: line 1: rg: command not found\n","exit_code":0,"status":"completed"}}
+{"type":"item.started","item":{"id":"item_24","type":"command_execution","command":"/usr/bin/bash -lc \"grep -RIn --exclude-dir=.git --exclude-dir=_bmad \\\"\\\\b\\\\(Epic\\\\|Story\\\\|PRD\\\\|PRFAQ\\\\|Spec\\\\|specification\\\\|requirement\\\\|requirements\\\\|UX\\\\|architecture\\\\)\\\\b\\\" . || true\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_24","type":"command_execution","command":"/usr/bin/bash -lc \"grep -RIn --exclude-dir=.git --exclude-dir=_bmad \\\"\\\\b\\\\(Epic\\\\|Story\\\\|PRD\\\\|PRFAQ\\\\|Spec\\\\|specification\\\\|requirement\\\\|requirements\\\\|UX\\\\|architecture\\\\)\\\\b\\\" . || true\"","aggregated_output":"./_bmad-output/planning-artifacts/prd.md:7:## Functional requirements\n./_bmad-output/planning-artifacts/prd.md:12:## Non-functional requirements\n./_bmad-output/plan ...[404 more characters]
+{"type":"item.completed","item":{"id":"item_25","type":"reasoning","text":"**Listing planning artifacts**\n\nI see that there are planning artifacts located in the directory _bmad-output/planning-artifacts. Now, my next step is to list those files to see what’s there. I want to make sure I cover all the relevant files, so I'll take a thorough look at everything stored in that area and provide the user with a clear summary of what I find. Let's see what we have to work with!"}}
+{"type":"item.started","item":{"id":"item_26","type":"command_execution","command":"/usr/bin/bash -lc \"ls -la _bmad-output/planning-artifacts || true && sed -n '1,240p' _bmad-output/planning-artifacts/epics.md && sed -n '1,240p' _bmad-output/planning-artifacts/prd.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_26","type":"command_execution","command":"/usr/bin/bash -lc \"ls -la _bmad-output/planning-artifacts || true && sed -n '1,240p' _bmad-output/planning-artifacts/epics.md && sed -n '1,240p' _bmad-output/planning-artifacts/prd.md\"","aggregated_output":"total 20\ndrwxr-xr-x 2 10001 10001 4096 Nov 26 10:53 .\ndrwxr-xr-x 3 10001 10001 4096 Nov 26 10:53 ..\n-rw-r--r-- 1 10001 10001  507 Nov 26 10:53 architecture.md\n-rw-r--r-- 1 10001 10001 1211 Nov 26 10:53 ...[1939 more characters]
+{"type":"item.started","item":{"id":"item_27","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' _bmad-output/planning-artifacts/architecture.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_27","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,240p' _bmad-output/planning-artifacts/architecture.md\"","aggregated_output":"# Architecture: Shelf\n\n- One package, `shelf`, with one module, `shelf/inventory.py`, holding the class `Inventory`.\n- State is a dictionary from item name to an integer quantity, private to `Inventory`.\n- An item whose quantity reaches zero stays in the inventory with quantity 0.\n- Invalid input rai ...[247 more characters]
+{"type":"item.completed","item":{"id":"item_28","type":"reasoning","text":"**Reviewing architecture and JSON requirements**\n\nThis architecture document is quite detailed, outlining packages, modules, and tests that align with non-functional requirements. The epics document includes acceptance criteria for behaviors like Inventory.low_stock and ValueError, which developers could implement. The readiness gate should likely pass. I need to produce JSON per the guidelines in SKILL.md for readiness ...[1343 more characters]
+{"type":"item.completed","item":{"id":"item_29","type":"agent_message","text":"{\"status\":\"complete\",\"intent\":\"readiness\",\"gate\":\"PASS\",\"findings\":[],\"warnings\":[]}"}}
+{"type":"turn.completed","usage":{"input_tokens":246887,"cached_input_tokens":213120,"cache_write_input_tokens":0,"output_tokens":4196,"reasoning_output_tokens":2496}}
+
+# --- agent exit: 0 ---
+# --- seconds: 68 of 900 ---
+# --- final message ---
+{"status":"complete","intent":"readiness","gate":"PASS","findings":[],"warnings":[]}
+# --- end final message ---
+# --- usage ---
+model: gpt-5-mini (as asked for)
+turns: 1
+tokens: 246887 in (213120 cached), 4196 out
+stream error: Model metadata for `gpt-5-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.
+# --- end usage ---
+# --- tools ---
+called: shell 17
+# --- end tools ---
+# --- paths ---
+methodology-skills: 9
+methodology-bmad: 6
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 0
+workspace-bmad-render: 0
+repository-instruction-file: 0
+context: 1
+# --- end paths ---
+# --- workspace changes ---
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: readiness-verdict
+info: spec files written: no spec file written
+ok: a readiness verdict in the final result (PASS, in the JSON the workflow documents)
+# --- end expected artifact ---
+# --- produced files ---
+# --- end produced files ---
+# --- language ---
+final message: 53 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+git: absent from the image
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---
+Reading additional input from stdin...
+
+# --- proxy hosts ---
+ab.chatgpt.com:443
+api.openai.com:443
+chatgpt.com:443
+# --- end proxy hosts ---

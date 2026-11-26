@@ -1,0 +1,48 @@
+# harness: bdfdba94e1fa+bmad-d0a79db3ad8a
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --network hephaestus-spike-workspace --env HTTP_PROXY=http://hephaestus-spike-proxy:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy:3128 --env https_proxy=http://hephaestus-spike-proxy:3128 --env no_proxy=localhost,127.0.0.1,::1 
+# command: bash -c    plan=/hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py   epics=/workspace/_bmad-output/planning-artifacts/epics.md   status=/tmp/sprint-status.yaml   generate() { # <epics-file> [option...]     local file="$1"     shift     uv run --quiet "$plan" generate --epic-file "$file" --status-file "$status" \       --stories-dir /workspace/_bmad-output/implementation-artifacts --project Shelf --date "11-26-2026 09:00" "$@"   }   show() { # the fields of the JSON report that answer the question     python3 -c " import json, sys report = json.load(sys.stdin) for field in (\"in_sync\", \"new_entries\", \"preserved\", \"dropped_orphans\", \"warnings\"):     print(\"  %s: %s\" % (field, json.dumps(report.get(field))))"   }    echo "--- the tracking file BMAD generates, with Story 1.2 in progress ---"   generate "$epics" > /dev/null   generate "$epics" --set 1-2-report-items-that-are-low-on-stock=in-progress > /dev/null   grep -E "^  [0-9a-z-]+: " "$status"    echo "--- retitled: Story 1.2 is now \"List items to reorder\" ---"   sed "s/^### Story 1.2: .*/### Story 1.2: List items to reorder/" "$epics" > /tmp/retitled.md   generate /tmp/retitled.md --dry-run | show    echo "--- renumbered: a new Story 1.2 is inserted, the old one becomes 1.3 ---"   awk "/^### Story 1.2: / { print \"### Story 1.2: Count the items\"; print \"\"; print \"As a shop keeper, I want a count.\"; print \"\"; sub(/1\\.2/, \"1.3\") } { print }" "$epics" > /tmp/renumbered.md   grep "^### Story" /tmp/renumbered.md   generate /tmp/renumbered.md --dry-run | show    echo "--- marked: an id on a line of its own under each Story heading ---"   awk "{ print } /^### Story 1.1: / { print \"\"; print \"<!-- story-id: 0193f1c2-aaaa -->\" } /^### Story 1.2: / { print \"\"; print \"<!-- story-id: 0193f1c2-bbbb -->\" }" "$epics" > /tmp/marked.md   grep -A2 "^### Story" /tmp/marked.md   generate /tmp/marked.md --dry-run | show    echo "--- marked in the heading itself ---"   sed "s/^\(### Story 1.2: .*\)$/\1 <!-- story-id: 0193f1c2-bbbb -->/" "$epics" > /tmp/marked-heading.md   grep "^### Story 1.2" /tmp/marked-heading.md   generate /tmp/marked-heading.md --dry-run | show  
+# exit: 0
+# --- stdout ---
+--- the tracking file BMAD generates, with Story 1.2 in progress ---
+  epic-1: backlog
+  1-1-add-and-remove-items: backlog
+  1-2-report-items-that-are-low-on-stock: in-progress
+  epic-1-retrospective: optional
+--- retitled: Story 1.2 is now "List items to reorder" ---
+  in_sync: false
+  new_entries: ["1-2-list-items-to-reorder"]
+  preserved: 3
+  dropped_orphans: [{"key": "1-2-report-items-that-are-low-on-stock", "status": "in-progress"}]
+  warnings: []
+--- renumbered: a new Story 1.2 is inserted, the old one becomes 1.3 ---
+### Story 1.1: Add and remove items
+### Story 1.2: Count the items
+### Story 1.3: Report items that are low on stock
+  in_sync: false
+  new_entries: ["1-2-count-the-items", "1-3-report-items-that-are-low-on-stock"]
+  preserved: 3
+  dropped_orphans: [{"key": "1-2-report-items-that-are-low-on-stock", "status": "in-progress"}]
+  warnings: []
+--- marked: an id on a line of its own under each Story heading ---
+### Story 1.1: Add and remove items
+
+<!-- story-id: 0193f1c2-aaaa -->
+--
+### Story 1.2: Report items that are low on stock
+
+<!-- story-id: 0193f1c2-bbbb -->
+  in_sync: true
+  new_entries: []
+  preserved: 4
+  dropped_orphans: []
+  warnings: []
+--- marked in the heading itself ---
+### Story 1.2: Report items that are low on stock <!-- story-id: 0193f1c2-bbbb -->
+  in_sync: false
+  new_entries: ["1-2-report-items-that-are-low-on-stock-story-id-0193f1c2-bbbb"]
+  preserved: 3
+  dropped_orphans: [{"key": "1-2-report-items-that-are-low-on-stock", "status": "in-progress"}]
+  warnings: []
+
+# --- stderr ---

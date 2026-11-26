@@ -1,0 +1,16 @@
+# harness: bdfdba94e1fa+bmad-f91d221624ef
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --network none 
+# command: bash -c    python3 /hephaestus/methodology/_bmad/scripts/render_skill.py --project-root /workspace --skill /hephaestus/methodology/skills/bmad-build-auto; echo "exit: $?"   python3 /hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py generate --epic-file /workspace/_bmad-output/planning-artifacts/epics.md --status-file /tmp/sprint-status.yaml --stories-dir /workspace/_bmad-output/implementation-artifacts --project Shelf --date '11-26-2026 09:00' --dry-run | head -c 600; code=${PIPESTATUS[0]}; echo; echo "exit: $code"  
+# exit: 0
+# --- stdout ---
+read and follow /workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/workflow.md
+exit: 0
+
+exit: 1
+
+# --- stderr ---
+Traceback (most recent call last):
+  File "/hephaestus/methodology/skills/bmad-sprint-planning/scripts/sprint_plan.py", line 41, in <module>
+    from ruamel.yaml import YAML
+ModuleNotFoundError: No module named 'ruamel'

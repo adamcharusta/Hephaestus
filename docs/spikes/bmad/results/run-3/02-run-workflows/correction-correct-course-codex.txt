@@ -1,0 +1,236 @@
+# harness: bdfdba94e1fa+bmad-56861b8d1ac9
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-correction-correct-course-codex-small-f,target=/hephaestus/context,readonly --network hephaestus-spike-workspace-f --env HTTP_PROXY=http://hephaestus-spike-proxy-f:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy-f:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy-f:3128 --env https_proxy=http://hephaestus-spike-proxy-f:3128 --env no_proxy=localhost,127.0.0.1,::1 --env CODEX_API_KEY --env CODEX_CA_CERTIFICATE=/hephaestus/agents/certs/ca-certificates.crt --env SPIKE_TIMEOUT=900 --env SPIKE_EXPECT=change-proposal 
+# command: bash -s -- /hephaestus/agents/codex/linux-x64-musl/codex exec --json --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox --ephemeral --model gpt-5-mini --ignore-user-config --ignore-rules -c projects."/workspace".trust_level="untrusted" -c web_search="disabled" --disable hooks --disable plugins --disable remote_plugin --disable plugin_sharing --disable apps --disable browser_use --disable browser_use_external --disable computer_use --disable image_generation --disable memories --disable multi_agent --disable skill_mcp_dependency_install -c project_doc_max_bytes=0 Read /hephaestus/context/instruction.md and follow it. 
+# exit: 0
+# --- stdout ---
+# --- context: instruction.md ---
+You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it without a question and without an offer of further work.
+
+Run the BMAD workflow `bmad-correct-course`. BMAD's files are read-only at `/hephaestus/methodology`:
+
+- The entry file of the workflow is `/hephaestus/methodology/skills/bmad-correct-course/SKILL.md`. Read it and follow it.
+- `{skill-root}` is `/hephaestus/methodology/skills/bmad-correct-course`.
+- BMAD's scripts are in `/hephaestus/methodology/_bmad/scripts/`. Run them from there wherever a workflow names `{project-root}/_bmad/scripts/`.
+- `{project-root}` is `/workspace`, where the project is.
+
+The change that triggers the workflow is described in `/hephaestus/context/change.md`. Mode: Batch. Write the sprint change proposal the workflow produces.
+# --- end context: instruction.md ---
+# --- context: task.json ---
+{
+  "stepKind": "Correction",
+  "branch": "task/low-stock",
+  "baseBranch": "main",
+  "round": 1,
+  "language": "en"
+}
+# --- end context: task.json ---
+# --- repository before ---
+git: absent from the image
+# --- end repository before ---
+{"type":"thread.started","thread_id":"01a21798-6d41-7a20-8ea1-615beb5f0adf"}
+{"type":"item.completed","item":{"id":"item_0","type":"error","message":"Model metadata for `gpt-5-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues."}}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_1","type":"reasoning","text":"**Preparing to read a file**\n\nI need to read a file, and my plan is to use the tool to execute a command to display its contents. I’ll write a brief introduction before calling the tool, specifically mentioning that I’m opening the file at /hephaestus/context/instruction.md. After my preamble, I’ll execute the command to read the file using exec_command. I think I’ll stick with the default settings for output tokens. Let ...[18 more characters]
+{"type":"item.completed","item":{"id":"item_2","type":"agent_message","text":"I'll open `/hephaestus/context/instruction.md` and show its contents."}}
+{"type":"item.started","item":{"id":"item_3","type":"command_execution","command":"/usr/bin/bash -lc 'cat /hephaestus/context/instruction.md'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_3","type":"command_execution","command":"/usr/bin/bash -lc 'cat /hephaestus/context/instruction.md'","aggregated_output":"You are running unattended in a container. Nobody can answer a question, so never ask one and never wait for a reply. Where a workflow would ask, take what it documents for headless or unattended runs; where it documents nothing, stop and say what is undecided. Your final message is a report, not a turn in a conversation: end it wit ...[762 more characters]
+{"type":"item.completed","item":{"id":"item_4","type":"agent_message","text":"Next I'll read the BMAD workflow file and the change description to follow the procedure. I'll open `/hephaestus/methodology/skills/bmad-correct-course/SKILL.md` and `/hephaestus/context/change.md`."}}
+{"type":"item.started","item":{"id":"item_5","type":"command_execution","command":"/usr/bin/bash -lc 'cat /hephaestus/methodology/skills/bmad-correct-course/SKILL.md'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_5","type":"command_execution","command":"/usr/bin/bash -lc 'cat /hephaestus/methodology/skills/bmad-correct-course/SKILL.md'","aggregated_output":"---\nname: bmad-correct-course\ndescription: 'Assess the impact of a significant change during sprint execution across the PRD, epics, architecture, and UX documents, and produce a sprint change proposal. Use when the user says \"correct course\" or \"propose sprint change\"'\n---\n\n# Correct Course - Sprin ...[14233 more characters]
+{"type":"item.completed","item":{"id":"item_6","type":"agent_message","text":"I'll open `/hephaestus/context/change.md` to load the triggering change description."}}
+{"type":"item.started","item":{"id":"item_7","type":"command_execution","command":"/usr/bin/bash -lc 'cat /hephaestus/context/change.md'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_7","type":"command_execution","command":"/usr/bin/bash -lc 'cat /hephaestus/context/change.md'","aggregated_output":"# Change: the shop also sells goods by weight\n\nRaised while Story 1.2 was in progress.\n\nThe shop keeper now sells nails and seed by weight, so a quantity can be a\nfraction, for example 2.5 kilograms. The plan says quantities are integers\n(architecture) and Story 1.1 rejects anything else.\n\nWhat is known:\n\n- Quantities must acce ...[302 more characters]
+{"type":"item.completed","item":{"id":"item_8","type":"agent_message","text":"Now I'll run the customization resolver script to load the `workflow` block for this skill."}}
+{"type":"item.started","item":{"id":"item_9","type":"command_execution","command":"/usr/bin/bash -lc 'uv run /workspace/_bmad/scripts/resolve_customization.py --skill /hephaestus/methodology/skills/bmad-correct-course --project-root /workspace --key workflow'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_9","type":"command_execution","command":"/usr/bin/bash -lc 'uv run /workspace/_bmad/scripts/resolve_customization.py --skill /hephaestus/methodology/skills/bmad-correct-course --project-root /workspace --key workflow'","aggregated_output":"{\n  \"workflow\": {\n    \"activation_steps_prepend\": [],\n    \"activation_steps_append\": [],\n    \"persistent_facts\": [],\n    \"on_complete\": \"\"\n  }\n}\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_10","type":"agent_message","text":"Next I'll run the config resolver to load project configuration values required by the workflow."}}
+{"type":"item.started","item":{"id":"item_11","type":"command_execution","command":"/usr/bin/bash -lc 'uv run /workspace/_bmad/scripts/resolve_config.py --project-root /workspace'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_11","type":"command_execution","command":"/usr/bin/bash -lc 'uv run /workspace/_bmad/scripts/resolve_config.py --project-root /workspace'","aggregated_output":"{\n  \"core\": {\n    \"user_name\": \"BMad\",\n    \"communication_language\": \"English\",\n    \"project_name\": \"Hephaestus\",\n    \"document_output_language\": \"English\",\n    \"output_folder\": \"_bmad-output\"\n  },\n  \"modules\": {\n    \"bmm\": {\n      \"user_skill_level\": \"inte ...[2649 more characters]
+{"type":"item.completed","item":{"id":"item_12","type":"agent_message","text":"I'll list the project's planning artifacts directory to find PRD, epics, architecture, UX files to load."}}
+{"type":"item.started","item":{"id":"item_13","type":"command_execution","command":"/usr/bin/bash -lc 'ls -la /workspace/_bmad-output/planning-artifacts || true'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_13","type":"command_execution","command":"/usr/bin/bash -lc 'ls -la /workspace/_bmad-output/planning-artifacts || true'","aggregated_output":"total 20\ndrwxr-xr-x 2 10001 10001 4096 Nov 26 10:53 .\ndrwxr-xr-x 3 10001 10001 4096 Nov 26 10:53 ..\n-rw-r--r-- 1 10001 10001  507 Nov 26 10:53 architecture.md\n-rw-r--r-- 1 10001 10001 1211 Nov 26 10:53 epics.md\n-rw-r--r-- 1 10001 10001  563 Nov 26 10:53 prd.md\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_14","type":"agent_message","text":"I'll read `architecture.md`, `epics.md`, and `prd.md` to extract artifacts for the impact analysis."}}
+{"type":"item.started","item":{"id":"item_15","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /workspace/_bmad-output/planning-artifacts/architecture.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_15","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /workspace/_bmad-output/planning-artifacts/architecture.md\"","aggregated_output":"# Architecture: Shelf\n\n- One package, `shelf`, with one module, `shelf/inventory.py`, holding the class `Inventory`.\n- State is a dictionary from item name to an integer quantity, private to `Inventory`.\n- An item whose quantity reaches zero stays in the inventory with quantity 0.\n- Invali ...[258 more characters]
+{"type":"item.started","item":{"id":"item_16","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /workspace/_bmad-output/planning-artifacts/epics.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_16","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /workspace/_bmad-output/planning-artifacts/epics.md\"","aggregated_output":"# Epics and Stories: Shelf\n\n## Requirements coverage\n\n- FR-1: Story 1.1\n- FR-2: Story 1.2\n\n## Epic 1: Keep track of stock\n\nThe shop keeper records what comes in and goes out, and sees what is running low.\n\n### Story 1.1: Add and remove items\n\nAs a shop keeper,\nI want to add items to the  ...[993 more characters]
+{"type":"item.started","item":{"id":"item_17","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /workspace/_bmad-output/planning-artifacts/prd.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_17","type":"command_execution","command":"/usr/bin/bash -lc \"sed -n '1,200p' /workspace/_bmad-output/planning-artifacts/prd.md\"","aggregated_output":"# Product Requirements: Shelf\n\n## Vision\n\nA shop keeper keeps track of what is in stock and knows in time what to reorder.\n\n## Functional requirements\n\n- FR-1: The shop keeper can add items to the inventory and remove them from it.\n- FR-2: The shop keeper can list the items that are low on stoc ...[316 more characters]
+{"type":"item.completed","item":{"id":"item_18","type":"reasoning","text":"**Evaluating change proposals**\n\nI’ve completed Step 4 of Document Discovery, so now I’m moving on to evaluate the change against the checklist from earlier. I need to produce a Sprint Change Proposal that includes sections like Issue Summary and Impact Analysis. So, there are concerns about quantities needing to accept positive decimals and tests that currently reject decimal inputs. I’m considering proposing a change  ...[2476 more characters]
+{"type":"item.completed","item":{"id":"item_19","type":"agent_message","text":"I'll generate the Sprint Change Proposal file name using the current UTC timestamp, then create the proposal document in the planning artifacts folder. I'll get the timestamp now."}}
+{"type":"item.started","item":{"id":"item_20","type":"command_execution","command":"/usr/bin/bash -lc 'date -u +%Y-%m-%dT%H:%M:%SZ'","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_20","type":"command_execution","command":"/usr/bin/bash -lc 'date -u +%Y-%m-%dT%H:%M:%SZ'","aggregated_output":"2026-11-26T11:23:50Z\n","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item_21","type":"reasoning","text":"**Evaluating tool usage**\n\nI’m looking at our current toolset and see that we have functions.exec_command for running shell commands. I can use this for file writing with shell redirection, but the documentation emphasizes using the apply_patch tool, which isn’t listed. That’s puzzling since it seems necessary for editing files. I’ll have to rely on exec_command to create a file. I’m also thinking about how the file sho ...[587 more characters]
+{"type":"item.completed","item":{"id":"item_22","type":"agent_message","text":"Now I'll write the proposal to `/workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md`."}}
+{"type":"item.started","item":{"id":"item_23","type":"command_execution","command":"/usr/bin/bash -lc \"cat > /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md << 'EOF'\nHello, BMad.\n\n**Sprint Change Proposal — \\\"Shop sells goods by weight\\\"**\n\n**Issue Summary**\n- Trigger: While Story 1.2 was in progress, the team decided the shop must sell some goods by weight, so quantities may be fractional (e.g., 2.5 kg). See change description: \"'`/hephaestu ...[9203 more characters]
+{"type":"item.completed","item":{"id":"item_23","type":"command_execution","command":"/usr/bin/bash -lc \"cat > /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md << 'EOF'\nHello, BMad.\n\n**Sprint Change Proposal — \\\"Shop sells goods by weight\\\"**\n\n**Issue Summary**\n- Trigger: While Story 1.2 was in progress, the team decided the shop must sell some goods by weight, so quantities may be fractional (e.g., 2.5 kg). See change description: \"'`/hephaes ...[9200 more characters]
+{"type":"item.completed","item":{"id":"item_24","type":"agent_message","text":"I'll list the created proposal file to confirm."}}
+{"type":"item.started","item":{"id":"item_25","type":"command_execution","command":"/usr/bin/bash -lc \"ls -la /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md && sed -n '1,240p' /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md\"","aggregated_output":"","exit_code":null,"status":"in_progress"}}
+{"type":"item.completed","item":{"id":"item_25","type":"command_execution","command":"/usr/bin/bash -lc \"ls -la /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md && sed -n '1,240p' /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md\"","aggregated_output":"-rw-r--r-- 1 10001 10001 9278 Nov 26 11:24 /workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md\nHello, BMad.\n\n**Sprint Chang ...[9374 more characters]
+{"type":"item.completed","item":{"id":"item_26","type":"agent_message","text":"**Sprint Change Proposal**\n\n- I ran the Correct Course workflow for the change described in `/hephaestus/context/change.md` and produced the Sprint Change Proposal.\n- Proposal written to: `/workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md`\n- Scope classification: Moderate — code and tests must be updated and backlog coordination is required.\n- Routed to: Developer (`Amelia` ...[95 more characters]
+{"type":"turn.completed","usage":{"input_tokens":161112,"cached_input_tokens":135552,"cache_write_input_tokens":0,"output_tokens":5806,"reasoning_output_tokens":2240}}
+
+# --- agent exit: 0 ---
+# --- seconds: 72 of 900 ---
+# --- final message ---
+**Sprint Change Proposal**
+
+- I ran the Correct Course workflow for the change described in `/hephaestus/context/change.md` and produced the Sprint Change Proposal.
+- Proposal written to: `/workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md`
+- Scope classification: Moderate — code and tests must be updated and backlog coordination is required.
+- Routed to: Developer (`Amelia`), Product Owner (`John`), Architect (`Winston`).
+
+Correct Course workflow complete, BMad.
+# --- end final message ---
+# --- usage ---
+model: gpt-5-mini (as asked for)
+turns: 1
+tokens: 161112 in (135552 cached), 5806 out
+stream error: Model metadata for `gpt-5-mini` not found. Defaulting to fallback metadata; this can degrade performance and cause issues.
+# --- end usage ---
+# --- tools ---
+called: shell 12
+# --- end tools ---
+# --- paths ---
+methodology-skills: 2
+methodology-bmad: 0
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 2
+workspace-bmad-render: 0
+repository-instruction-file: 0
+context: 4
+# --- end paths ---
+# --- workspace changes ---
+added _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: change-proposal
+info: spec files written: no spec file written
+ok: a sprint change proposal (_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md)
+# --- end expected artifact ---
+# --- produced files ---
+## _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md (98 lines)
+| Hello, BMad.
+| 
+| **Sprint Change Proposal — "Shop sells goods by weight"**
+| 
+| **Issue Summary**
+| - Trigger: While Story 1.2 was in progress, the team decided the shop must sell some goods by weight, so quantities may be fractional (e.g., 2.5 kg). See change description: `/hephaestus/context/change.md:1`.
+| - Observed problem: Current design and implementation assume integer quantities: `architecture.md:1` documents integer quantities, and Story 1.1's tests (done) currently reject fractional quantities (`tests/` show a failing or restrictive test). Story 1.2 uses thresholds which may now be decimal.
+| - Known constraints: No persistence, no prices, Python standard library only. The change only affects how quantities are represented and compared.
+| 
+| **Impact Analysis**
+| - Epic Impact:
+|   - `Epic 1: Keep track of stock` (`/workspace/_bmad-output/planning-artifacts/epics.md:1`) is directly affected because core inventory semantics change from integer-only to numeric (allowing decimals).
+| - Story Impact:
+|   - `Story 1.1: Add and remove items` (`/workspace/_bmad-output/planning-artifacts/epics.md:7`) — tests and implementation currently assume integer quantities and reject fractional input; these must be adjusted so add/remove accept positive decimal quantities and enforce the same validation semantics (non-negative, cannot remove more than available).
+|   - `Story 1.2: Report items that are low on stock` (`/workspace/_bmad-output/planning-artifacts/epics.md:31`) — `low_stock(threshold)` must accept decimal thresholds and compare correctly against decimal quantities.
+| - Artifact Conflicts:
+|   - `architecture.md` (`/workspace/_bmad-output/planning-artifacts/architecture.md:1`) must be updated to reflect the change to decimal-capable quantities and to specify internal representation and allowed input types.
+|   - `prd.md` (`/workspace/_bmad-output/planning-artifacts/prd.md:1`) should be clarified to state quantities can be fractional where relevant.
+|   - Tests under `tests/` must be updated: Story 1.1's tests that reject `1.5` must be changed to accept it and to verify decimal behavior.
+| - Technical Impact:
+|   - Code changes are limited in scope: `shelf/inventory.py` internals must move from integer state to a numeric type that supports decimals. Comparison and arithmetic must be robust for fractional values.
+|   - Recommended representation: use `decimal.Decimal` (from Python's `decimal` module) for internal storage and comparisons to avoid floating-point rounding issues when dealing with weights.
+|   - Where public API accepts input, accept `int`, `float`, `Decimal`, or numeric string and convert to `Decimal` at the boundary; validate that values are non-negative and finite.
+| 
+| **Recommended Approach**
+| - Chosen path: Direct Adjustment (modify code and tests within the sprint). Rationale: The change is localized, low-risk in scope, and needed for correctness of new product behavior. It does not require rolling back completed work or reducing the MVP.
+| - Key decisions:
+|   - Internal type: `decimal.Decimal` for inventory quantities and thresholds.
+|   - API: `Inventory.add(name, amount)`, `Inventory.remove(name, amount)`, and `Inventory.low_stock(threshold)` will accept `int`, `float`, `Decimal`, or numeric string and convert to `Decimal`. A `ValueError` is raised for negative values, non-numeric inputs, or NaN/Infinity.
+|   - Tests: Update unit tests to use `Decimal` or simple numeric literals (e.g., `Decimal('1.5')`) and to verify behavior with fractional inputs and thresholds.
+| - Effort estimate and timeline:
+|   - Developer work (Amelia): 0.5–1 day to implement `Decimal` conversions and update logic; 0.5 day to update and run tests.
+|   - Review & QA: 0.25–0.5 day for code review and CI verification.
+|   - Total: ~1.25–2 days.
+| - Risk assessment:
+|   - Low technical risk; main care point is converting floats to `Decimal` in a controlled way (prefer converting from `str` when exact decimal literals are required). Tests must cover mixed-type inputs.
+| 
+| **Detailed Change Proposals (before → after)**
+| - `PRD` (`/workspace/_bmad-output/planning-artifacts/prd.md:1`)
+|   - Before: Functional requirements refer to quantities without specifying type; architecture documents integers.
+|   - After: Add a short clarification under Functional requirements: "Quantities are non-negative numbers; they may be integers or decimals (for example: 2.5 kg)."
+|   - Patch suggestion (text to add):
+|     - Insert under `Functional requirements`:
+|       - `- FR-3: Quantities may be fractional; inventory accepts positive decimal quantities (e.g., 2.5).`
+| - `Epics` (`/workspace/_bmad-output/planning-artifacts/epics.md:1`)
+|   - Before: Acceptance examples all use integers and Story 1.1's tests reject fractional values.
+|   - After: Update Story 1.1 acceptance criteria to include fractional examples and remove any requirement that rejects decimals. Update Story 1.2 acceptance criteria to explicitly state threshold may be decimal.
+|   - Patch suggestion (text to change):
+|     - Story 1.1 acceptance: Add a new bullet: "Given an empty inventory, when 1.5 and then 2 are added, then the quantity is 3.5." Remove or revise test text that rejects fractional input.
+|     - Story 1.2 acceptance: Add: "Given items with quantities 1.25, 5, and 9, when `Inventory.low_stock(5.0)` is called, it returns names of items with quantity <= 5.0."
+| - `Architecture` (`/workspace/_bmad-output/planning-artifacts/architecture.md:1`)
+|   - Before: "State is a dictionary from item name to an integer quantity, private to `Inventory`."
+|   - After: Replace with: "State is a dictionary from item name to a `decimal.Decimal` quantity, private to `Inventory`. The `Inventory` API accepts `int`, `float`, `Decimal`, or numeric string for quantities and converts them to `Decimal` at the boundary. Inputs must be finite and non-negative; invalid inputs raise `ValueError`."
+| - Code (`shelf/inventory.py`)
+|   - Before: state stored as integers and methods validate `int` inputs.
+|   - After: change implementation to:
+|     - Import `from decimal import Decimal, InvalidOperation, getcontext`
+|     - Use a helper `_to_decimal(value)` which:
+|       - If `isinstance(value, Decimal)`: return it.
+|       - If `isinstance(value, (int,))`: return `Decimal(value)`.
+|       - If `isinstance(value, float)`: return `Decimal(str(value))` (or require callers to pass string for highest precision) — use `Decimal(str(value))` to capture the float's decimal representation.
+|       - If `isinstance(value, str)`: return `Decimal(value)`.
+|       - On `InvalidOperation` or other errors: raise `ValueError`.
+|     - Store quantities as `Decimal` and use Decimal arithmetic and comparisons.
+| - Tests (`tests/`)
+|   - Before: Story 1.1 test that rejects `1.5`.
+|   - After: Modify tests to accept fractional amounts; add tests exercising combinations of `int`, `float`, `Decimal`, and numeric `str` inputs, and decimal threshold comparisons in `low_stock`.
+| 
+| **Implementation Handoff**
+| - Scope classification: Moderate — requires code and test updates and backlog coordination because a completed story's tests must be changed.
+| - Route to:
+|   - Developer (implement code & tests): `bmad-agent-dev` / `Amelia` (see resolver: agent config). Action: implement the `Decimal`-based representation and update unit tests.
+|   - Product Owner (backlog coordination & acceptance): `bmad-agent-pm` / `John`. Action: accept PR changes and re-prioritize any dependent stories.
+|   - Architect (design review): `bmad-agent-architect` / `Winston`. Action: review decision to use `Decimal` and confirm no downstream impacts.
+| - Deliverables for handoff:
+|   - Code change: patch for `shelf/inventory.py` with `_to_decimal` helper and Decimal usage.
+|   - Tests: updated tests in `tests/` that exercise fractional inputs and threshold behavior.
+|   - Updated artifacts: `architecture.md`, `epics.md`, `prd.md` updated as above.
+| - Success criteria:
+|   - All unit tests pass (`python3 -m unittest discover -s tests -t .`).
+|   - Tests verify fractional add/remove and fractional threshold behavior in `low_stock`.
+|   - Documentation updated in planning artifacts to reflect decimals support.
+| 
+| **Next Steps & Tasks (Developer)**
+| - Task A (implement): Update `shelf/inventory.py` to use `Decimal` with input conversion. (Estimate: 0.5–1 day)
+| - Task B (tests): Update `tests/test_inventory.py` (or equivalent) to accept and assert fractional behavior, add mixed-type input tests. (Estimate: 0.5 day)
+| - Task C (docs): Patch `architecture.md`, `epics.md`, and `prd.md` with the textual changes above. (Estimate: 0.25 day)
+| - Task D (review & QA): Run tests and address review comments. (Estimate: 0.25–0.5 day)
+| 
+| **Workflow Completion Summary**
+| - Issue addressed: shop also sells goods by weight (fractional quantities). See `/hephaestus/context/change.md:1`.
+| - Change scope: Moderate.
+| - Artifacts to modify: `/workspace/_bmad-output/planning-artifacts/prd.md:1`, `/workspace/_bmad-output/planning-artifacts/epics.md:1`, `/workspace/_bmad-output/planning-artifacts/architecture.md:1`, source `shelf/inventory.py`, and `tests/`.
+| - Routed to: Developer (`Amelia`), Product Owner (`John`), Architect (`Winston`).
+| 
+| This document is written to `/workspace/_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md`.
+| 
+| Correct Course workflow complete, BMad!
+# --- end produced files ---
+# --- language ---
+final message: 379 letters, 0 Polish letters per thousand
+_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26T11:23:50Z.md: 6857 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+git: absent from the image
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---
+Reading additional input from stdin...
+
+# --- proxy hosts ---
+ab.chatgpt.com:443
+api.openai.com:443
+chatgpt.com:443
+# --- end proxy hosts ---

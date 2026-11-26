@@ -1,0 +1,15 @@
+# harness: bdfdba94e1fa+bmad-f91d221624ef
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --network none 
+# command: bash -c    uv run --no-cache /hephaestus/methodology/_bmad/scripts/render_skill.py --project-root /hephaestus/methodology --skill /hephaestus/methodology/skills/bmad-build-auto; echo "exit: $?"   echo '--- a direct write to the mount ---'   touch /hephaestus/methodology/_bmad/render/probe; echo "exit: $?"   mkdir -p /hephaestus/methodology/_bmad/render/bmad-build-auto; echo "exit: $?"  
+# exit: 0
+# --- stdout ---
+HALT: [Errno 30] Read-only file system: '/hephaestus/methodology/_bmad/render/bmad-build-auto'
+exit: 1
+--- a direct write to the mount ---
+exit: 1
+exit: 1
+
+# --- stderr ---
+touch: cannot touch '/hephaestus/methodology/_bmad/render/probe': Read-only file system
+mkdir: cannot create directory '/hephaestus/methodology/_bmad/render/bmad-build-auto': Read-only file system

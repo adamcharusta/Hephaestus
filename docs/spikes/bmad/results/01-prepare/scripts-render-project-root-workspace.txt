@@ -1,0 +1,30 @@
+# harness: bdfdba94e1fa+bmad-f91d221624ef
+# image: hephaestus-spike-image-bmad-git
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --network none 
+# command: bash -c    uv run --no-cache /hephaestus/methodology/_bmad/scripts/render_skill.py --project-root /workspace --skill /hephaestus/methodology/skills/bmad-build-auto; echo "exit: $?"   echo '--- what it wrote ---'   find /workspace/_bmad/render -type f | sed -E 's#/[0-9a-f]{20}/#/<generation>/#' | sort   echo '--- where the rendered workflow sends the Agent next ---'   grep -h -o 'Read fully and follow: .*' /workspace/_bmad/render/bmad-build-auto/*/*/workflow.md   echo '--- where a rendered review layer finds its instructions ---'   grep -h -o 'Read `[^`]*edge-case-hunter.md`' /workspace/_bmad/render/bmad-build-auto/*/*/step-04-review.md   echo '--- the working tree afterwards (git status --porcelain) ---'   git status --porcelain; echo "lines: $(git status --porcelain | wc -l)"  
+# exit: 0
+# --- stdout ---
+read and follow /workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/workflow.md
+exit: 0
+--- what it wrote ---
+/workspace/_bmad/render/.gitignore
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/compile-epic-context.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/manifest.json
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/references/claims-check.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/references/deletion-check.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/review-prompts/edge-case-hunter.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/review-prompts/verification-gap.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/spec-template.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/step-01-clarify-and-route.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/step-02-plan.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/step-03-implement.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/step-04-review.md
+/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/<generation>/workflow.md
+--- where the rendered workflow sends the Agent next ---
+Read fully and follow: `/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/step-01-clarify-and-route.md`.
+--- where a rendered review layer finds its instructions ---
+Read `/workspace/_bmad/render/bmad-build-auto/workspace-c52ddf65534b/b9d8c97cace9209e73b9/review-prompts/edge-case-hunter.md`
+--- the working tree afterwards (git status --porcelain) ---
+lines: 0
+
+# --- stderr ---

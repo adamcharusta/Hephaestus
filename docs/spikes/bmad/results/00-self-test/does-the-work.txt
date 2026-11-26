@@ -1,0 +1,117 @@
+# harness: bdfdba94e1fa+bmad-b663473ee4cd
+# image: hephaestus-spike-image-bmad
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --mount type=volume,source=hephaestus-spike-bmad-methodology,target=/hephaestus/methodology,readonly --mount type=volume,source=hephaestus-spike-bmad-ctx-selftest,target=/hephaestus/context,readonly --network none --env SPIKE_TIMEOUT=60 --env SPIKE_EXPECT=implementation 
+# command: bash -s -- bash /hephaestus/context/fake-agent.sh does-the-work 
+# exit: 0
+# --- stdout ---
+# --- repository before ---
+git: absent from the image
+# --- end repository before ---
+{"type":"thread.started","thread_id":"fake"}
+{"type":"turn.started"}
+{"type": "item.completed", "item": {"id": "item_9", "type": "agent_message", "text": "Status: done."}}
+{"type":"turn.completed","usage":{"input_tokens":4000,"cached_input_tokens":1000,"output_tokens":70}}
+
+# --- agent exit: 0 ---
+# --- seconds: 0 of 60 ---
+# --- final message ---
+Status: done.
+# --- end final message ---
+# --- usage ---
+model: not named in the stream
+turns: 1
+tokens: 4000 in (1000 cached), 70 out
+# --- end usage ---
+# --- tools ---
+# --- end tools ---
+# --- paths ---
+methodology-skills: 0
+methodology-bmad: 0
+workspace-claude-skills: 0
+workspace-agents-skills: 0
+workspace-bmad: 0
+workspace-bmad-render: 0
+repository-instruction-file: 0
+context: 0
+# --- end paths ---
+# --- workspace changes ---
+added _bmad-output/implementation-artifacts/spec-1-2-low-stock.md
+changed shelf/inventory.py
+# --- end workspace changes ---
+# --- expected artifact ---
+expectation: implementation
+info: spec files written: _bmad-output/implementation-artifacts/spec-1-2-low-stock.md is done
+ok: the acceptance probe of Story 1.2 passes
+ok: the project's tests pass (OK)
+ok: a spec with status done (_bmad-output/implementation-artifacts/spec-1-2-low-stock.md is done)
+# --- end expected artifact ---
+# --- produced files ---
+## _bmad-output/implementation-artifacts/spec-1-2-low-stock.md (8 lines)
+| ---
+| title: 'Story 1.2'
+| status: 'done'
+| ---
+| 
+| ## Auto Run Result
+| 
+| Status: done
+## shelf/inventory.py (42 lines)
+| """In-memory inventory of a small shop."""
+| 
+| 
+| class Inventory:
+|     """Quantities of items, by name."""
+| 
+|     def __init__(self):
+|         self._items = {}
+| 
+|     def add(self, name, quantity):
+|         """Add `quantity` of the item `name`."""
+|         _check_quantity(quantity)
+|         self._items[name] = self._items.get(name, 0) + quantity
+| 
+|     def remove(self, name, quantity):
+|         """Remove `quantity` of the item `name`.
+| 
+|         An item whose quantity reaches zero stays in the inventory.
+|         """
+|         _check_quantity(quantity)
+|         if quantity > self._items.get(name, 0):
+|             raise ValueError(f"not enough of {name!r} in stock")
+|         self._items[name] -= quantity
+| 
+|     def quantity(self, name):
+|         """The quantity of the item `name`; zero for an unknown item."""
+|         return self._items.get(name, 0)
+| 
+|     def low_stock(self, threshold):
+|         """The names of the items whose quantity is at or below `threshold`."""
+|         if threshold < 0:
+|             raise ValueError("threshold must not be negative")
+|         return sorted(name for name, quantity in self._items.items() if quantity <= threshold)
+| 
+|     def names(self):
+|         """The names of all items, sorted."""
+|         return sorted(self._items)
+| 
+| 
+| def _check_quantity(quantity):
+|     if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
+|         raise ValueError("quantity must be a positive integer")
+# --- end produced files ---
+# --- language ---
+final message: 10 letters, 0 Polish letters per thousand
+_bmad-output/implementation-artifacts/spec-1-2-low-stock.md: 43 letters, 0 Polish letters per thousand
+# --- end language ---
+# --- methodology ---
+mount: unchanged by the run
+writes refused as read-only, in the output of the tools: 0
+# --- end methodology ---
+# --- repository after ---
+git: absent from the image
+# --- end repository after ---
+# --- instructions followed ---
+# --- end instructions followed ---
+# --- end of evidence ---
+
+# --- stderr ---
