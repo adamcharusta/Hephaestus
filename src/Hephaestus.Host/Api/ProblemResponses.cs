@@ -27,10 +27,17 @@ internal static class ProblemResponses
             _ => ("failed", MessageIds.ProblemFailedTitle, new Message(MessageIds.ProblemFailedDetail, status)),
         };
 
+        return WriteAsync(context, settings, status, slug, title, detail);
+    }
+
+    /// <summary>Writes a problem the handler chose: its status, the <c>type</c> slug, the title id, and the detail message.</summary>
+    public static Task WriteAsync(HttpContext context, HostSettings settings, int status, string slug, string titleId, Message detail)
+    {
         var language = LanguageResolver.ForRequest(context.Request.Headers.AcceptLanguage.ToString(), settings.Language);
         var catalog = MessageCatalog.Instance;
-        var problem = new ProblemDocument(TypePrefix + slug, catalog.Resolve(title, language), status, catalog.Resolve(detail, language));
+        var problem = new ProblemDocument(TypePrefix + slug, catalog.Resolve(titleId, language), status, catalog.Resolve(detail, language));
 
+        context.Response.StatusCode = status;
         context.Response.ContentType = ContentType;
         return JsonSerializer.SerializeAsync(context.Response.Body, problem, ApiJson.Default.ProblemDocument, context.RequestAborted);
     }
@@ -40,4 +47,11 @@ internal static class ProblemResponses
         context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
         return WriteAsync(context, settings);
     }
+}
+
+/// <summary>A problem document as the result of an endpoint.</summary>
+internal sealed class ProblemResult(int status, string slug, string titleId, Message detail) : IResult
+{
+    public Task ExecuteAsync(HttpContext httpContext) =>
+        ProblemResponses.WriteAsync(httpContext, httpContext.RequestServices.GetRequiredService<HostSettings>(), status, slug, titleId, detail);
 }

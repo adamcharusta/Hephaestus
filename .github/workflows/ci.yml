@@ -54,7 +54,7 @@ jobs:
     name: Image (${{ matrix.platform }})
     # The image builds and starts on both architectures, each on a runner of its own architecture (Story 1.4): the Compose
     # file starts one container, it becomes healthy, the command line reaches the API over the socket, and nothing is
-    # published or listening on a network address.
+    # published or listening on a network address; a secret is a file on its own volume and not in the database or the logs (Story 1.5).
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 25
     strategy:
@@ -104,6 +104,42 @@ jobs:
         run: |
           test "$(docker exec hephaestus id -u)" -ne 0
           test "$(docker exec hephaestus stat -c %a /run/hephaestus/control.sock)" = 600
+
+      - name: A secret is a file on the secrets volume and its name is in the database
+        run: |
+          value='sk-ci-0123456789-abcdefghij'
+          printf '%s\n' "$value" | docker exec -i hephaestus hephaestus secret set ci-secret
+          docker exec hephaestus hephaestus secret list --json | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"secrets": [{"name": "ci-secret"}]}'
+          test "$(docker exec hephaestus cat /var/lib/hephaestus/secrets/ci-secret)" = "$value"
+          test "$(docker exec hephaestus stat -c %a /var/lib/hephaestus/secrets/ci-secret)" = 600
+          test "$(docker exec hephaestus stat -c %a /var/lib/hephaestus/secrets)" = 700
+          # The database file is in write-ahead-log mode: bytes 18 and 19 of its header are both 2.
+          test "$(docker exec hephaestus od -An -tu1 -j18 -N2 /var/lib/hephaestus/data/hephaestus.db | tr -s ' ' | xargs)" = "2 2"
+          # A value given as an argument is refused, with exit code 2, and nothing is stored.
+          code=0; docker exec hephaestus hephaestus secret set ci-argument "$value" || code=$?
+          test "$code" -eq 2
+          docker exec hephaestus hephaestus secret list --json | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"secrets": [{"name": "ci-secret"}]}'
+
+      - name: The value is in no database file and no log line, and only this container mounts the secrets volume
+        run: |
+          value='sk-ci-0123456789-abcdefghij'
+          code=0; docker exec hephaestus grep -rqF -- "$value" /var/lib/hephaestus/data || code=$?
+          test "$code" -eq 1
+          code=0; docker logs hephaestus 2>&1 | grep -qF -- "$value" || code=$?
+          test "$code" -eq 1
+          test "$(docker ps -a --filter volume=hephaestus-secrets --format '{{.Names}}')" = hephaestus
+          test "$(docker ps -a --filter volume=hephaestus-data --format '{{.Names}}')" = hephaestus
+
+      - name: Secrets survive a restart and a removal takes the file and the name
+        run: |
+          value='sk-ci-0123456789-abcdefghij'
+          docker compose -f deploy/compose.yaml restart
+          docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 120
+          docker exec hephaestus hephaestus secret list --json | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"secrets": [{"name": "ci-secret"}]}'
+          test "$(docker exec hephaestus cat /var/lib/hephaestus/secrets/ci-secret)" = "$value"
+          docker exec hephaestus hephaestus secret remove ci-secret
+          docker exec hephaestus hephaestus secret list --json | python3 -c 'import json, sys; assert json.load(sys.stdin) == {"secrets": []}'
+          docker exec hephaestus test ! -e /var/lib/hephaestus/secrets/ci-secret
 
       - name: The language reaches the command line
         run: |

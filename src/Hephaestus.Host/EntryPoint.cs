@@ -11,6 +11,7 @@ internal static class EntryPoint
 {
     public static async Task<int> RunAsync(
         string[] args,
+        TextReader input,
         TextWriter output,
         TextWriter error,
         Func<string, string?> getVariable,
@@ -21,11 +22,12 @@ internal static class EntryPoint
         if (args is ["serve"])
         {
             await using var app = ControlHost.Build(settings);
+            await ControlHost.MigrateAsync(app, cancellationToken);
             await app.RunAsync(cancellationToken);
             return 0;
         }
 
         using var client = new ControlApiClient(settings.ControlSocketPath, settings.Language);
-        return await new CliApplication(settings, client, output, error).RunAsync(args, cancellationToken);
+        return await new CliApplication(settings, client, input, output, error).RunAsync(args, cancellationToken);
     }
 }

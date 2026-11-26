@@ -1,11 +1,15 @@
 using System.Net.Sockets;
 using System.Text.Json;
 using Hephaestus.Host.Api;
+using Hephaestus.Persistence;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 namespace Hephaestus.Host.Hosting;
 
-/// <summary>Builds the host: Kestrel on the control Unix socket and nothing else, JSON logs on stdout, problem details.</summary>
+/// <summary>
+/// Builds the host: Kestrel on the control Unix socket and nothing else, JSON logs on stdout, problem details, and the storage
+/// ports of Persistence.
+/// </summary>
 internal static class ControlHost
 {
     public static WebApplication Build(HostSettings settings, Action<WebApplicationBuilder>? configure = null)
@@ -21,6 +25,7 @@ internal static class ControlHost
         }
 
         builder.Services.AddSingleton(settings);
+        builder.Services.AddHephaestusPersistence(settings.Persistence);
         builder.Logging.ClearProviders();
         // The container's health check calls the API every few seconds; its request lines are not worth a log line each.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
@@ -50,6 +55,17 @@ internal static class ControlHost
 
         app.Lifetime.ApplicationStarted.Register(() => RestrictSocket(app, settings.ControlSocketPath));
         return app;
+    }
+
+    /// <summary>
+    /// Creates the database when it is missing and applies its migrations. The host does this before it listens, and a failure
+    /// stops it: an API on a database in an unknown state would be worse than none.
+    /// </summary>
+    public static async Task MigrateAsync(WebApplication app, CancellationToken cancellationToken)
+    {
+        await app.Services.GetRequiredService<DatabaseMigrator>().MigrateAsync(cancellationToken);
+        app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Hephaestus.Host")
+            .LogInformation("Database ready at {DatabasePath}", app.Services.GetRequiredService<PersistenceOptions>().DatabasePath);
     }
 
     /// <summary>

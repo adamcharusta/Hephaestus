@@ -16,7 +16,17 @@ public sealed class RunningExecutableTests : IAsyncLifetime
 
     private string SocketPath => Path.Combine(_directory, "control.sock");
 
+    private string DataDirectory => Path.Combine(_directory, "data");
+
+    private string SecretsDirectory => Path.Combine(_directory, "secrets");
+
     public ValueTask InitializeAsync()
+    {
+        StartHost();
+        return ValueTask.CompletedTask;
+    }
+
+    private void StartHost()
     {
         _host = Start(["serve"], new Dictionary<string, string>
         {
@@ -37,10 +47,9 @@ public sealed class RunningExecutableTests : IAsyncLifetime
         _host.ErrorDataReceived += (_, _) => { };
         _host.BeginOutputReadLine();
         _host.BeginErrorReadLine();
-        return ValueTask.CompletedTask;
     }
 
-    public ValueTask DisposeAsync()
+    private void StopHost()
     {
         if (_host is { HasExited: false })
         {
@@ -49,6 +58,11 @@ public sealed class RunningExecutableTests : IAsyncLifetime
         }
 
         _host?.Dispose();
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopHost();
         Directory.Delete(_directory, recursive: true);
         return ValueTask.CompletedTask;
     }
@@ -95,6 +109,70 @@ public sealed class RunningExecutableTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_secret_set_from_standard_input_is_in_no_database_file_no_log_line_and_no_output_and_survives_a_restart()
+    {
+        const string Value = "sk-test-0123456789-abcdefghij";
+        var runs = new List<Run>();
+
+        runs.Add(await RunWhenReadyAsync(["secret", "list"]));
+        runs.Add(await RunAsync(["secret", "set", "anthropic-api-key"], input: Value + "\n"));
+        runs.Add(await RunAsync(["secret", "set", "other-secret", "--json"], input: Value + "-other"));
+        runs.Add(await RunAsync(["secret", "list"]));
+        runs.Add(await RunAsync(["secret", "list", "--json"], language: "pl"));
+        var refused = await RunAsync(["secret", "set", "refused", Value]);
+        runs.Add(refused);
+
+        Assert.Equal(2, refused.ExitCode);
+        Assert.Equal(Value, await File.ReadAllTextAsync(Path.Combine(SecretsDirectory, "anthropic-api-key"), TestContext.Current.CancellationToken));
+        Assert.Equal(["anthropic-api-key", "other-secret"], Directory.EnumerateFiles(SecretsDirectory).Select(Path.GetFileName).Order(StringComparer.Ordinal));
+
+        // The host dies without a goodbye and starts again on the same directories, as a restarted container does.
+        StopHost();
+        StartHost();
+        var listed = await RunWhenReadyAsync(["secret", "list", "--json"]);
+        runs.Add(listed);
+        runs.Add(await RunAsync(["secret", "remove", "other-secret"]));
+        var final = await RunAsync(["secret", "list", "--json"]);
+        runs.Add(final);
+
+        Assert.Equal("""{"secrets":[{"name":"anthropic-api-key"},{"name":"other-secret"}]}""", listed.Output.Trim());
+        Assert.Equal("""{"secrets":[{"name":"anthropic-api-key"}]}""", final.Output.Trim());
+        Assert.Equal(["anthropic-api-key"], Directory.EnumerateFiles(SecretsDirectory).Select(Path.GetFileName));
+
+        var databaseFiles = Directory.EnumerateFiles(DataDirectory).ToList();
+        Assert.Contains(databaseFiles, f => f.EndsWith("hephaestus.db", StringComparison.Ordinal));
+        foreach (var file in databaseFiles)
+        {
+            await using var stream = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+            using var bytes = new MemoryStream();
+            await stream.CopyToAsync(bytes, TestContext.Current.CancellationToken);
+            Assert.DoesNotContain("0123456789-abcdefghij", System.Text.Encoding.Latin1.GetString(bytes.ToArray()), StringComparison.Ordinal);
+        }
+
+        string[] logs;
+        lock (_hostOutput)
+        {
+            logs = [.. _hostOutput];
+        }
+
+        Assert.NotEmpty(logs);
+        Assert.DoesNotContain(logs, line => line.Contains("0123456789-abcdefghij", StringComparison.Ordinal));
+        Assert.DoesNotContain(runs, run => (run.Output + run.Error).Contains("0123456789-abcdefghij", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_value_in_utf_8_reaches_the_file_byte_for_byte_whatever_the_locale()
+    {
+        const string Value = "zażółć gęślą jaźń 密码 пароль\n-----END-----";
+        await RunWhenReadyAsync(["secret", "list"]);
+
+        var run = await RunAsync(["secret", "set", "unicode-secret"], input: Value);
+
+        Assert.Equal(0, run.ExitCode);
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes(Value), await File.ReadAllBytesAsync(Path.Combine(SecretsDirectory, "unicode-secret"), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task An_unknown_command_is_exit_code_2_and_a_missing_host_is_exit_code_1()
     {
         var unknown = await RunWhenReadyAsync(["frobnicate"]);
@@ -127,13 +205,15 @@ public sealed class RunningExecutableTests : IAsyncLifetime
         throw new TimeoutException("The host did not answer on its socket.");
     }
 
-    private async Task<Run> RunAsync(string[] args, string language = "en", string? socket = null)
+    private async Task<Run> RunAsync(string[] args, string language = "en", string? socket = null, string input = "")
     {
         using var process = Start(args, new Dictionary<string, string>
         {
             ["HEPHAESTUS_LANGUAGE"] = language,
             ["HEPHAESTUS_CONTROL_SOCKET"] = socket ?? SocketPath,
         });
+        await process.StandardInput.WriteAsync(input.AsMemory(), TestContext.Current.CancellationToken);
+        process.StandardInput.Close();
         var output = process.StandardOutput.ReadToEndAsync(TestContext.Current.CancellationToken);
         var error = process.StandardError.ReadToEndAsync(TestContext.Current.CancellationToken);
         await process.WaitForExitAsync(TestContext.Current.CancellationToken);
@@ -144,6 +224,7 @@ public sealed class RunningExecutableTests : IAsyncLifetime
     {
         var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "Hephaestus.Host.exe" : "Hephaestus.Host"))
         {
+            RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
         };
@@ -155,6 +236,8 @@ public sealed class RunningExecutableTests : IAsyncLifetime
         // The apphost finds the runtime through DOTNET_ROOT; the runtime this test runs on is the one to use.
         start.Environment["DOTNET_ROOT"] = Path.GetFullPath(Path.Combine(RuntimeEnvironment.GetRuntimeDirectory(), "..", "..", ".."));
         start.Environment["HEPHAESTUS_CONTROL_SOCKET"] = SocketPath;
+        start.Environment["HEPHAESTUS_DATA_DIR"] = DataDirectory;
+        start.Environment["HEPHAESTUS_SECRETS_DIR"] = SecretsDirectory;
         foreach (var (name, value) in environment)
         {
             start.Environment[name] = value;

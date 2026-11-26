@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
+using System.Text;
 using System.Text.Json;
 using Hephaestus.Core.Localization;
 using Hephaestus.Host.Api;
@@ -47,11 +48,20 @@ internal sealed class ControlApiClient : IDisposable
     }
 
     /// <summary>Throws <see cref="HttpRequestException"/> when nothing answers on the socket.</summary>
-    public async Task<ApiAnswer> GetAsync(string path, CancellationToken cancellationToken)
+    public Task<ApiAnswer> GetAsync(string path, CancellationToken cancellationToken) => SendAsync(HttpMethod.Get, path, body: null, cancellationToken);
+
+    /// <summary>Sends a request, with a plain-text body when there is one. Throws like <see cref="GetAsync"/>.</summary>
+    public async Task<ApiAnswer> SendAsync(HttpMethod method, string path, string? body, CancellationToken cancellationToken)
     {
-        using var response = await _http.GetAsync(path, cancellationToken);
-        var body = await response.Content.ReadAsStringAsync(cancellationToken);
-        return new ApiAnswer(response.StatusCode, body, response.IsSuccessStatusCode ? null : ReadProblem(response, body));
+        using var request = new HttpRequestMessage(method, path);
+        if (body is not null)
+        {
+            request.Content = new StringContent(body, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), "text/plain");
+        }
+
+        using var response = await _http.SendAsync(request, cancellationToken);
+        var answer = await response.Content.ReadAsStringAsync(cancellationToken);
+        return new ApiAnswer(response.StatusCode, answer, response.IsSuccessStatusCode ? null : ReadProblem(response, answer));
     }
 
     public void Dispose() => _http.Dispose();

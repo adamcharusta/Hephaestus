@@ -32,12 +32,16 @@ COPY --from=build /app ./
 
 # `docker exec hephaestus hephaestus ...` is the command line; it finds the control socket in the same place the host made it.
 # The aspnet image sets ASPNETCORE_HTTP_PORTS; the host listens on a Unix socket only, so no port is named here.
+# The data and secrets directories are the mount points of the `hephaestus-data` and `hephaestus-secrets` volumes. A named
+# volume copies their owner and mode from the image on first use, so the process user owns both and only it can enter them.
 ENV PATH="/app:${PATH}" \
     HEPHAESTUS_CONTROL_SOCKET=/run/hephaestus/control.sock \
+    HEPHAESTUS_DATA_DIR=/var/lib/hephaestus/data \
+    HEPHAESTUS_SECRETS_DIR=/var/lib/hephaestus/secrets \
     ASPNETCORE_HTTP_PORTS=
-RUN mkdir -p /run/hephaestus \
- && chown "$APP_UID" /run/hephaestus \
- && chmod 700 /run/hephaestus
+RUN mkdir -p /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
+ && chown "$APP_UID" /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
+ && chmod 700 /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets
 
 USER $APP_UID
 ENTRYPOINT ["hephaestus", "serve"]
