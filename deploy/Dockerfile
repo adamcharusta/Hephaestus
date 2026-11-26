@@ -14,7 +14,11 @@ COPY src/Hephaestus.GitHub/Hephaestus.GitHub.csproj src/Hephaestus.GitHub/
 COPY src/Hephaestus.Workspaces/Hephaestus.Workspaces.csproj src/Hephaestus.Workspaces/
 COPY src/Hephaestus.Persistence/Hephaestus.Persistence.csproj src/Hephaestus.Persistence/
 COPY src/Hephaestus.Host/Hephaestus.Host.csproj src/Hephaestus.Host/
-RUN case "$TARGETARCH" in amd64) echo x64 ;; arm64) echo arm64 ;; *) echo "unsupported architecture $TARGETARCH" >&2; exit 1 ;; esac > /arch \
+RUN case "$TARGETARCH" in \
+      amd64) echo x64 ;; \
+      arm64) echo arm64 ;; \
+      *) echo "unsupported architecture $TARGETARCH" >&2; exit 1 ;; \
+    esac > /arch \
  && dotnet restore src/Hephaestus.Host/Hephaestus.Host.csproj -a "$(cat /arch)"
 
 COPY src/ src/
