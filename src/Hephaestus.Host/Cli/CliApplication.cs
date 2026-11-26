@@ -92,6 +92,21 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return await CheckGitHubAsync(json, cancellationToken);
         }
 
+        if (command == tree.TrustedUserAdd)
+        {
+            return await AddTrustedUserAsync(parse.GetValue(tree.TrustedUserAddLogin)!, json, cancellationToken);
+        }
+
+        if (command == tree.TrustedUserList)
+        {
+            return await ListTrustedUsersAsync(json, cancellationToken);
+        }
+
+        if (command == tree.TrustedUserRemove)
+        {
+            return await RemoveTrustedUserAsync(parse.GetValue(tree.TrustedUserRemoveLogin)!, json, cancellationToken);
+        }
+
         HelpWriter.Write(command, tree.Help, output, language);
         return Success;
     }
@@ -188,6 +203,125 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
         }
 
         return Success;
+    }
+
+    private async Task<int> AddTrustedUserAsync(string login, bool json, CancellationToken cancellationToken)
+    {
+        var answer = await CallAsync(HttpMethod.Put, TrustedUserPath(login), body: null, cancellationToken);
+        if (answer is null)
+        {
+            return Failure;
+        }
+
+        var created = answer.Status == System.Net.HttpStatusCode.Created;
+        return RenderTrustedUser(answer, json, created ? MessageIds.CliTrustedUserAdded : MessageIds.CliTrustedUserAlready);
+    }
+
+    private async Task<int> RemoveTrustedUserAsync(string login, bool json, CancellationToken cancellationToken)
+    {
+        var answer = await CallAsync(HttpMethod.Delete, TrustedUserPath(login), body: null, cancellationToken);
+        return answer is null ? Failure : RenderTrustedUser(answer, json, MessageIds.CliTrustedUserRemoved);
+    }
+
+    private int RenderTrustedUser(ApiAnswer answer, bool json, string sentenceId)
+    {
+        if (!answer.IsSuccess)
+        {
+            return Report(answer);
+        }
+
+        if (json)
+        {
+            output.WriteLine(answer.Body.Trim());
+            return Success;
+        }
+
+        var user = ReadTrustedUser(answer.Body);
+        if (user is null)
+        {
+            return Report(answer with { Problem = null });
+        }
+
+        output.WriteLine(_catalog.Resolve(new Message(sentenceId, user.Login, user.UserId), settings.Language));
+        return Success;
+    }
+
+    private async Task<int> ListTrustedUsersAsync(bool json, CancellationToken cancellationToken)
+    {
+        var answer = await CallAsync(HttpMethod.Get, "/api/trusted-users", body: null, cancellationToken);
+        if (answer is null)
+        {
+            return Failure;
+        }
+
+        if (!answer.IsSuccess)
+        {
+            return Report(answer);
+        }
+
+        if (json)
+        {
+            output.WriteLine(answer.Body.Trim());
+            return Success;
+        }
+
+        var users = ReadTrustedUsers(answer.Body);
+        if (users is null)
+        {
+            return Report(answer with { Problem = null });
+        }
+
+        if (users.Count == 0)
+        {
+            output.WriteLine(_catalog.Resolve(MessageIds.CliTrustedUserListEmpty, settings.Language));
+            return Success;
+        }
+
+        var rows = new List<string[]>
+        {
+            new[]
+            {
+                _catalog.Resolve(MessageIds.CliTrustedUserColumnLogin, settings.Language),
+                _catalog.Resolve(MessageIds.CliTrustedUserColumnId, settings.Language),
+                _catalog.Resolve(MessageIds.CliTrustedUserColumnAdded, settings.Language),
+            },
+        };
+        rows.AddRange(users.Select(u => new[] { u.Login, u.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), u.AddedAt }));
+        var widths = Enumerable.Range(0, 3).Select(column => rows.Max(row => row[column].Length)).ToArray();
+        foreach (var row in rows)
+        {
+            output.WriteLine(string.Join("  ", row.Select((cell, column) => cell.PadRight(widths[column]))).TrimEnd());
+        }
+
+        return Success;
+    }
+
+    private static string TrustedUserPath(string login) => "/api/trusted-users/" + Uri.EscapeDataString(login);
+
+    private static TrustedUserDocument? ReadTrustedUser(string body)
+    {
+        try
+        {
+            var user = JsonSerializer.Deserialize(body, ApiJson.Default.TrustedUserDocument);
+            return user is { Login: not null, AddedAt: not null } ? user : null;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static List<TrustedUserDocument>? ReadTrustedUsers(string body)
+    {
+        try
+        {
+            var users = JsonSerializer.Deserialize(body, ApiJson.Default.TrustedUserListDocument)?.TrustedUsers;
+            return users is null || users.Any(u => u is not { Login: not null, AddedAt: not null }) ? null : [.. users];
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private async Task<int> ConnectGitHubAsync(long appId, bool json, CancellationToken cancellationToken)

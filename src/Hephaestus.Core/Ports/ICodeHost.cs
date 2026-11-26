@@ -1,10 +1,11 @@
 using Hephaestus.Core.GitHub;
+using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
 
 /// <summary>
 /// The one gateway to GitHub (AD-4), implemented by <c>Hephaestus.GitHub</c>. This story gives it the two reads of Hephaestus's
-/// own identity; the effecting methods arrive with the stories that need them, each taking its idempotency key (AD-5).
+/// own identity and the lookup of a user; the effecting methods arrive with the stories that need them, each taking its idempotency key (AD-5).
 /// </summary>
 public interface ICodeHost
 {
@@ -17,4 +18,10 @@ public interface ICodeHost
 
     /// <summary>Reads the identity of the App whose credential is stored, from GitHub, now.</summary>
     Task<GitHubIdentityResult> CheckIdentityAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Resolves a login to GitHub's numeric user id (AD-15), authenticated as the connected App, and says whether it is the App's
+    /// own bot account. An organization is not a user and is not found. Nothing is stored.
+    /// </summary>
+    Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken);
 }

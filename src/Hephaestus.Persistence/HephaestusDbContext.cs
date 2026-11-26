@@ -10,6 +10,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<GitHubAppConnection> GitHubAppConnections => Set<GitHubAppConnection>();
 
+    public DbSet<TrustedUserEntry> TrustedUsers => Set<TrustedUserEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -32,6 +34,14 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             app.ToTable("GitHubAppConnections", table => table.HasCheckConstraint("CK_GitHubAppConnections_Single", "\"Id\" = 1"));
             app.HasKey(c => c.Id);
             app.Property(c => c.Id).ValueGeneratedNever();
+        });
+
+        model.Entity<TrustedUserEntry>(user =>
+        {
+            user.ToTable("TrustedUsers");
+            user.HasKey(u => u.UserId);
+            user.Property(u => u.UserId).ValueGeneratedNever();
+            user.Property(u => u.Login).IsRequired().HasMaxLength(Core.Trust.GitHubLogin.MaximumLength + Core.Trust.GitHubLogin.BotSuffix.Length);
         });
     }
 }

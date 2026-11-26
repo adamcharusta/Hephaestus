@@ -31,6 +31,15 @@ internal sealed record GitHubIdentityDocument(
     IReadOnlyList<GitHubPermissionDocument> Permissions,
     IReadOnlyList<GitHubWarningDocument> Warnings);
 
+/// <summary>
+/// A Trusted User (AD-15). <c>userId</c> is GitHub's numeric id and the identity; <c>login</c> is display only. <c>addedAt</c> is UTC
+/// ISO 8601.
+/// </summary>
+internal sealed record TrustedUserDocument(long UserId, string Login, string AddedAt);
+
+/// <summary>The Trusted Users, ascending by login.</summary>
+internal sealed record TrustedUserListDocument(IReadOnlyList<TrustedUserDocument> TrustedUsers);
+
 /// <summary>An RFC 9457 problem details document. <c>type</c> is never translated; <c>title</c> and <c>detail</c> are.</summary>
 internal sealed record ProblemDocument(string Type, string Title, int Status, string Detail);
 
@@ -40,5 +49,7 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(SecretNameDocument))]
 [JsonSerializable(typeof(SecretListDocument))]
 [JsonSerializable(typeof(GitHubIdentityDocument))]
+[JsonSerializable(typeof(TrustedUserDocument))]
+[JsonSerializable(typeof(TrustedUserListDocument))]
 [JsonSerializable(typeof(ProblemDocument))]
 internal sealed partial class ApiJson : JsonSerializerContext;

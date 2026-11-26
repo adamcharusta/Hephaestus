@@ -32,6 +32,14 @@ internal sealed class FakeGitHub : HttpMessageHandler
         [11] = ["adamcharusta/Hephaestus"],
     };
 
+    /// <summary>Users by login, as GitHub answers <c>GET /users/{login}</c>; GitHub's logins are not case sensitive.</summary>
+    public Dictionary<string, string> Users { get; } = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["alice"] = """{"login":"Alice","id":583231,"type":"User"}""",
+        ["acme"] = """{"login":"acme","id":2,"type":"Organization"}""",
+        ["hephaestus-test[bot]"] = """{"login":"hephaestus-test[bot]","id":99999,"type":"Bot"}""",
+    };
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -64,6 +72,9 @@ internal sealed class FakeGitHub : HttpMessageHandler
             "/app" => Json(HttpStatusCode.OK, AppJson),
             "/app/installations" => Json(HttpStatusCode.OK, InstallationsJson),
             "/installation/repositories" => Json(HttpStatusCode.OK, RepositoriesOf(request)),
+            _ when path.StartsWith("/users/", StringComparison.Ordinal) => Users.TryGetValue(Uri.UnescapeDataString(path["/users/".Length..]), out var user)
+                ? Json(HttpStatusCode.OK, user)
+                : Json(HttpStatusCode.NotFound, """{"message":"Not Found"}"""),
             _ when path.StartsWith("/app/installations/", StringComparison.Ordinal) && path.EndsWith("/access_tokens", StringComparison.Ordinal)
                 => Json(HttpStatusCode.Created, $$"""{"token":"{{InstallationToken}}","expires_at":"2099-01-01T00:00:00Z"}"""),
             _ => Json(HttpStatusCode.NotFound, """{"message":"Not Found"}"""),

@@ -1,3 +1,5 @@
+using Hephaestus.Core.Trust;
+
 namespace Hephaestus.Core.Ports;
 
 /// <summary>
@@ -11,4 +13,7 @@ public interface IReadStore
 
     /// <summary>The id of Hephaestus's own GitHub App, or null when none was connected.</summary>
     Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken);
+
+    /// <summary>The Trusted Users, ascending by login and then by id.</summary>
+    Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken);
 }
