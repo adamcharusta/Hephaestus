@@ -89,11 +89,15 @@ jobs:
 
       - name: No port is published and nothing listens on a network address
         run: |
-          test -z "$(docker port hephaestus)"
-          listening="$(docker exec hephaestus cat /proc/net/tcp /proc/net/tcp6 | awk '$4 == "0A"' | wc -l)"
-          test "$listening" -eq 0
-          bound="$(docker exec hephaestus cat /proc/net/udp /proc/net/udp6 | awk '$4 == "07"' | wc -l)"
-          test "$bound" -eq 0
+          published="$(docker port hephaestus || true)"
+          echo "published ports: [$published]"
+          test -z "$published"
+          tcp="$(docker exec hephaestus cat /proc/net/tcp /proc/net/tcp6 | awk '$4 == "0A"')"
+          echo "listening tcp sockets: [$tcp]"
+          test -z "$tcp"
+          udp="$(docker exec hephaestus cat /proc/net/udp /proc/net/udp6 | awk '$4 == "07"')"
+          echo "bound udp sockets: [$udp]"
+          test -z "$udp"
 
       - name: The host runs as a non-root user and owns a socket only it can open
         run: |
