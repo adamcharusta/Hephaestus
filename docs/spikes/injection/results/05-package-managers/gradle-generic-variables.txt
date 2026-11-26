@@ -1,0 +1,33 @@
+# harness: bdfdba94e1fa
+# image: gradle:9-jdk21
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=2g,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection --network hephaestus-spike-workspace --env HTTP_PROXY=http://hephaestus-spike-proxy:3128 --env HTTPS_PROXY=http://hephaestus-spike-proxy:3128 --env NO_PROXY=localhost,127.0.0.1,::1 --env http_proxy=http://hephaestus-spike-proxy:3128 --env https_proxy=http://hephaestus-spike-proxy:3128 --env no_proxy=localhost,127.0.0.1,::1 
+# command: bash -c set -e; cd /workspace; timeout 420 bash -s 
+# exit: 1
+# --- stdout ---
+Gradle 9.9.2
+
+# --- stderr ---
+
+FAILURE: Build failed with an exception.
+
+* Where:
+Build file '/workspace/build.gradle' line: 4
+
+* What went wrong:
+Execution failed for task ':resolve' (registered in build file 'build.gradle').
+> Could not resolve all files for configuration ':runtimeClasspath'.
+   > Could not resolve org.apache.commons:commons-lang3:3.17.0.
+     Required by:
+         root project 'spike'
+      > Could not resolve org.apache.commons:commons-lang3:3.17.0.
+         > Could not get resource 'https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0.pom'.
+            > Could not GET 'https://repo.maven.apache.org/maven2/org/apache/commons/commons-lang3/3.17.0/commons-lang3-3.17.0.pom'.
+               > repo.maven.apache.org: Temporary failure in name resolution
+
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --info or --debug option to get more log output.
+> Run with --scan to get full insights from a Build Scan (powered by Develocity).
+> Get more help at https://help.gradle.org.
+
+BUILD FAILED in 4s

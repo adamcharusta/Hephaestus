@@ -1,0 +1,35 @@
+# harness: bdfdba94e1fa
+# image: hephaestus-spike-image-ubuntu
+# container: --user 10001:10001 --cap-drop ALL --security-opt no-new-privileges --pids-limit 512 --memory 4g --cpus 2 --mount type=volume,source=hephaestus-spike-agents,target=/hephaestus/agents,readonly --tmpfs /hephaestus/home:rw,exec,nosuid,nodev,size=512m,uid=10001,gid=10001,mode=0700 --env HOME=/hephaestus/home --env DISABLE_AUTOUPDATER=1 --env DISABLE_UPDATES=1 --workdir /workspace --label hephaestus.spike=injection 
+# command: bash -c      echo "id: $(id)"     echo "passwd entry for 10001: $(grep -c "^[^:]*:[^:]*:10001:" /etc/passwd)"     echo "HOME=$HOME"     grep -E "^(CapInh|CapPrm|CapEff|CapBnd|NoNewPrivs|Seccomp):" /proc/self/status     echo "--- limits (cgroup) ---"     for f in pids.max memory.max cpu.max; do echo "$f: $(cat /sys/fs/cgroup/$f 2>&1)"; done     echo "--- mounts ---"     grep -E " /(workspace|hephaestus/[a-z]+) " /proc/self/mounts     echo "--- write to the workspace ---"     ls -ldn /workspace     touch /workspace/.write-probe && rm /workspace/.write-probe && echo "workspace is writable"     echo "--- write to the agent binaries mount ---"     touch /hephaestus/agents/probe 2>&1 || true     echo "--- C library ---"     ls /lib/ld-musl-* 2>/dev/null || echo "no musl loader: glibc"     echo "--- image ---"     grep -E "^(PRETTY_NAME)=" /etc/os-release     echo "bash: $(command -v bash)  git: $(command -v git || echo absent)  CA bundle: $(ls /etc/ssl/certs/ca-certificates.crt 2>/dev/null || echo absent)"    
+# exit: 0
+# --- stdout ---
+id: uid=10001 gid=10001 groups=10001
+passwd entry for 10001: 0
+HOME=/hephaestus/home
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	0000000000000000
+NoNewPrivs:	1
+Seccomp:	2
+--- limits (cgroup) ---
+pids.max: 512
+memory.max: 4294967296
+cpu.max: 200000 100000
+--- mounts ---
+/dev/sdd /workspace ext4 rw,relatime 0 0
+/dev/sdd /hephaestus/agents ext4 ro,relatime 0 0
+tmpfs /hephaestus/home tmpfs rw,nosuid,nodev,relatime,size=524288k,mode=700,uid=10001,gid=10001 0 0
+--- write to the workspace ---
+drwxr-xr-x 2 10001 10001 4096 Nov 25 21:23 /workspace
+workspace is writable
+--- write to the agent binaries mount ---
+touch: cannot touch '/hephaestus/agents/probe': Read-only file system
+--- C library ---
+no musl loader: glibc
+--- image ---
+PRETTY_NAME="Ubuntu 24.04.5 LTS"
+bash: /usr/bin/bash  git: absent  CA bundle: absent
+
+# --- stderr ---
