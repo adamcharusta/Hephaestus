@@ -16,7 +16,7 @@ Each record states one decision, the alternatives weighed, and what follows from
 | [0008](0008-workspace-shape-and-container-boundary.md) | Workspace shape and the container as security boundary | Accepted | AD-6, AD-7 |
 | [0009](0009-only-the-committed-tree-survives-a-step.md) | Only the committed tree survives a step | Accepted | AD-6, AD-9 |
 | [0010](0010-bundle-boundary-and-checkpoints.md) | Bundle boundary and checkpoint commits | Accepted | AD-9 |
-| [0011](0011-agent-clis-pinned-and-injected.md) | Agent CLIs pinned and injected by Hephaestus | Conditional | AD-8 |
+| [0011](0011-agent-clis-pinned-and-injected.md) | Agent CLIs pinned and injected by Hephaestus | Accepted | AD-8 |
 | [0012](0012-methodology-as-data.md) | Methodology as data | Accepted | AD-14 |
 | [0013](0013-configuration-secrets-and-trust.md) | Configuration split, secrets, and trust admission | Accepted | AD-15, AD-16 |
 | [0014](0014-local-persistence.md) | Local persistence in SQLite | Accepted | AD-16 |

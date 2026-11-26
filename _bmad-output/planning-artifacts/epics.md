@@ -18,6 +18,8 @@ inputDocuments:
   - _bmad-output/planning-artifacts/research/technical-agent-clis-and-github-integration-for-he-2026-11-25/research.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-25.md
   - _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-25-language-and-ci.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-26.md
+  - docs/spikes/injection/README.md
   - _bmad-output/planning-artifacts/ux-designs/ux-Hephaestus-2026-11-25/DESIGN.md
   - _bmad-output/planning-artifacts/ux-designs/ux-Hephaestus-2026-11-25/EXPERIENCE.md
 ---
@@ -37,6 +39,7 @@ This document provides the complete epic and story breakdown for Hephaestus, dec
 - Additional requirements carry ids `AR-n` so that stories can cite them. UX design requirements carry ids `UX-DR-n`.
 - The Dashboard was added on 2026-11-25 by an approved change (`sprint-change-proposal-2026-11-25.md`): FR-67, FR-68, AR-72 to AR-74, the UX design requirements, and ten stories, one at the end of each epic that gives the Owner something new to see. No existing story was renumbered.
 - A second approved change of the same day (`sprint-change-proposal-2026-11-25-language-and-ci.md`) added language (FR-69, AR-75, UX-DR-20) and the rules for Hephaestus's own repository (NFR-18, AR-76, AR-77): one new story, 1.16, and criteria added to Stories 1.2, 1.3, 1.4, 1.9, 1.11, 1.13, 1.14, 2.5, 3.11, and 8.2.
+- A third approved change (`sprint-change-proposal-2026-11-26.md`) absorbed what the injection spike, Story 1.1, found (`docs/spikes/injection/README.md`): AD-7 and AD-8 are confirmed and the fallback of a Hephaestus base image is dropped. No story was added, removed, or moved. Thirteen were amended: 1.2, 3.1, 3.2, 3.4, 3.5, 3.8, 3.9, 3.10, 3.11, 3.16, 3.21, 7.1, and 9.4.
 
 ## Requirements Inventory
 
@@ -100,7 +103,7 @@ FR-23 [v0.2]: The Owner can cancel a Task that is queued or in progress. A cance
 
 FR-24 [v0.1]: Hephaestus supports Claude Code and Codex CLI, using only officially documented execution and authentication mechanisms (`claude -p --output-format stream-json`, `codex exec --json`). A Task can be implemented by either Agent and reviewed by the other with no change to the Project. A capability that one Agent lacks is reported as unavailable for that Agent; it is not imitated silently.
 
-FR-25 [v0.1]: For each Agent, the Owner chooses whether it authenticates with an API key or with a subscription login, within what the provider officially permits. Sign-in always completes through the Agent's own tool; Hephaestus never presents a provider's sign-in itself and only uses the credential the Owner supplies. Installation documentation presents both modes on an equal footing and states, for each, the provider terms that apply and the risk of using a subscription for automated work. *(spine)* Codex CLI is supported with an API key only until its subscription credential can be refreshed without taking a file back from a Workspace.
+FR-25 [v0.1]: For each Agent, the Owner chooses whether it authenticates with an API key or with a subscription login, within what the provider officially permits. Sign-in always completes through the Agent's own tool; Hephaestus never presents a provider's sign-in itself and only uses the credential the Owner supplies. Installation documentation presents both modes on an equal footing and states, for each, the provider terms that apply and the risk of using a subscription for automated work. *(spine)* Claude Code is supported with an API key and with a subscription sign-in, the latter through a token from the vendor's `claude setup-token`. Codex CLI is supported with an API key only: its subscription credential is a full account credential that must be kept and refreshed between runs, and the tools the account brings cannot be listed from the CLI.
 
 FR-26 [v0.1]: Before using an Agent, Hephaestus verifies that it is installed and authenticated. An unavailable Agent is reported to the Owner with the reason and is treated as having no capacity.
 
@@ -274,11 +277,11 @@ Hephaestus presents itself professionally, with restrained references to craftsm
 
 **Spikes and ordering**
 
-- AR-4: **Injection spike, the first story of v0.1** (conditions AD-7 and AD-8). It must show: both pinned CLIs run from a read-only mount as user `10001:10001` with no passwd entry, a throwaway `HOME`, and all capabilities dropped, on Debian-, Ubuntu-, and Alpine-based images; the right Claude Code build is selected for the image's C library; account-linked tools and repository-supplied executable configuration can be disabled in each authentication mode; both CLIs and the common package managers (npm, `dotnet restore`, pip, cargo, go, Maven, Gradle) work through `HTTPS_PROXY`, with which settings in the Project image; the vendors' terms allow fetching the binaries this way. Fallback if injection fails: the same rule with a Hephaestus base image that Project images derive from.
-- AR-5: **BMAD spike, before the Methodology epic; v0.1 depends on it.** Which BMAD workflows complete unattended under `claude -p` and `codex exec` with their files at `/hephaestus/methodology`, what they need in the image, which workflow serves each step kind, how an issue maps to the artifacts BMAD works from, and whether Claude Code's `--bare` mode needs the skill named explicitly.
+- AR-4: **Injection spike, the first story of v0.1** (conditions AD-7 and AD-8). It must show: both pinned CLIs run from a read-only mount as user `10001:10001` with no passwd entry, a throwaway `HOME`, and all capabilities dropped, on Debian-, Ubuntu-, and Alpine-based images; the right Claude Code build is selected for the image's C library; account-linked tools and repository-supplied executable configuration can be disabled in each authentication mode; both CLIs and the common package managers (npm, `dotnet restore`, pip, cargo, go, Maven, Gradle) work through `HTTPS_PROXY`, with which settings in the Project image; the vendors' terms allow fetching the binaries this way. Fallback if injection fails: the same rule with a Hephaestus base image that Project images derive from. Done, 2026-11-26: both decisions confirmed; the fallback is not needed.
+- AR-5: **BMAD spike, before the Methodology epic; v0.1 depends on it.** Which BMAD workflows complete unattended under `claude -p` and `codex exec` with their files at `/hephaestus/methodology`, what they need in the image, which workflow serves each step kind, how an issue maps to the artifacts BMAD works from, and how a workflow is started when the Agent has no `Skill` tool and is given no repository instruction file.
 - AR-6: **Usage Limit spike, before FR-27 to FR-29 are designed in v0.2.** What Claude Code and Codex CLI emit in their event streams when a real subscription Usage Limit is reached: exit code, events, reset-time fields.
 - AR-7: **GitHub edit-history test.** Confirm whether GraphQL `userContentEdits` returns the editor of an issue body and of a comment to a GitHub App installation token. If it does, the gateway gains one GraphQL query over plain HTTP; no library is added. The fail-closed behavior is already fixed (NFR-1).
-- AR-8: **Codex subscription sign-in.** Until a credential-only container is shown to refresh the credential safely, Codex is supported with an API key only. A per-run reasoning-effort override for `codex exec` is also unconfirmed.
+- AR-8: **Codex subscription sign-in.** Unsupported. The credential file is a full account credential that must be kept and refreshed between runs, which AD-16 forbids taking from a step container, and the tools the account brings cannot be listed from the CLI. Should it ever be supported, the Models Codex accepts differ by authentication mode, so an Alias could not resolve to one Model for both. The per-run reasoning-effort override is confirmed: `model_reasoning_effort`.
 - AR-9: Carve a proof-of-concept milestone inside v0.1 when epics are written (`release-scope.md`, Ordering).
 
 **Binding architecture decisions (spine AD-1 to AD-20)**
@@ -288,19 +291,19 @@ Hephaestus presents itself professionally, with restrained references to craftsm
 - AR-12 (AD-3): Dependency direction enforced by project references. Core references no adapter project and no Octokit, Docker, EF Core, or ASP.NET Core package. Adapters reference only Core. Only Host references adapters. Core defines the ports `IAgentAdapter`, `IWorkspaceRuntime`, `ICodeHost`, `IUnitOfWork`, `IReadStore`, `ISignalInbox`, `IPollCursorStore`, `IOutputStore`, `ISecretStore`, `INotifier`, `IChangeFeed`. Persistence implements the six storage ports; Host implements `IChangeFeed`.
 - AR-13 (AD-4): One GitHub gateway. `Hephaestus.GitHub` is the only code that talks to GitHub, the only holder of the GitHub App credential, the owner of the bare mirrors, and the only code that pushes. The poller only appends Signals. There is no code path that pushes, force-pushes, or deletes any ref outside `hephaestus/*`; the only write to a Base Branch is a merge call carrying the approved head commit id.
 - AR-14 (AD-5): Effect journal. Only the loop writes the journal; every effecting port method takes the idempotency key as a parameter. Effects are push, pull request open and update, comment, label change, merge, issue creation, container, volume, and network creation and removal, notification. On recovery an intent without a result is resolved by natural key before any retry (pull request by head branch, comment and created issue by hidden marker, label as a set operation, push as fast-forward, merge by pull request state, Docker object by label, removal by absence; a notification is not sent again). An effect that fails because the far side is unreachable is retried at a recorded next-attempt time within a bound; at the bound the Task moves to `WaitingForOwner`, not `Failed`. The journal is append-only and is the audit trail. *(owner decision, 2026-11-25)* An effect the far side refuses for good is not retried: the refusal is journaled and the Task moves to `WaitingForOwner`.
-- AR-15 (AD-6): Workspace shape. A Task owns exactly one named Docker volume; each step runs in a fresh container removed when the step ends. Before every step a credential-free container re-creates `/workspace` from the bundle of the last pushed tip: a fresh clone with no hooks, default configuration, and no untracked or ignored files. Only `Implementation`, `Correction`, and `Rework` steps are checkpointed. A step container receives only the credential of the Agent performing that step; Validation, checkout, and checkpoint containers receive none. No host bind mounts. The Task volume is removed, as a journaled effect, only when the Task has left `Running` and its last checkpoint tip is pushed.
-- AR-16 (AD-7): Container as security boundary. The Docker socket is mounted into the `hephaestus` container only. A step container has exactly these mounts: Task volume at `/workspace`; context, Methodology, and agent binaries read-only; a temporary `HOME`. All capabilities dropped, `no-new-privileges`, default seccomp profile, process-count limit, no published port, fixed user `10001:10001`, time, processor, and memory limits. Step containers cannot reach the host, loopback, link-local or private ranges, or each other. The runtime sets the proxy variables with loopback excluded and rewrites `github.com` SSH remotes to HTTPS; it sets nothing specific to a language or build tool. Hosts the proxy refused are recorded on the step run. Project Configuration can set only the image, resource limits within the installation's, Validation commands, and allowed egress hosts. Inside a step container the Agent's own sandbox and permission prompts are off. Every invocation disables tools that execute outside the step container under the vendor account and switches off repository-supplied executable Agent configuration (hooks, MCP servers, settings, plugins); an adapter that cannot guarantee this for an authentication mode declares that mode unsupported.
-- AR-17 (AD-8): Agent CLIs are pinned and injected. Each release pins one version and checksum of each Agent CLI per platform in `deploy/agents.lock`. Hephaestus images contain no Agent binary: at startup the orchestrator downloads the pinned binaries from the vendor's official channel, verifies them, and fills the agent binaries volume, mounted read-only into the Project's image. Project image contract: Linux, glibc or musl, `bash` present. The configuration snapshot records the image digest resolved at Task start and every step runs that digest. CLI self-update is disabled in step containers.
+- AR-15 (AD-6): Workspace shape. A Task owns exactly one named Docker volume; each step runs in a fresh container removed when the step ends. Before every step a credential-free container re-creates `/workspace` from the bundle of the last pushed tip: a fresh clone with no hooks, default configuration, and no untracked or ignored files. Only `Implementation`, `Correction`, and `Rework` steps are checkpointed. A step container receives only the credential of the Agent performing that step; Validation, checkout, and checkpoint containers receive none. No host bind mounts. A Task volume is mounted with Docker's copy-from-image switched off (`volume-nocopy`) in every container that mounts it, so that what an image holds at `/workspace` can neither enter the volume nor change the owner of its root. The Task volume is removed, as a journaled effect, only when the Task has left `Running` and its last checkpoint tip is pushed.
+- AR-16 (AD-7): Container as security boundary. The Docker socket is mounted into the `hephaestus` container only. A step container has exactly these mounts: Task volume at `/workspace`; context, Methodology, and agent binaries read-only; a temporary `HOME`. All capabilities dropped, `no-new-privileges`, default seccomp profile, process-count limit, no published port, fixed user `10001:10001`, time, processor, and memory limits. Step containers cannot reach the host, loopback, link-local or private ranges, or each other. The runtime sets the proxy variables with loopback excluded and rewrites `github.com` SSH remotes to HTTPS; it sets nothing specific to a language or build tool. The proxy is reached from a step container at one fixed host name and port, which are documented and part of the versioned public surface. Hosts the proxy refused are recorded on the step run. Project Configuration can set only the image, resource limits within the installation's, Validation commands, and allowed egress hosts. Inside a step container the Agent's own sandbox and permission prompts are off. Every invocation disables tools that execute outside the step container under the vendor account and switches off repository-supplied executable Agent configuration (hooks, MCP servers, settings, plugins). An invocation takes Agent settings only from the throwaway `HOME`, which Hephaestus controls, and from nothing under `/workspace`; the tools it offers the Agent are a closed list fixed by the adapter. "Guaranteed" means shown by the planted-configuration test for the pinned CLI version and the authentication mode; an adapter that cannot show it declares that mode unsupported, and a change of pin, of a switch, or of the tool list repeats the test. For repository plugins the test is owed: no pinned version loaded one from a repository's settings, so no claim is made about them until a test shows a switch stops one. Instruction files and skills in a repository are prompt content, not executable configuration (T2). Confirmed by the injection spike (Story 1.1, 2026-11-26).
+- AR-17 (AD-8): Agent CLIs are pinned and injected. Each release pins, in `deploy/agents.lock`, one version of each Agent CLI and the SHA-256 of every executable it consists of, per architecture and, where the vendor builds per C library, per C library: Claude Code is one executable in a glibc and a musl build; Codex CLI is two statically linked executables, `codex` and `codex-code-mode-host`. Where the vendor publishes an archive, the lock pins the archive and each executable extracted from it. Hephaestus images contain no Agent binary: at startup the orchestrator downloads the pinned files from the vendor's official channel, verifies each against the lock, and fills the agent binaries volume; startup stops unless every pinned executable is present and verified. The vendor's signature over a release is verified when a pin changes, by a check in Hephaestus's own repository, not at startup. The orchestrator also places in that volume a CA certificate bundle copied from the `hephaestus` image's own certificate store. The volume is mounted read-only into the Project's image. Project image contract: Linux, glibc or musl, `bash` present; nothing else is required of it. The runtime establishes the image's C library when it resolves the image digest at Task start, records both in the configuration snapshot, and mounts the matching executables at `/hephaestus/agents`; every step runs that digest. CLI self-update is disabled in step containers. Confirmed by the injection spike (Story 1.1, 2026-11-26). No Hephaestus base image exists: one that contained Claude Code could not be published.
 - AR-18 (AD-9): Bundle boundary and checkpoints. Code enters and leaves a Workspace only as a git bundle; the orchestrator never runs git or any tool in an agent-writable directory; mirrors are bare with no hooks. A checkpoint follows every checkpointed step, including one ended by timeout, crash, or cancellation: it builds its own git directory from the last pushed tip, writes exactly one commit whose parent is that tip, and flattens the Agent's own commits; an unchanged tree makes no commit and no push. A bundle leaves a container as one regular file of bounded size under a runtime-chosen name, read from a stopped container. The gateway imports it into a quarantine ref with strict object checking, accepts only the Task branch, verifies a fast-forward of the last pushed tip, scans every new blob and commit message with the masker, then pushes; a failed check blocks the push, keeps the Workspace, and raises an Escalation. Each step run records the tip before and after it; attribution is read from those records.
-- AR-19 (AD-10): Pure agent adapters. An `IAgentAdapter` describes the invocation for a step, describes a probe (present, authenticated, has capacity), parses a stored output stream into normalized events, produces a normalized result with usage where reported, and classifies a CLI that exited by itself. An invocation is a fixed record: argument vector, environment, secret references, files, required egress hosts for the authentication mode, and where the result is found. Adapters start no process and know nothing about Docker. Alias resolution happens in Core; mapping to vendor flags happens in the adapter. Effort is a closed Core set each adapter maps or declares unsupported, checked at intake.
+- AR-19 (AD-10): Pure agent adapters. An `IAgentAdapter` describes the invocation for a step, describes a probe (present, authenticated, has capacity), parses a stored output stream into normalized events, produces a normalized result with usage where reported, and classifies a CLI that exited by itself. An invocation is a fixed record: argument vector, environment, secret references, files, required egress hosts for the authentication mode, and where the result is found. Adapters start no process and know nothing about Docker. The adapter describes the invocation for the Agent's authentication mode; where the CLI allows it, the argument vector is the same in every mode and only the secret reference and the declared hosts differ. A file an invocation needs from Hephaestus, such as the CA bundle, is named by its path under `/hephaestus/agents`. The egress hosts an adapter declares are those observed for the pinned version; they are a minimum, and a missing one shows up as a host the proxy refused. Alias resolution happens in Core; mapping to vendor flags happens in the adapter. Effort is a closed Core set each adapter maps or declares unsupported, checked at intake.
 - AR-20 (AD-11): Failure classes and bounds. Every failed step run carries exactly one of `usage-limit`, `timeout`, `agent-error`, `validation-failure`, `infrastructure-error`, `cancelled`, `unknown`, decided in one order: the runtime's cause, then the adapter's reading, then Core. Failed Validation and blocking Findings spend Correction rounds; `timeout`, `agent-error`, `infrastructure-error`, and `unknown` spend the step retry bound of that step kind (default 2). `usage-limit` spends neither and is the only class leading to Handoff or `WaitingForCapacity`; Handoffs per Task have their own bound.
-- AR-21 (AD-12): Artifact-sufficient steps. Every step is executable from the context files and repository state alone, in a fresh Agent session; session resume is not used. Core assembles one context file set per step run under fixed names (`instruction.md`, `task.json`, `issue.md`, `comments.json`, `plan.md`, `findings.json`, `validation.json`, `handoff.md`, `result.schema.json`); the runtime places it read-only; the adapter's prompt is one fixed sentence pointing at `instruction.md`. Start, correction, rework, and Handoff use the same mechanism. The handoff summary is assembled by Core from recorded data.
+- AR-21 (AD-12): Artifact-sufficient steps. Every step is executable from the context files and repository state alone, in a fresh Agent session; session resume is not used. Core assembles one context file set per step run under fixed names (`instruction.md`, `task.json`, `issue.md`, `comments.json`, `plan.md`, `findings.json`, `validation.json`, `handoff.md`, `result.schema.json`); the runtime places it read-only; the adapter's prompt is one fixed sentence pointing at `instruction.md`. Start, correction, rework, and Handoff use the same mechanism. The handoff summary is assembled by Core from recorded data. A repository's own Agent instruction file (`CLAUDE.md`, `AGENTS.md`) is not given to an Agent: each adapter switches its CLI's reading of it off, and a Project instructs Agents through its Methodology. No step depends on a CLI's own skill, sub-agent, or slash-command mechanism; a template instructs through files the Agent reads with the tools the invocation offers.
 - AR-22 (AD-13): Validated step results. Results by step kind: `Readiness` gives a verdict, `Planning` a plan, `Implementation`, `Correction`, and `Rework` an implementation summary, `Review` Findings. Every result has an outcome of `completed` or `needs-decision`; the latter carries questions and options and becomes an Escalation. Result types are Core records restricted to what both CLIs' schema-constrained output accepts. Core validates by strict deserialization; a missing or invalid result is an `agent-error`. Core gives each Finding an id; a Review after a Correction returns the status of every open Finding plus any new ones. Each Validation command runs in its own credential-free container on a fresh checkout. The author is the Agent of the latest checkpointed step run that changed the tree; the Reviewer is the other of the Task's two Agents; Correction goes to the author.
 - AR-23 (AD-14): Methodology as data. A Methodology is a directory with a manifest and one instruction template per Agent step kind; `default` and `bmad` ship in the Hephaestus image. Core selects a template by step kind only and never branches on the Methodology name or the Agent. Templates contain no substitution and refer only to context file paths. Project-supplied Methodology files are read from the Base Branch at the commit of the Task's configuration snapshot and placed read-only at `/hephaestus/methodology`.
 - AR-24 (AD-15): Trust decided once. The gateway attaches the acting user's numeric id to every inbound Signal, taken from GitHub's event data. One admission function in Core decides trust; a login is display only. Signals from anyone else are recorded, reported on the issue, and change no Task, except a merge. *(owner decision, 2026-11-25; in the spine since the third update)* Only label actions by anyone else are reported on the issue, once per user, kind of action, and issue; their comments and commands are recorded and get no reply. Hephaestus's own identity is never a Trusted User and its content is never admitted. Commands are parsed by one parser in Core.
 - AR-25 (AD-16): Configuration, secrets, masking. Project Configuration is returned by the gateway as raw bytes with its commit id, parsed and validated in Core, and snapshotted onto the Task at start. Installation Configuration lives in SQLite and is written by API handlers in their own transaction; the loop reads it at the start of each tick. Secret values live as files on a volume mounted only into the `hephaestus` container; the database holds names; values are entered through standard input only and never written to the journal, a step-run record, a Docker label, or a container name. Nothing produced by a step container is written to the secrets volume. One masker, built from `ISecretStore` and rebuilt when a secret changes, matches across chunk boundaries and each value's base64 and URL-encoded forms, and is applied by the runtime before raw output is stored, by the gateway before every outbound body and every push, and by the logger.
 - AR-26 (AD-17): One host process, two listeners. One long-running container named `hephaestus` hosts the loop and an HTTP API. The **control listener** is a Unix domain socket inside that container: it carries the whole API and is the only place an endpoint that appends a Signal, changes configuration, issues or revokes a Dashboard Token, or touches a secret is mapped. The CLI is the same executable in client mode, run with `docker exec`, and only calls it. Everything that affects a Task or a Project's work is a Signal: the endpoint returns 202 with the Signal id, and the Signal's status reports pending, applied, or rejected with RFC 9457 problem details. The **dashboard listener** is TCP (container port 8717, published as `127.0.0.1:8717`): it serves the Dashboard's static files and read endpoints only, under `/api`, and a test fails when an endpoint that is not a read is mapped on it. It refuses a request whose host name is not one of its loopback names, and the `hephaestus` container shares no Docker network with the egress proxy or any step container. Every read needs a Dashboard Token in a request header; no cookie is used and a token never appears in an address; tokens are Installation Configuration, stored only as a hash, shown once, never logged, and revoking one closes the streams opened with it. Reads on either listener go through `IReadStore` on a read-only SQLite connection and through `IOutputStore`; no endpoint depends on `IUnitOfWork`. The Dashboard and the HTTP API are not part of the versioned public surface in v1.
-- AR-27 (AD-18): The loop never awaits a step. `IWorkspaceRuntime` starts a step and returns when the container is created. The runtime writes the raw stream through the masker to `IOutputStore` and appends exactly one step-exited Signal with the step-run id, exit code, cause, and refused hosts. A step run records its deadline before its container starts; the runtime alone stops a container at its deadline. Checkout, Validation, checkpoint, and probe containers follow the same contract. One output file per container run.
+- AR-27 (AD-18): The loop never awaits a step. `IWorkspaceRuntime` starts a step and returns when the container is created. The runtime writes the raw stream through the masker to `IOutputStore` and appends exactly one step-exited Signal with the step-run id, exit code, cause, and refused hosts. A step run records its deadline before its container starts; the runtime alone stops a container at its deadline. Checkout, Validation, checkpoint, and probe containers follow the same contract. One output file per container run. No behavior depends on a CLI ending by itself: with the network gone, neither pinned CLI stopped within a minute.
 - AR-28 (AD-19): Task branch is untrusted code. The GitHub App is granted contents, issues, and pull requests read and write, and metadata, checks, and statuses read; never `workflows` or administration. The gateway does not push a bundle whose diff against the Task's start commit touches a protected path (default `.github/**` and `hephaestus.yml`; the list is Installation Configuration); a hit raises an Escalation and keeps the Workspace. Agent-derived text is neutralised before posting: HTML comments escaped, mentions and issue-closing keywords broken, command keywords fenced. A hidden marker or pull request counts for recovery only when written by Hephaestus's own identity and matched by a journaled intent.
 - AR-29 (AD-20): Capacity is a fact about an Agent. Capacity is recorded per Agent credential (exhausted until, last probe), consulted by dispatch before choosing an Agent. An Agent found unavailable by a probe has no capacity; that is not a failed step run. A probe runs with no Task volume.
 
@@ -310,7 +313,7 @@ Hephaestus presents itself professionally, with restrained references to craftsm
 - AR-31: Task states `Queued`, `Running`, `WaitingForOwner`, `WaitingForCapacity`, `PullRequestOpen`, `Failed`, `Cancelled`, `Withdrawn`, `Merged`, `Closed`; the lifecycle diagram in the spine is the complete transition table. Step kinds: Agent steps `Readiness`, `Planning`, `Implementation`, `Review`, `Correction`, `Rework` (v0.3); runtime step `Validation`. Publishing and merging are effects of the loop, not step runs.
 - AR-32: Time is UTC, stored as fixed-width ISO 8601 text through one value converter; Core reads time only from `TimeProvider`. JSON and YAML use camelCase keys and kebab-case enum strings through `System.Text.Json`; usage fields are nullable and absent is never stored as zero. Every I/O method is async and takes a `CancellationToken` last. Ports are `I<Name>` in `Hephaestus.Core.Ports`; adapters are `<Vendor><Port>`.
 - AR-33: GitHub surface conventions. Marker label `hephaestus`; state labels `hephaestus:<state>` in kebab-case; role labels `primary:<alias>`, `fallback:<alias>`, `effort:<alias>`. A command is a comment by a Trusted User whose first line is `/hephaestus <verb>`, from a closed verb set (`confirm` in v0.1, `rework` in v0.3). *(owner decision, 2026-11-25)* `confirm` also accepts commits on a Task branch that Hephaestus did not push. Branch name `hephaestus/<issue-number>-<slug>`, derived once and stored. Hidden marker `<!-- hephaestus:effect=<idempotency-key> -->` as the last line of every comment and created issue body. Idempotency key `<scope>:<cause>:<effect-kind>:<ordinal>`. Commit message composed by Core with trailers `Hephaestus-Task`, `Hephaestus-Step`, `Hephaestus-Agent`, `Hephaestus-Model`, `Hephaestus-Effort`; the committer is the Hephaestus GitHub identity.
-- AR-34: Container conventions. Repository at `/workspace`, context at `/hephaestus/context`, Methodology at `/hephaestus/methodology`, agent binaries at `/hephaestus/agents`, `HOME` at `/hephaestus/home`. Every container, volume, and network carries labels `hephaestus.installation`, `hephaestus.task`, `hephaestus.step-run`, with names starting `hephaestus-`. Checkout and checkpoint containers run the `hephaestus-tools` image (git only), never the Project image.
+- AR-34: Container conventions. Repository at `/workspace`, context at `/hephaestus/context`, Methodology at `/hephaestus/methodology`, agent binaries at `/hephaestus/agents` with the CA bundle at `/hephaestus/agents/certs/ca-certificates.crt`, `HOME`, a tmpfs, at `/hephaestus/home`. The Task volume is mounted `volume-nocopy`. Every container, volume, and network carries labels `hephaestus.installation`, `hephaestus.task`, `hephaestus.step-run`, with names starting `hephaestus-`. Checkout and checkpoint containers run the `hephaestus-tools` image (git only), never the Project image.
 - AR-35: Persistence conventions. One `DbContext` and one migration set; SQLite in write-ahead-log mode with a busy timeout; copies and backups are made with SQLite's backup operation with the loop stopped. Raw Agent output is files on the data volume, indexed in SQLite, removed by retention; structured history stays in SQLite.
 - AR-36: Logging through `Microsoft.Extensions.Logging`, JSON to stdout, with `taskId` and `stepRunId` scopes, through the masker.
 - AR-37: Test conventions. Adapters are tested against recorded CLI transcripts tagged with the CLI version. A scripted fake `IAgentAdapter` drives end-to-end tests with no vendor call. Persistence and runtime tests use real SQLite and Docker through Testcontainers.
@@ -319,7 +322,7 @@ Hephaestus presents itself professionally, with restrained references to craftsm
 
 - AR-38: Images `hephaestus` and `hephaestus-tools` on GHCR, built for linux/amd64 and linux/arm64 by GitHub Actions, published by the two channels of AR-77.
 - AR-39: Volumes `hephaestus-data` (SQLite, agent output, bundles, pre-migration copies), `hephaestus-secrets`, `hephaestus-mirrors`, `hephaestus-agents`, and one `hephaestus-ws-<task-id>` per Task. The data volume and the secrets volume are the whole installation state.
-- AR-40: Startup sequence: back up the database, run migrations, stop on failure leaving the backup; fetch and verify the pinned Agent binaries; then the loop's first tick resolves unfinished effects and step runs.
+- AR-40: Startup sequence: back up the database, run migrations, stop on failure leaving the backup; fetch and verify the pinned Agent executables and place the CA bundle; then the loop's first tick resolves unfinished effects and step runs.
 - AR-41: Egress proxy deployment: one unprivileged container attached to the internal workspace network and to a network with outbound access; step containers attach to the workspace network only. It has no credential, no volume, and no Docker socket.
 - AR-42: Health and status: the API reports loop liveness and the last tick.
 - AR-43: GitHub is polled with conditional requests; no public webhook endpoint is required.
@@ -340,14 +343,14 @@ No security claim may appear in user-facing material until its test exists and p
 - AR-53: Protected paths and ref limits: a bundle touching a protected path, a non-fast-forward bundle, and a push outside `hephaestus/*` are all refused.
 - AR-54: Idempotency and recovery: fault injection stops the process between every intent and its result; no duplicate pull request, comment, or Workspace appears.
 - AR-55: Bounds: deadlines on Agent runs and Validation, the Correction bound, and the step retry bound are tested.
-- AR-56: Disabled account tools and repository configuration: part of the injection spike, repeated as a test against each pinned CLI version and authentication mode.
+- AR-56: Disabled account tools and repository configuration: shown by the injection spike for the pinned versions; repeated with the Owner's credentials whenever a pin changes; a repository plugin that loads is still owed.
 
 **Documentation obligations**
 
 - AR-57: Installation documentation covers GitHub App setup (permissions per AR-28) as a required step.
 - AR-58: Installation documentation presents API key and subscription sign-in on an equal footing, with the provider terms that apply and the policy risk of subscription use under automation; an API key with a vendor-side spend cap is named as the conservative choice.
 - AR-59: Installation documentation tells Owners to give workflows triggered by `hephaestus/*` branches and their pull requests a read-only token and no deployment or publishing secrets, and recommends branch protection on the Base Branch.
-- AR-60: Documentation states that the Marker Label, not state labels, is the control (state labels are re-asserted), and lists the common per-ecosystem proxy settings a Project image needs.
+- AR-60: Documentation states that the Marker Label, not state labels, is the control (state labels are re-asserted), and lists the common per-ecosystem proxy settings a Project image needs: Gradle's JVM system properties and Maven's `<proxy>` element, with the proxy's fixed address.
 - AR-61: Documentation states the security assumptions and known limitations of the threat model (§6, §7), including open egress in v0.1 and the orchestrator being root-equivalent.
 - AR-62: Every release has a changelog entry; the project is published under the MIT license.
 
@@ -360,10 +363,10 @@ No security claim may appear in user-facing material until its test exists and p
 
 **Design decisions deferred to the epic that settles them (spine, Deferred)**
 
-- AR-67 (v0.1 execution epic): which egress proxy is used, how it is started and given each step run's allowed hosts, how its refusals are collected, SSH rewrites for hosts other than `github.com`, how step containers stay unreachable from each other, and whether the proxy is a Compose service or created by the orchestrator.
+- AR-67 (v0.1 execution epic): which egress proxy is used, how it is started and given each step run's allowed hosts, how its refusals are collected, SSH rewrites for hosts other than `github.com`, how step containers stay unreachable from each other, the proxy's fixed host name and port as seen from a step container, and whether the proxy is a Compose service or created by the orchestrator.
 - AR-68 (intake epic): what the Owner is told, and what happens to the Task, when a declared dependency failed, was closed without a merge, is not a Task, or is part of a cycle; what opting in again means for a Task cancelled by an untrusted merge; when admitted content is read again for the hash comparison; the Priority Label spelling.
 - AR-69 (Methodology epic): Story-to-issue identity and drift handling (FR-66); which BMAD workflow serves each step kind.
-- AR-70 (v0.2 epics): Usage Limit detection signals and capacity probing detail; notification channels (ntfy, SMTP) and the project that implements `INotifier`; Schedule evaluation and time zone handling; spend limit accounting; a size limit on Task volumes.
+- AR-70 (v0.2 epics): Usage Limit detection signals and capacity probing detail; notification channels (ntfy, SMTP) and the project that implements `INotifier`; Schedule evaluation and time zone handling; spend limit accounting; a size limit on Task volumes. Starting facts from the injection spike: every Claude Code run under subscription sign-in emits a `rate_limit_event` with `status`, `resetsAt`, and `rateLimitType`, and runs with an API key emit none; Claude Code reports a cost per run, Codex CLI reports token counts and no cost.
 - AR-71 (v0.3 epics): Stack update after Rework and after merge (rebase or merge, squash or merge commit, any exception to fast-forward-only; a stack update needing a working tree runs in a Workspace, not a mirror); relaxing dependency satisfaction from `Merged` to "has produced a branch"; independence detection when no dependency is declared.
 
 **Dashboard (spine AD-17, threat model §4.7)**
@@ -709,14 +712,14 @@ So that BMAD Method support (FR-63) and the Methodology mount design are built o
 **Acceptance Criteria:**
 
 **Given** a sample repository with BMAD Method installed for both Agents, and its Methodology files mounted read-only at `/hephaestus/methodology`, outside `/workspace`
-**When** each candidate workflow for readiness, planning, implementation, review, and correction is invoked under `claude -p` and under `codex exec` in the container setup proven by Story 1.1
+**When** each candidate workflow for readiness, planning, implementation, review, and correction is invoked under `claude -p` and under `codex exec` in the container setup and with the hardened invocations Story 1.1 confirmed, Codex with `project_doc_max_bytes=0` added
 **Then** the report records, per workflow and CLI, whether it completed with no human input and what it produced
 **And** it names the workflow that serves each step kind, or states that none does
 
 **Given** the workflows that completed
 **When** their runtime needs are examined
 **Then** the report lists what the Project image must provide (for example `uv` and Python)
-**And** it states whether a Claude Code run in API-key mode must name the skill explicitly and how the skills directory is made visible to it
+**And** it states how a workflow is started when the Agent has no `Skill` and no `Task` tool and is given no repository instruction file, and whether any workflow needs a tool beyond `Bash`, `Read`, `Edit`, and `Write`
 
 **Given** that Hephaestus works from GitHub issues and BMAD works from story and spec files
 **When** the mapping is examined
@@ -731,6 +734,14 @@ So that BMAD Method support (FR-63) and the Methodology mount design are built o
 **Given** a Task whose language is Polish
 **When** a BMAD workflow is run for it under each Agent
 **Then** the report states how the workflow is told which language to write in and whether its output follows it (FR-69)
+
+**Given** a workflow that completes only with a tool or a setting the hardened invocation switches off
+**When** the spike closes
+**Then** the report names it, and it is raised with the Owner as a change to the invocation, which repeats the planted-configuration run of Story 1.1 before it is adopted (AD-7)
+
+**Given** Codex CLI, which offers a repository's skills to the model whatever is switched off
+**When** a workflow whose files exist both at `/hephaestus/methodology` and in `/workspace` is run
+**Then** the report states which copy each Agent followed (AD-14)
 
 ### Story 1.3: Solution skeleton with enforced boundaries
 
@@ -1752,7 +1763,7 @@ So that my Project images need no Agent installed and an adapter never meets a C
 
 **Given** a Hephaestus release
 **When** `deploy/agents.lock` is read
-**Then** it pins one version and one checksum of the Claude Code CLI and of the Codex CLI for each supported platform and C library (AD-8)
+**Then** it pins one version of each CLI and the SHA-256 of every executable: Claude Code's glibc and musl builds per architecture, and Codex CLI's `codex` and `codex-code-mode-host` per architecture; where the vendor publishes an archive, the archive's digest and each extracted executable's (AD-8)
 
 **Given** a first start with an empty `hephaestus-agents` volume
 **When** the container starts
@@ -1772,7 +1783,27 @@ So that my Project images need no Agent installed and an adapter never meets a C
 
 **Given** the outcome of Story 1.1
 **When** this story is implemented
-**Then** it follows the path that story confirmed: injection through the volume, or the fallback of a Hephaestus base image that Project images derive from
+**Then** it follows injection through the volume, which that story confirmed, starting from `docs/spikes/injection/scripts/agents.lock`; no Hephaestus base image is built
+
+**Given** a start
+**When** the agent binaries volume has been filled
+**Then** startup stops, naming the file, unless every executable the lock names is present and matches its digest
+
+**Given** a start
+**When** the volume is prepared
+**Then** it holds a CA certificate bundle at `certs/ca-certificates.crt`, copied from the `hephaestus` image's own certificate store and replaced at every start
+
+**Given** a pull request that changes `deploy/agents.lock`
+**When** GitHub Actions runs
+**Then** the build fails unless each new digest matches what the vendor publishes and the vendor's signature over that release verifies
+
+**Given** the pinned executables for linux/arm64
+**When** each is started in a hardened container on an arm64 runner
+**Then** it prints its version; Story 1.1 ran linux/amd64 only
+
+**Given** the documentation for contributors
+**When** it describes changing a pin
+**Then** it says that the matrix and planted-configuration runs of `docs/spikes/injection` are repeated with the Owner's credentials, and that such a change is not closed by a dev agent alone
 
 ### Story 3.2: Run every step in a hardened container
 
@@ -1789,7 +1820,7 @@ So that containment does not depend on an Agent behaving.
 **Given** a created step container
 **When** it is inspected
 **Then** it runs as user `10001:10001` with all capabilities dropped, `no-new-privileges`, the default seccomp profile, a process-count limit, no published port, and processor and memory limits taken from the Task's settings within the installation's
-**And** its mounts are exactly the Task volume at `/workspace`, read-only context, Methodology, and agent binaries, and a temporary `HOME` at `/hephaestus/home` (AD-7)
+**And** its mounts are exactly the Task volume at `/workspace`, read-only context, Methodology, and agent binaries, and a temporary `HOME`, a tmpfs, at `/hephaestus/home` (AD-7)
 **And** it carries the labels `hephaestus.installation`, `hephaestus.task`, and `hephaestus.step-run`, and its name starts with `hephaestus-`
 
 **Given** a process inside a step container
@@ -1803,6 +1834,18 @@ So that containment does not depend on an Agent behaving.
 **Given** a crash between the intent to create a container and its result
 **When** Hephaestus restarts
 **Then** the intent is resolved by the container's labels and no second container is created for the step run (AD-5)
+
+**Given** a Task volume
+**When** any container mounts it
+**Then** it is mounted with `volume-nocopy`, and the step user can create a file in `/workspace` on a glibc image and on a musl image (AD-6)
+
+**Given** a Task that starts
+**When** its image digest is resolved
+**Then** the runtime establishes whether the image uses glibc or musl, records it in the configuration snapshot, and mounts the matching executables at `/hephaestus/agents` in every step container of the Task (AD-8)
+
+**Given** an image whose C library cannot be established
+**When** the Task would start
+**Then** it does not start and the Owner is told why
 
 ### Story 3.3: Keep what a step printed and bound how long it runs
 
@@ -1874,11 +1917,16 @@ So that code running in a Workspace cannot reach my local network and can be kep
 
 **Given** this story
 **When** it is delivered
-**Then** a decision record names the proxy chosen, how it is started, how each step run's hosts reach it, and how step containers are kept apart; the proxy is free and open-source software (AR-67, NFR-15)
+**Then** a decision record names the proxy chosen, how it is started, how each step run's hosts reach it, how step containers are kept apart, and the one host name and port at which step containers reach it; the proxy is free and open-source software (AR-67, NFR-15)
+**And** that host name and port are documented and listed in the versioned public surface (AD-7)
 
 **Given** the installation's egress default
 **When** it is read
 **Then** it is one setting whose value in v0.1 is open-unless-a-list-is-set, so that making the allowlist the default later is a change of that default and of nothing else (NFR-4)
+
+**Given** a request over plain HTTP to an allowed host
+**When** it goes through the proxy
+**Then** it is passed; `dotnet restore` fetches a certificate revocation list that way
 
 ### Story 3.5: Give every step a fresh checkout
 
@@ -1912,6 +1960,10 @@ So that nothing a previous step planted outside the commit can run beside anothe
 **Given** a merge to `develop` or to `main`
 **When** the publishing workflow of Story 1.13 runs
 **Then** the `hephaestus-tools` image is built and published beside the `hephaestus` image, in the same channel and under the same tag, for both architectures (AR-38, AR-77)
+
+**Given** a checkout that has run
+**When** the step container starts as user `10001:10001`
+**Then** it can write to every path the checkout created; the checkout container mounts the Task volume with `volume-nocopy` like every other (AD-6)
 
 ### Story 3.6: Checkpoint a step's work as one commit
 
@@ -2001,6 +2053,7 @@ So that Claude Code can implement or review a Task with no one watching.
 **When** the Claude Code adapter describes the invocation
 **Then** it returns a fixed record: argument vector for `claude -p` with a stream-JSON output, environment, secret references by name and target, files, the egress hosts the CLI needs in that mode, and where the result is found
 **And** the prompt is one fixed sentence that points at `/hephaestus/context/instruction.md` (AD-10, AD-12)
+**And** the argument vector is the same for an API key and for a subscription sign-in; only the secret reference differs (AD-10)
 
 **Given** any invocation
 **When** it is inspected
@@ -2028,6 +2081,18 @@ So that Claude Code can implement or review a Task with no one watching.
 **Then** they use recorded CLI transcripts tagged with the pinned CLI version, with no container and no vendor call
 **And** an architecture test shows the adapter starts no process and references nothing of Docker (AR-37)
 
+**Given** any invocation
+**When** it is inspected
+**Then** the CLI takes settings only from the throwaway `HOME`, is offered a closed list of tools that holds no `Skill` and no `Task` tool, does not read the repository's `CLAUDE.md`, and has traffic the vendor calls nonessential switched off (AD-7, AD-12)
+
+**Given** a repository that plants a session-start hook, an MCP server, and an `env` block in its Claude Code settings
+**When** the CLI is started with the adapter's invocation and no credential
+**Then** none of them takes effect; this test needs no vendor call, and what executes only around a tool call stays with the credentialed run of AR-56
+
+**Given** the adapter
+**When** it declares its egress hosts
+**Then** they are the hosts recorded for the pinned version, `api.anthropic.com` for both modes at 2.1.332
+
 ### Story 3.9: Drive Codex CLI through its official interface
 
 As the Owner,
@@ -2042,7 +2107,7 @@ So that the second Agent can implement or review a Task to the same contract as 
 
 **Given** the Codex adapter
 **When** it is asked which authentication modes it supports
-**Then** it supports an API key and declares subscription sign-in unsupported, with the reason (AR-8)
+**Then** it supports an API key and declares subscription sign-in unsupported, with the reasons: the credential file is a full account credential that must be kept and refreshed between runs, and the tools the account brings cannot be listed (AR-8)
 
 **Given** any invocation
 **When** it is inspected
@@ -2050,7 +2115,7 @@ So that the second Agent can implement or review a Task to the same contract as 
 
 **Given** an Effort resolved by Core
 **When** the adapter maps it
-**Then** it uses the per-run mechanism Story 1.1 confirmed, or declares Effort unsupported for this Agent, which is reported and not imitated (FR-24)
+**Then** it sets `model_reasoning_effort` for the run, the mechanism Story 1.1 confirmed; a Core Effort with no Codex value is declared unsupported, reported, and not imitated (FR-24)
 
 **Given** a stored output stream
 **When** the adapter parses it
@@ -2060,6 +2125,18 @@ So that the second Agent can implement or review a Task to the same contract as 
 **Given** the adapter's tests
 **When** they run
 **Then** they use recorded transcripts tagged with the pinned CLI version, with no container and no vendor call
+
+**Given** any invocation
+**When** it is inspected
+**Then** it points `CODEX_CA_CERTIFICATE` at the bundle under `/hephaestus/agents`, keeps the repository's `AGENTS.md` from the Agent, and declares the hosts recorded for the pinned version: `api.openai.com`, `chatgpt.com`, and `ab.chatgpt.com` at 0.172.0 (AD-8, AD-10, AD-12)
+
+**Given** a stored output stream
+**When** usage is normalized
+**Then** token counts are taken from the stream and cost is null, because Codex CLI reports none
+
+**Given** a repository that plants a hook and an MCP server in its Codex configuration
+**When** the CLI is started with the adapter's invocation and no credential
+**Then** neither takes effect
 
 ### Story 3.10: Choose how each Agent signs in and check that it is ready
 
@@ -2095,6 +2172,7 @@ So that I use the access I already pay for and find out about a broken credentia
 **Given** the installation documentation
 **When** an Owner reads the section on Agent sign-in
 **Then** both modes are presented on an equal footing with the provider terms that apply to each and the risk of using a subscription for automated work, and an API key with a spend cap at the vendor is named as the conservative choice (AR-58)
+**And** it says that Claude Code's subscription credential is the token `claude setup-token` prints, that Codex CLI is supported with an API key only and why, and that Codex CLI contacts `chatgpt.com` even with an API key
 
 ### Story 3.11: Give every Agent the same instructions for the same step
 
@@ -2139,6 +2217,10 @@ So that moving a Task between Agents changes who does the work, not how it is do
 **When** its context is assembled
 **Then** `task.json` carries the Task's language, and the `default` templates tell the Agent to write the prose fields of its result in that language (FR-69)
 **And** the templates themselves are the same for every language and every Agent, so the two `instruction.md` files stay byte-identical (AD-21, AD-14)
+
+**Given** the `default` templates
+**When** they are read
+**Then** none relies on a CLI's skill, sub-agent, or slash command, or on an instruction file in the repository, because both Agents run without them (AD-12)
 
 ### Story 3.12: Let the Project's Validation commands decide
 
@@ -2331,7 +2413,7 @@ So that Hephaestus neither gives up on a hiccup nor loops forever.
 
 **Given** the test suite
 **When** it runs
-**Then** it covers the deadline on an Agent run, the deadline on a Validation command, the step retry bound, and the Task duration limit (AR-55)
+**Then** it covers the deadline on an Agent run, including a CLI that keeps waiting for a network that is gone, the deadline on a Validation command, the step retry bound, and the Task duration limit (AR-55)
 
 **Given** a Task whose configuration snapshot carries a duration limit, within the installation's
 **When** a step run's deadline is set
@@ -2499,7 +2581,8 @@ So that I can decide how far to trust it with my machine and my credentials.
 **Given** the installation documentation
 **When** an Owner reads it
 **Then** it tells them to give workflows triggered by `hephaestus/*` branches and their pull requests a read-only token and no deployment or publishing secrets, and recommends branch protection on the Base Branch (AR-59)
-**And** it lists the proxy settings the common ecosystems need in a Project image, as Story 1.1 found them, and says that the Marker Label, not a state label, is the control (AR-60)
+**And** it lists the proxy settings the common ecosystems need, as Story 1.1 found them, with the proxy's fixed host name and port, and each setting listed was run behind the proxy in the place the documentation names; Story 1.1 ran Maven's from `HOME`, which a step container replaces
+**And** it says which registry hosts a Project that sets an allow-list must include, and that the Marker Label, not a state label, is the control (AR-60)
 
 **Given** the threat model's verification plan
 **When** this epic closes
@@ -2508,6 +2591,14 @@ So that I can decide how far to trust it with my machine and my credentials.
 **Given** the documentation
 **When** it lists what must be true before Hephaestus is announced for general use
 **Then** the list includes that the egress allowlist is the default; it is a condition on the announcement and is tied to no release number, as NFR-4 states it
+
+**Given** repository plugins, which no run of Story 1.1 got to load
+**When** the security statement is written
+**Then** it makes no claim about them unless a test first gets a repository plugin to load with nothing switched off and then shows the adapters' invocations stop it; without that test it says plainly that this is not shown (T5, T14)
+
+**Given** the security documentation
+**When** it describes what a repository can do to an Agent
+**Then** it says that instruction files and skills are prompt content, that neither Agent is given the repository's instruction file, and that Codex CLI still offers a repository's skills to the model (T2)
 
 ### Story 3.22: Follow a Task's history in the Dashboard
 
@@ -3031,6 +3122,10 @@ So that limit handling is built on observed signals and not on undocumented gues
 **When** the spike closes
 **Then** a report under `docs/spikes/` holds them, and the remaining stories of this epic are adjusted to them before they start
 
+**Given** the `rate_limit_event` that Story 1.1 saw on every Claude Code run under subscription sign-in, with `status`, `resetsAt`, and `rateLimitType`
+**When** the spike examines it
+**Then** the report states how its fields behave before and at a real limit, and whether it tells remaining capacity without a further model call
+
 ### Story 7.2: Recognize a Usage Limit for what it is
 
 As the Owner,
@@ -3363,6 +3458,10 @@ So that an unattended run cannot cost more than I decided.
 **Given** an Agent or an authentication mode that reports no usage
 **When** the Owner sets or views a spend limit for it
 **Then** Hephaestus says plainly that the limit cannot be enforced
+
+**Given** Codex CLI, which reports token counts and no cost
+**When** a spend limit is set for it
+**Then** the story fixes how its spend is counted, and a price is never assumed silently; where no count is possible, Hephaestus says the limit cannot be enforced
 
 ### Story 9.5: Stop a Task whose Workspace has outgrown its limit
 
