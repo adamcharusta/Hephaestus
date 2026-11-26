@@ -23,7 +23,7 @@ Supported authentication modes, by the rule of AD-7 that a mode which cannot be 
 
 The fallback "Hephaestus base image" is not needed.
 
-Two judgements in this report are the Owner's to confirm:
+Two judgements in this report were the Owner's to confirm. The Owner accepted both on 2026-11-26, together with the fact that plugin suppression is unproven (see [What the spike did not cover](#what-the-spike-did-not-cover)):
 
 - An instruction file or a skill in the repository that the model acts on is counted as prompt content, not as executable configuration. AD-7 and the story name hooks, MCP servers, settings, and plugins. If instructions were to count, Codex would be unsupported in both modes, because it offers a repository's skills in every variant tried.
 - "Supported" rests on short runs: one-line prompts and at most one tool call.
