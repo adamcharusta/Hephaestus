@@ -1,8 +1,9 @@
 using System.Net.Sockets;
-using System.Text.Json;
+using Hephaestus.Core.Secrets;
 using Hephaestus.Host.Api;
 using Hephaestus.Persistence;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Hephaestus.Host.Hosting;
 
@@ -29,12 +30,15 @@ internal static class ControlHost
         builder.Logging.ClearProviders();
         // The container's health check calls the API every few seconds; its request lines are not worth a log line each.
         builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
-        builder.Logging.AddJsonConsole(options =>
+        // The logger writes through the masker (AD-16, AR-36): the one formatter masks every string before it is encoded.
+        builder.Services.AddSingleton<SecretMasker>();
+        builder.Services.TryAddSingleton(TimeProvider.System);
+        builder.Logging.AddConsole(options => options.FormatterName = MaskedJsonFormatter.FormatterName);
+        builder.Logging.AddConsoleFormatter<MaskedJsonFormatter, MaskedJsonFormatterOptions>(options =>
         {
             options.IncludeScopes = true;
             options.UseUtcTimestamp = true;
             options.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ";
-            options.JsonWriterOptions = new JsonWriterOptions { Indented = false };
         });
 
         PrepareSocketPath(settings.ControlSocketPath);
@@ -58,11 +62,14 @@ internal static class ControlHost
     }
 
     /// <summary>
-    /// Creates the database when it is missing and applies its migrations. The host does this before it listens, and a failure
-    /// stops it: an API on a database in an unknown state would be worse than none.
+    /// Loads the secret values into the masker, creates the database when it is missing, and applies its migrations. The host
+    /// does this before it listens, and a failure stops it: an API on a database in an unknown state would be worse than none, and
+    /// so would a log that cannot mask.
     /// </summary>
     public static async Task MigrateAsync(WebApplication app, CancellationToken cancellationToken)
     {
+        // The masker first: it reads the secrets volume, not the database, and nothing is logged before it knows the values.
+        await app.Services.GetRequiredService<SecretMasker>().RebuildAsync(cancellationToken);
         await app.Services.GetRequiredService<DatabaseMigrator>().MigrateAsync(cancellationToken);
         app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Hephaestus.Host")
             .LogInformation("Database ready at {DatabasePath}", app.Services.GetRequiredService<PersistenceOptions>().DatabasePath);

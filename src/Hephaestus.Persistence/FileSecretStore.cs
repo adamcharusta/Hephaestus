@@ -26,6 +26,8 @@ internal sealed class FileSecretStore(HephaestusDatabase database, TimeProvider 
     // One host process writes the database (AD-17), so one gate keeps two requests for the same name apart.
     private readonly SemaphoreSlim _gate = new(1, 1);
 
+    public event Func<Task>? Changed;
+
     private string SecretsDirectory => database.Options.SecretsDirectory;
 
     public async Task SetAsync(string name, string value, CancellationToken cancellationToken)
@@ -45,11 +47,19 @@ internal sealed class FileSecretStore(HephaestusDatabase database, TimeProvider 
             RemoveAbandonedTemporaryFiles();
             await WriteFileAsync(PathOf(name), value, cancellationToken);
 
-            await using var context = database.OpenWriter();
-            if (!await context.SecretNames.AnyAsync(s => s.Name == name, cancellationToken))
+            try
             {
-                context.SecretNames.Add(new SecretName { Id = EntityId.New(time), Name = name, CreatedAt = time.GetUtcNow() });
-                await context.SaveChangesAsync(cancellationToken);
+                await using var context = database.OpenWriter();
+                if (!await context.SecretNames.AnyAsync(s => s.Name == name, cancellationToken))
+                {
+                    context.SecretNames.Add(new SecretName { Id = EntityId.New(time), Name = name, CreatedAt = time.GetUtcNow() });
+                    await context.SaveChangesAsync(cancellationToken);
+                }
+            }
+            finally
+            {
+                // The file is on the volume whatever became of the name, so whoever masks must know the value.
+                await NotifyChangedAsync();
             }
         }
         finally
@@ -73,7 +83,13 @@ internal sealed class FileSecretStore(HephaestusDatabase database, TimeProvider 
 
             await using var context = database.OpenWriter();
             var hadName = await context.SecretNames.Where(s => s.Name == name).ExecuteDeleteAsync(cancellationToken) > 0;
-            return hadFile || hadName;
+            if (!hadFile && !hadName)
+            {
+                return false;
+            }
+
+            await NotifyChangedAsync();
+            return true;
         }
         finally
         {
@@ -99,6 +115,63 @@ internal sealed class FileSecretStore(HephaestusDatabase database, TimeProvider 
         catch (DirectoryNotFoundException)
         {
             return null;
+        }
+    }
+
+    public async Task<IReadOnlyList<string>> ReadAllAsync(CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(SecretsDirectory))
+        {
+            return [];
+        }
+
+        var values = new List<string>();
+        foreach (var path in EnumerateSecretFiles())
+        {
+            // A temporary file and any other file that is not a secret's are not masked: no valid name looks like them.
+            if (!SecretPolicy.IsValidName(Path.GetFileName(path)))
+            {
+                continue;
+            }
+
+            try
+            {
+                values.Add(await File.ReadAllTextAsync(path, Utf8, cancellationToken));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Removed since the directory was listed, or a file this process cannot read: nothing in the host can hold its
+                // value either, because reading it is what ReadAsync does too.
+            }
+        }
+
+        return values;
+    }
+
+    private IEnumerable<string> EnumerateSecretFiles()
+    {
+        try
+        {
+            return Directory.EnumerateFiles(SecretsDirectory).ToList();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>Tells whoever depends on the stored values, in turn, and waits for each; the gate is held, so changes arrive in order.</summary>
+    private async Task NotifyChangedAsync()
+    {
+        var handlers = Changed;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        foreach (var handler in handlers.GetInvocationList().Cast<Func<Task>>())
+        {
+            await handler();
         }
     }
 
