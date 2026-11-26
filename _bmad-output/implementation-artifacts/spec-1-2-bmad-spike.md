@@ -80,6 +80,8 @@ context:
 
 ## Implementation Notes
 
+- 2026-11-26. The Owner accepted the report and settled the six decisions it raised; they are recorded in the report's section "Raised with the Owner" and in pull request #4. The story is closed in `sprint-status.yaml` in that pull request, at the Owner's instruction. The 15 findings for the architecture and the six decisions are not applied yet; they go through `bmad-correct-course`.
+
 ## Spec Change Log
 
 ## Review Triage Log

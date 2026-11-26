@@ -214,6 +214,19 @@ None was applied to the spine, an ADR, the threat model, the spec, or the epics 
 
 ## Raised with the Owner
 
+The Owner settled all six on 2026-11-26. None is applied to the spine yet; they go through `bmad-correct-course` with the findings above.
+
+| # | Decision |
+| --- | --- |
+| 1 | The hardened invocations stay as they are: no `Task` and no `multi_agent`. The `bmad` Methodology supplies the customization. Who writes the epic context, and where the customization comes from, stay open for the Methodology epic. |
+| 2 | The built-in default Methodology's Readiness template serves BMAD Projects as well. |
+| 3 | Confirmed: `bmad-build-auto` with the Findings as its intent. |
+| 4 | Options (b) and (d): the image contract stays without `git`, Hephaestus hands the diff to the Review step, and the checkpoint container remains the only committer. The Methodology epic checks both before building on them. |
+| 5 | No minimum model is set now; left to the Methodology epic. |
+| 6 | The Polish Agent output stays in the results of `04-language`, as evidence and not as project text. |
+
+The items as they were raised:
+
 1. **Subagents for `bmad-build-auto` (criterion 6, finding 1).** Two ways, not exclusive:
    - offer `Task` in Claude Code and `multi_agent` in Codex, which changes the hardened invocations and repeats the planted-configuration run of Story 1.1 first. The built-in agents would then be reachable, which Story 1.1 left closed and untested;
    - keep the invocations and have the `bmad` Methodology supply the customization that replaces the subagent steps. This is what the spike ran. It gives up the independent reviewers inside a build: two of the four review layers are switched off and the other two run in the implementing session. Hephaestus has its own Review step by a different Agent for that. It also needs the epic context that a subagent would compile: the spike wrote `epic-1-context.md` by hand, and who writes it in a real Project is open (the Planning step itself, the Owner, or a step of its own). Where the customization comes from, given finding 6, is a design question for the Methodology epic.
