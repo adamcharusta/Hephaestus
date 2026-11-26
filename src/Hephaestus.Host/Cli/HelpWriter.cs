@@ -17,6 +17,7 @@ internal static class HelpWriter
 
         var subcommands = command.Subcommands.Where(s => !s.Hidden).ToList();
         var usage = string.Join(' ', words)
+            + string.Concat(command.Arguments.Select(a => $" <{a.Name}>"))
             + (subcommands.Count > 0 ? " " + catalog.Resolve(MessageIds.CliHelpPlaceholderCommand, language) : string.Empty)
             + " " + catalog.Resolve(MessageIds.CliHelpPlaceholderOptions, language);
 

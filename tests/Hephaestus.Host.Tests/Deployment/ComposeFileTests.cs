@@ -60,14 +60,14 @@ public class ComposeFileTests
     }
 
     [Fact]
-    public void The_container_is_not_privileged_drops_every_capability_and_mounts_nothing_from_the_host()
+    public void The_container_is_not_privileged_drops_every_capability_and_mounts_only_its_own_named_volumes()
     {
         var service = Service();
 
         Assert.DoesNotContain("privileged", service.Keys);
         Assert.Equal(["ALL"], ((List<object>)service["cap_drop"]).Cast<string>());
         Assert.Equal(["no-new-privileges:true"], ((List<object>)service["security_opt"]).Cast<string>());
-        Assert.DoesNotContain("volumes", service.Keys);
+        Assert.All(((List<object>)service["volumes"]).Cast<string>(), mount => Assert.StartsWith("hephaestus-", mount, StringComparison.Ordinal));
         Assert.DoesNotContain("docker.sock", File.ReadAllText(Deploy("compose.yaml")), StringComparison.Ordinal);
     }
 
@@ -101,6 +101,30 @@ public class ComposeFileTests
         Assert.Contains("mv /app/Hephaestus.Host /app/hephaestus", dockerfile, StringComparison.Ordinal);
         Assert.Contains("amd64) echo x64", dockerfile, StringComparison.Ordinal);
         Assert.Contains("arm64) echo arm64", dockerfile, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_data_and_secrets_volumes_are_named_as_the_architecture_names_them_and_mounted_where_the_image_expects()
+    {
+        var document = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(Deploy("compose.yaml")));
+        var volumes = (Dictionary<object, object>)document["volumes"];
+
+        Assert.Equal(["hephaestus-data", "hephaestus-secrets"], volumes.Keys.Cast<string>().Order(StringComparer.Ordinal));
+        Assert.All(volumes, volume => Assert.Equal(volume.Key, ((Dictionary<object, object>)volume.Value)["name"]));
+        Assert.Equal(
+            [$"hephaestus-data:{HostSettings.DefaultDataDirectory}", $"hephaestus-secrets:{HostSettings.DefaultSecretsDirectory}"],
+            ((List<object>)Service()["volumes"]).Cast<string>());
+    }
+
+    [Fact]
+    public void The_image_creates_the_data_and_secrets_directories_for_the_process_user_alone()
+    {
+        var dockerfile = File.ReadAllText(Deploy("Dockerfile"));
+
+        Assert.Contains($"HEPHAESTUS_DATA_DIR={HostSettings.DefaultDataDirectory}", dockerfile, StringComparison.Ordinal);
+        Assert.Contains($"HEPHAESTUS_SECRETS_DIR={HostSettings.DefaultSecretsDirectory}", dockerfile, StringComparison.Ordinal);
+        Assert.Contains($"chown \"$APP_UID\" /run/hephaestus {HostSettings.DefaultDataDirectory} {HostSettings.DefaultSecretsDirectory}", dockerfile, StringComparison.Ordinal);
+        Assert.Contains($"chmod 700 /run/hephaestus {HostSettings.DefaultDataDirectory} {HostSettings.DefaultSecretsDirectory}", dockerfile, StringComparison.Ordinal);
     }
 
     [Fact]

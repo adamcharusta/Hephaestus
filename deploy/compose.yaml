@@ -2,6 +2,8 @@
 # One long-running container, `hephaestus`, hosts the orchestrator and its control API. The API listens on a Unix domain
 # socket inside the container and on no network address; no port is published. The command line is the same executable,
 # run inside the container:  docker exec hephaestus hephaestus version
+# State lives on two named volumes: `hephaestus-data` (the SQLite database) and `hephaestus-secrets` (one file per secret).
+# The secrets volume is mounted into this service alone, and the database holds only the names of the secrets.
 name: hephaestus
 
 services:
@@ -23,6 +25,9 @@ services:
       options:
         max-size: 10m
         max-file: "3"
+    volumes:
+      - hephaestus-data:/var/lib/hephaestus/data
+      - hephaestus-secrets:/var/lib/hephaestus/secrets
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     healthcheck:
@@ -32,3 +37,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+
+volumes:
+  hephaestus-data:
+    name: hephaestus-data
+  hephaestus-secrets:
+    name: hephaestus-secrets

@@ -58,7 +58,7 @@ public class VersionCommandTests
         };
 
         using var output = new StringWriter();
-        var exitCode = await EntryPoint.RunAsync(["version"], output, TextWriter.Null, name => environment.GetValueOrDefault(name), TestContext.Current.CancellationToken);
+        var exitCode = await EntryPoint.RunAsync(["version"], TextReader.Null, output, TextWriter.Null, name => environment.GetValueOrDefault(name), TestContext.Current.CancellationToken);
 
         Assert.Equal(0, exitCode);
         Assert.StartsWith("Hephaestus version", output.ToString(), StringComparison.Ordinal);
@@ -140,7 +140,7 @@ public class VersionCommandTests
         using var cancelled = new CancellationTokenSource();
         await cancelled.CancelAsync();
         using var client = new Hephaestus.Host.Cli.ControlApiClient(socket.Path, Language.English);
-        var application = new Hephaestus.Host.Cli.CliApplication(new HostSettings(socket.Path, Language.English), client, TextWriter.Null, TextWriter.Null);
+        var application = new Hephaestus.Host.Cli.CliApplication(socket.Settings(), client, TextReader.Null, TextWriter.Null, TextWriter.Null);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => application.RunAsync(["version"], cancelled.Token));
     }

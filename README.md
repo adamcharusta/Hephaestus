@@ -27,6 +27,22 @@ error, and exits with 0, 1 (a failure), or 2 (not understood). Set `HEPHAESTUS_L
 `docker compose up`, or with `docker exec -e`) for Polish sentences; command names, options, and `--json` output never change.
 Logs are one JSON object per line: `docker logs hephaestus`. More in [`deploy/README.md`](deploy/README.md).
 
+## Secrets
+
+A credential is handed to Hephaestus on standard input; a value given as an argument is refused. It is stored as a file on the `hephaestus-secrets` volume, which only the `hephaestus` container mounts;
+the database on the `hephaestus-data` volume holds the secret's name and nothing of its value.
+
+```bash
+printf '%s' "$ANTHROPIC_API_KEY" | docker exec -i hephaestus hephaestus secret set anthropic-api-key
+docker exec hephaestus hephaestus secret list                  # names only
+docker exec hephaestus hephaestus secret remove anthropic-api-key
+```
+
+Pass `-i` to `docker exec` so the value reaches the command. A name has 1 to 64 characters (lowercase letters, digits, `-`,
+`_`); a value has 8 to 65,536 characters, and one trailing line break is dropped. A value given as an argument, an empty
+value, and one that is too short are refused and nothing is stored. Secrets survive a restart of the container. The two
+volumes are the whole installation state, so back up both, with the container stopped so the copy of the database is consistent; the secrets volume is plain files and the host must protect it.
+
 ## Build and test
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Python 3.

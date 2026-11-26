@@ -45,7 +45,7 @@ public class ControlApiTests
         using var socket = new TempSocket();
 
         var exception = Assert.Throws<InvalidOperationException>(() => ControlHost.Build(
-            new HostSettings(socket.Path, Language.English),
+            socket.Settings(),
             builder => builder.Configuration["Kestrel:Endpoints:Http:Url"] = "http://127.0.0.1:0"));
 
         Assert.Contains("Unix socket only", exception.Message, StringComparison.Ordinal);
@@ -68,7 +68,7 @@ public class ControlApiTests
     public async Task A_socket_directory_the_host_creates_can_be_entered_by_its_owner_only()
     {
         using var parent = new TempSocket();
-        var settings = new HostSettings(Path.Combine(Path.GetDirectoryName(parent.Path)!, "run", "control.sock"), Language.English);
+        var settings = parent.Settings() with { ControlSocketPath = Path.Combine(Path.GetDirectoryName(parent.Path)!, "run", "control.sock") };
         var app = ControlHost.Build(settings);
         await app.DisposeAsync();
 
@@ -90,7 +90,7 @@ public class ControlApiTests
     {
         using var socket = new TempSocket();
         await File.WriteAllTextAsync(socket.Path, "stale", TestContext.Current.CancellationToken);
-        var app = ControlHost.Build(new HostSettings(socket.Path, Language.English));
+        var app = ControlHost.Build(socket.Settings());
         await app.StartAsync(TestContext.Current.CancellationToken);
         try
         {
