@@ -36,11 +36,11 @@ public class ServeTests
         await using var host = await RunningHost.StartAsync();
 
         var console = host.App.Services.GetRequiredService<IOptionsMonitor<ConsoleLoggerOptions>>().CurrentValue;
-        var json = host.App.Services.GetRequiredService<IOptionsMonitor<JsonConsoleFormatterOptions>>().CurrentValue;
+        var json = host.App.Services.GetRequiredService<IOptionsMonitor<MaskedJsonFormatterOptions>>().CurrentValue;
 
-        Assert.Equal(ConsoleFormatterNames.Json, console.FormatterName);
+        Assert.Equal(MaskedJsonFormatter.FormatterName, console.FormatterName);
         Assert.True(json.UseUtcTimestamp);
-        Assert.False(json.JsonWriterOptions.Indented);
+        Assert.True(json.IncludeScopes);
         Assert.Contains(host.App.Services.GetServices<ILoggerProvider>(), p => p is ConsoleLoggerProvider);
         Assert.Single(host.App.Services.GetServices<ILoggerProvider>());
     }

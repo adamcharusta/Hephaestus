@@ -43,6 +43,11 @@ Pass `-i` to `docker exec` so the value reaches the command. A name has 1 to 64 
 value, and one that is too short are refused and nothing is stored. Secrets survive a restart of the container. The two
 volumes are the whole installation state, so back up both, with the container stopped so the copy of the database is consistent; the secrets volume is plain files and the host must protect it.
 
+Hephaestus writes its own log lines through a masker: a stored value that a line holds is replaced by `***`, and so are its
+base64 and URL-encoded forms. A secret you add, change, or remove is masked, or no longer masked, from the next line, without a
+restart; a file placed on the volume by hand is noticed at the next change or restart. A value shorter than 8 characters is never
+masked. Only the host's own log lines pass through the masker so far, and other encodings of a value are not caught.
+
 ## Build and test
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and Python 3.
