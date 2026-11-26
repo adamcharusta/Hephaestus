@@ -23,8 +23,10 @@ docker compose -f deploy/compose.yaml down       # stop it
 
 The command line calls the host's control API over a Unix domain socket inside the container. The container publishes no
 port and listens on no network address. Every command takes `--json` to print one JSON document, prints errors on standard
-error, and exits with 0, 1 (a failure), or 2 (not understood). Set `HEPHAESTUS_LANGUAGE=pl` (in the environment of
-`docker compose up`, or with `docker exec -e`) for Polish sentences; command names, options, and `--json` output never change.
+error, and exits with 0, 1 (a failure), or 2 (not understood). Set the installation's language with
+`docker exec hephaestus hephaestus setting set language pl` (`en` or `pl`; a new installation is in English): the next command
+writes its sentences in Polish. `HEPHAESTUS_LANGUAGE` only names the language of an installation that has set none, and of a command
+that cannot reach the host. Command names, options, and `--json` output never change.
 Logs are one JSON object per line: `docker logs hephaestus`. More in [`deploy/README.md`](deploy/README.md).
 
 ## Secrets
@@ -81,6 +83,33 @@ not inherit anything. Adding a login GitHub does not know fails, and so does add
 `remove` works from what `list` shows, without asking GitHub, so trust can be taken back while GitHub is down; a user who has since changed their login
 can be removed by the new one. The users live in the database on the `hephaestus-data` volume and survive a restart. Nothing reads
 the list yet, so no label, answer, or command is acted on or ignored because of it.
+
+## Aliases, limits, protected paths, and settings
+
+An Alias is a name you choose for an Agent with a Model, or for an Effort. Labels will carry it (`primary:opus5.5`), so a new Model needs
+only a new Alias, not a new Hephaestus. The limits are the ceilings no repository's `hephaestus.yml` can raise, and the protected
+paths are the files a Task's change must not touch once the GitHub gateway enforces them (a later story).
+
+```bash
+docker exec hephaestus hephaestus alias add opus5.5 --agent claude-code --model claude-opus-5-5   # Agents: claude-code, codex-cli
+docker exec hephaestus hephaestus alias add deep --effort high                                    # Efforts: low, medium, high, xhigh, max
+docker exec hephaestus hephaestus alias list
+docker exec hephaestus hephaestus alias remove deep
+docker exec hephaestus hephaestus limit set --task-duration 2h --cpus 2 --memory 4g               # only the options you give change
+docker exec hephaestus hephaestus limit show
+docker exec hephaestus hephaestus protected-path list                                             # a new installation: .github/** and hephaestus.yml
+docker exec hephaestus hephaestus protected-path add 'docs/**'
+docker exec hephaestus hephaestus protected-path remove 'docs/**'
+docker exec hephaestus hephaestus setting list
+docker exec hephaestus hephaestus setting set language pl
+docker exec hephaestus hephaestus config show                                                     # all of it; secrets by name only
+```
+
+An Alias name is lower case letters, digits, `.`, `_`, and `-` (at most 40 characters); a Model is written as its vendor spells it.
+An Alias that exists is not redefined: remove it first. A duration is `90m`, `2h30m`, or `1d` (1 minute to 7 days), processors are a
+number from `0.1` to `1024`, and memory is `512m` or `4g` (64m to 4096g). A limit nobody set is shown as `none`. The limits and the
+protected paths are stored and shown; nothing checks a Project Configuration against the limits, or a Task's changes against the
+protected paths, yet. Everything is in the database on the `hephaestus-data` volume and survives a restart.
 
 ## Build and test
 

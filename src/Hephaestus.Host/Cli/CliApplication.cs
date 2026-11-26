@@ -2,6 +2,7 @@ using System.CommandLine;
 using System.Text.Json;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Secrets;
+using Hephaestus.Core.Settings;
 using Hephaestus.Host.Api;
 
 namespace Hephaestus.Host.Cli;
@@ -12,17 +13,22 @@ namespace Hephaestus.Host.Cli;
 /// detail; exit code 0 is success, 1 a failure, 2 a command that was not understood. A secret's value is read from standard
 /// input and nowhere else (UX "Command Line").
 /// </summary>
-internal sealed class CliApplication(HostSettings settings, ControlApiClient client, TextReader input, TextWriter output, TextWriter error)
+internal sealed partial class CliApplication(HostSettings settings, ControlApiClient client, TextReader input, TextWriter output, TextWriter error)
 {
     public const int Success = 0;
     public const int Failure = 1;
     public const int NotUnderstood = 2;
 
+    /// <summary>The longest the command line waits for the stored language, so that a host that accepts and never answers delays no command by the client's whole timeout.</summary>
+    public static readonly TimeSpan LanguageLookupTimeout = TimeSpan.FromSeconds(2);
+
     private readonly MessageCatalog _catalog = MessageCatalog.Instance;
+    private Language _language = settings.Language;
 
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken)
     {
-        var language = settings.Language;
+        var language = _language = await ResolveLanguageAsync(cancellationToken);
+        client.UseLanguage(language);
         var tree = new CommandTree(language);
 
         if (args.Length == 0)
@@ -107,8 +113,35 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return await RemoveTrustedUserAsync(parse.GetValue(tree.TrustedUserRemoveLogin)!, json, cancellationToken);
         }
 
+        if (await RunConfigurationAsync(command, parse, tree, json, cancellationToken) is { } configured)
+        {
+            return configured;
+        }
+
         HelpWriter.Write(command, tree.Help, output, language);
         return Success;
+    }
+
+    /// <summary>
+    /// The language this run writes in: the one the Owner stored, asked of the host before anything is parsed. When none is stored, or
+    /// the host cannot be asked, does not answer within <see cref="LanguageLookupTimeout"/>, or does not answer as expected, it is the
+    /// environment's (English by default); the command's own call then reports what is wrong.
+    /// </summary>
+    private async Task<Language> ResolveLanguageAsync(CancellationToken cancellationToken)
+    {
+        using var lookup = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        lookup.CancelAfter(LanguageLookupTimeout);
+        try
+        {
+            var answer = await client.GetAsync("/api/settings", lookup.Token);
+            var stored = answer.IsSuccess ? ReadDocument(answer.Body, ApiJson.Default.SettingListDocument)?.Settings : null;
+            var language = stored?.FirstOrDefault(setting => setting?.Name == InstallationSettings.LanguageName && setting.IsSet)?.Value;
+            return Languages.TryParse(language, out var parsed) ? parsed : settings.Language;
+        }
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            return settings.Language;
+        }
     }
 
     /// <summary>
@@ -148,7 +181,7 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return Report(answer with { Problem = null });
         }
 
-        output.WriteLine(_catalog.Resolve(new Message(MessageIds.VersionLine, version), settings.Language));
+        output.WriteLine(_catalog.Resolve(new Message(MessageIds.VersionLine, version), _language));
         return Success;
     }
 
@@ -192,11 +225,11 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
 
         if (secrets.Count == 0)
         {
-            output.WriteLine(_catalog.Resolve(MessageIds.CliSecretListEmpty, settings.Language));
+            output.WriteLine(_catalog.Resolve(MessageIds.CliSecretListEmpty, _language));
             return Success;
         }
 
-        output.WriteLine(_catalog.Resolve(MessageIds.CliSecretListHeader, settings.Language));
+        output.WriteLine(_catalog.Resolve(MessageIds.CliSecretListHeader, _language));
         foreach (var name in secrets)
         {
             output.WriteLine(name);
@@ -242,7 +275,7 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return Report(answer with { Problem = null });
         }
 
-        output.WriteLine(_catalog.Resolve(new Message(sentenceId, user.Login, user.UserId), settings.Language));
+        output.WriteLine(_catalog.Resolve(new Message(sentenceId, user.Login, user.UserId), _language));
         return Success;
     }
 
@@ -271,28 +304,7 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return Report(answer with { Problem = null });
         }
 
-        if (users.Count == 0)
-        {
-            output.WriteLine(_catalog.Resolve(MessageIds.CliTrustedUserListEmpty, settings.Language));
-            return Success;
-        }
-
-        var rows = new List<string[]>
-        {
-            new[]
-            {
-                _catalog.Resolve(MessageIds.CliTrustedUserColumnLogin, settings.Language),
-                _catalog.Resolve(MessageIds.CliTrustedUserColumnId, settings.Language),
-                _catalog.Resolve(MessageIds.CliTrustedUserColumnAdded, settings.Language),
-            },
-        };
-        rows.AddRange(users.Select(u => new[] { u.Login, u.UserId.ToString(System.Globalization.CultureInfo.InvariantCulture), u.AddedAt }));
-        var widths = Enumerable.Range(0, 3).Select(column => rows.Max(row => row[column].Length)).ToArray();
-        foreach (var row in rows)
-        {
-            output.WriteLine(string.Join("  ", row.Select((cell, column) => cell.PadRight(widths[column]))).TrimEnd());
-        }
-
+        WriteTrustedUsers(users);
         return Success;
     }
 
@@ -356,7 +368,7 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return Report(answer with { Problem = null });
         }
 
-        GitHubReport.Write(identity, connected, _catalog, settings.Language, output);
+        GitHubReport.Write(identity, connected, _catalog, _language, output);
         return Success;
     }
 
@@ -394,7 +406,7 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
             return Report(answer);
         }
 
-        output.WriteLine(json ? answer.Body.Trim() : _catalog.Resolve(sentence, settings.Language));
+        output.WriteLine(json ? answer.Body.Trim() : _catalog.Resolve(sentence, _language));
         return Success;
     }
 
@@ -463,7 +475,7 @@ internal sealed class CliApplication(HostSettings settings, ControlApiClient cli
 
     private void WriteFailure(string titleId, Message detail)
     {
-        error.WriteLine(_catalog.Resolve(titleId, settings.Language));
-        error.WriteLine(_catalog.Resolve(detail, settings.Language));
+        error.WriteLine(_catalog.Resolve(titleId, _language));
+        error.WriteLine(_catalog.Resolve(detail, _language));
     }
 }

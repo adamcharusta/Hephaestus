@@ -1,4 +1,3 @@
-using System.Globalization;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Trust;
@@ -22,25 +21,22 @@ internal static class TrustedUserApi
     private static async Task<IResult> ListAsync(IReadStore store, CancellationToken cancellationToken)
     {
         var users = await store.ListTrustedUsersAsync(cancellationToken);
-        return Results.Json(new TrustedUserListDocument([.. users.Select(Document)]), ApiJson.Default.TrustedUserListDocument);
+        return Results.Json(new TrustedUserListDocument([.. users.Select(Documents.TrustedUser)]), ApiJson.Default.TrustedUserListDocument);
     }
 
     private static async Task<IResult> AddAsync(string login, TrustedUserService service, CancellationToken cancellationToken)
     {
         var result = await service.AddAsync(login, cancellationToken);
         return result.User is { } user
-            ? Results.Json(Document(user), ApiJson.Default.TrustedUserDocument, statusCode: result.Changed ? StatusCodes.Status201Created : StatusCodes.Status200OK)
+            ? Results.Json(Documents.TrustedUser(user), ApiJson.Default.TrustedUserDocument, statusCode: result.Changed ? StatusCodes.Status201Created : StatusCodes.Status200OK)
             : Problem(result.Failure, login);
     }
 
     private static async Task<IResult> RemoveAsync(string login, TrustedUserService service, CancellationToken cancellationToken)
     {
         var result = await service.RemoveAsync(login, cancellationToken);
-        return result.User is { } user ? Results.Json(Document(user), ApiJson.Default.TrustedUserDocument) : Problem(result.Failure, login);
+        return result.User is { } user ? Results.Json(Documents.TrustedUser(user), ApiJson.Default.TrustedUserDocument) : Problem(result.Failure, login);
     }
-
-    private static TrustedUserDocument Document(TrustedUser user) =>
-        new(user.UserId, user.Login, user.AddedAt.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture));
 
     private static ProblemResult Problem(TrustedUserFailure failure, string login) => failure switch
     {

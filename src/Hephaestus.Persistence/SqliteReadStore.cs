@@ -1,5 +1,8 @@
+using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Trust;
+using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
 
 namespace Hephaestus.Persistence;
@@ -29,4 +32,38 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
             .OrderBy(u => u.Login, StringComparer.OrdinalIgnoreCase).ThenBy(u => u.Login, StringComparer.Ordinal).ThenBy(u => u.UserId)
             .Select(u => new TrustedUser(u.UserId, u.Login, u.AddedAt))];
     }
+
+    public async Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.Aliases.OrderBy(a => a.Name).ToListAsync(cancellationToken);
+        return [.. entries.Select(ToAlias)];
+    }
+
+    public async Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var stored = await context.InstallationLimits.FirstOrDefaultAsync(cancellationToken);
+        return stored is null ? InstallationLimits.None : ToLimits(stored);
+    }
+
+    public async Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        return await context.ProtectedPaths.OrderBy(p => p.Pattern).Select(p => p.Pattern).ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        return await context.Settings.ToDictionaryAsync(s => s.Name, s => s.Value, cancellationToken);
+    }
+
+    internal static InstallationLimits ToLimits(InstallationLimitsEntry entry) =>
+        new(entry.TaskDurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null, entry.CpuMillis, entry.MemoryBytes);
+
+    internal static Alias ToAlias(AliasEntry entry) =>
+        Agents.TryParse(entry.Agent, out var agent) && entry.Model is { } model
+            ? Alias.ForModel(entry.Name, agent, model, entry.AddedAt)
+            : Alias.ForEffort(entry.Name, Efforts.TryParse(entry.Effort, out var effort) ? effort : throw new InvalidOperationException($"The stored Alias '{entry.Name}' names no known Agent or Effort."), entry.AddedAt);
 }

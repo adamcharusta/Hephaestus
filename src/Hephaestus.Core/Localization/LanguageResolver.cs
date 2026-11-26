@@ -11,12 +11,21 @@ public static class LanguageResolver
     public static Language Installation(string? configuredTag) =>
         Languages.TryParse(configuredTag, out var language) ? language : Languages.Default;
 
+    /// <summary>
+    /// The installation's language: the one the Owner stored, else <paramref name="fallback"/>, which is what the environment names
+    /// (English when it names none). The fallback also serves a command that cannot ask the host.
+    /// </summary>
+    public static Language Installation(Language? stored, Language fallback) => stored ?? fallback;
+
     /// <summary>The first supported language an <c>Accept-Language</c> value names, else the installation's.</summary>
-    public static Language ForRequest(string? acceptLanguage, Language installation)
+    public static Language ForRequest(string? acceptLanguage, Language installation) => FromHeader(acceptLanguage) ?? installation;
+
+    /// <summary>The first supported language an <c>Accept-Language</c> value names; null when it names none.</summary>
+    public static Language? FromHeader(string? acceptLanguage)
     {
         if (string.IsNullOrWhiteSpace(acceptLanguage))
         {
-            return installation;
+            return null;
         }
 
         foreach (var entry in acceptLanguage.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
@@ -28,6 +37,6 @@ public static class LanguageResolver
             }
         }
 
-        return installation;
+        return null;
     }
 }

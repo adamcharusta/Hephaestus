@@ -372,7 +372,7 @@ public class SecretCommandTests
 
         var run = await RunAsync(host, Language.English, "--help");
 
-        Assert.Contains("  secret        Stores credentials as files outside the database.", run.Output, StringComparison.Ordinal);
+        Assert.Contains("  secret          Stores credentials as files outside the database.", run.Output, StringComparison.Ordinal);
     }
 
     [Fact]

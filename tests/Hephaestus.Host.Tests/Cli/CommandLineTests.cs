@@ -23,7 +23,7 @@ public class CommandLineTests
         Assert.Equal(string.Empty, run.Error);
         Assert.StartsWith("Usage: hephaestus <command> [options]", run.Output, StringComparison.Ordinal);
         Assert.Contains("Commands:", run.Output, StringComparison.Ordinal);
-        Assert.Contains("  version       Prints the Hephaestus version.", run.Output, StringComparison.Ordinal);
+        Assert.Contains("  version         Prints the Hephaestus version.", run.Output, StringComparison.Ordinal);
         Assert.Contains("-h, --help", run.Output, StringComparison.Ordinal);
     }
 

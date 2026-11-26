@@ -40,6 +40,42 @@ internal sealed record TrustedUserDocument(long UserId, string Login, string Add
 /// <summary>The Trusted Users, ascending by login.</summary>
 internal sealed record TrustedUserListDocument(IReadOnlyList<TrustedUserDocument> TrustedUsers);
 
+/// <summary>An Alias. Either <c>agent</c> and <c>model</c> are set, or <c>effort</c> is; the others are null. <c>addedAt</c> is UTC ISO 8601.</summary>
+internal sealed record AliasDocument(string Name, string? Agent, string? Model, string? Effort, string AddedAt);
+
+/// <summary>The Aliases, ascending by name.</summary>
+internal sealed record AliasListDocument(IReadOnlyList<AliasDocument> Aliases);
+
+/// <summary>What an Alias is to resolve to: an Agent with a Model, or an Effort.</summary>
+internal sealed record AliasRequest(string? Agent, string? Model, string? Effort);
+
+/// <summary>The installation limits in their written form; a limit nobody set is null, never zero.</summary>
+internal sealed record LimitsDocument(string? TaskDuration, string? Cpus, string? Memory);
+
+/// <summary>The limits to change, in their written form: a null leaves that limit as it is.</summary>
+internal sealed record LimitsRequest(string? TaskDuration, string? Cpus, string? Memory);
+
+/// <summary>A protected path.</summary>
+internal sealed record ProtectedPathDocument(string Pattern);
+
+/// <summary>The protected paths, ascending.</summary>
+internal sealed record ProtectedPathListDocument(IReadOnlyList<string> ProtectedPaths);
+
+/// <summary>An installation setting: its value now, its default, and whether the Owner has set it (<c>isSet</c> is false while the value is the default).</summary>
+internal sealed record SettingDocument(string Name, string Value, string Default, bool IsSet);
+
+/// <summary>The settings that have a default.</summary>
+internal sealed record SettingListDocument(IReadOnlyList<SettingDocument> Settings);
+
+/// <summary>The Installation Configuration as one document. Secrets are by name only; no value is ever read to make it.</summary>
+internal sealed record ConfigurationDocument(
+    IReadOnlyList<TrustedUserDocument> TrustedUsers,
+    IReadOnlyList<AliasDocument> Aliases,
+    LimitsDocument Limits,
+    IReadOnlyList<string> ProtectedPaths,
+    IReadOnlyList<SettingDocument> Settings,
+    IReadOnlyList<SecretNameDocument> Secrets);
+
 /// <summary>An RFC 9457 problem details document. <c>type</c> is never translated; <c>title</c> and <c>detail</c> are.</summary>
 internal sealed record ProblemDocument(string Type, string Title, int Status, string Detail);
 
@@ -51,5 +87,15 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(GitHubIdentityDocument))]
 [JsonSerializable(typeof(TrustedUserDocument))]
 [JsonSerializable(typeof(TrustedUserListDocument))]
+[JsonSerializable(typeof(AliasDocument))]
+[JsonSerializable(typeof(AliasListDocument))]
+[JsonSerializable(typeof(AliasRequest))]
+[JsonSerializable(typeof(LimitsDocument))]
+[JsonSerializable(typeof(LimitsRequest))]
+[JsonSerializable(typeof(ProtectedPathDocument))]
+[JsonSerializable(typeof(ProtectedPathListDocument))]
+[JsonSerializable(typeof(SettingDocument))]
+[JsonSerializable(typeof(SettingListDocument))]
+[JsonSerializable(typeof(ConfigurationDocument))]
 [JsonSerializable(typeof(ProblemDocument))]
 internal sealed partial class ApiJson : JsonSerializerContext;

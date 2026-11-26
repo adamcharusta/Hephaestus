@@ -214,7 +214,7 @@ public class TrustedUserCommandTests
         Assert.Contains("  list    ", group.Output, StringComparison.Ordinal);
         Assert.Contains("  remove  ", group.Output, StringComparison.Ordinal);
         Assert.StartsWith("Usage: hephaestus trusted-user add <login> [options]", add.Output, StringComparison.Ordinal);
-        Assert.Contains("  trusted-user  Manages the GitHub users Hephaestus acts on.", root.Output, StringComparison.Ordinal);
+        Assert.Contains("  trusted-user    Manages the GitHub users Hephaestus acts on.", root.Output, StringComparison.Ordinal);
     }
 
     [Theory]

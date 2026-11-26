@@ -1,4 +1,6 @@
+using Hephaestus.Core.Aliases;
 using Hephaestus.Core.GitHub;
+using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Trust;
 
@@ -69,6 +71,26 @@ public class TrustedUserServiceTests
         public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task SetGitHubAppIdAsync(long appId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<AliasWrite> AddAliasAsync(Alias alias, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Alias?> RemoveAliasAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstallationLimits> SetLimitsAsync(LimitsChange change, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<bool> AddProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task SetSettingAsync(string name, string value, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -263,5 +285,17 @@ public class TrustedUserServiceTests
         public Task<TrustedUserWrite> AddTrustedUserAsync(long userId, string login, CancellationToken cancellationToken) => inner.AddTrustedUserAsync(userId, login, cancellationToken);
 
         public Task<bool> RemoveTrustedUserAsync(long userId, CancellationToken cancellationToken) => Task.FromResult(false);
+
+    public Task<AliasWrite> AddAliasAsync(Alias alias, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Alias?> RemoveAliasAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<InstallationLimits> SetLimitsAsync(LimitsChange change, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<bool> AddProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task SetSettingAsync(string name, string value, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
