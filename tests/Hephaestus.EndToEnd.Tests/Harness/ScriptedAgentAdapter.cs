@@ -1,5 +1,6 @@
 using System.Text;
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Failures;
 using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Workspaces;
@@ -19,10 +20,23 @@ internal sealed class ScriptedAgentAdapter(string script, Agent agent = Agent.Cl
 
     public Agent Agent { get; } = agent;
 
+    public string PinnedVersion => "scripted";
+
+    public Support SupportsAuthentication(AuthenticationMode mode) => Support.Yes;
+
+    public Support SupportsEffort(Effort effort) => Support.Yes;
+
     public AgentInvocation DescribeInvocation(InvocationRequest request) => new(
         ["/bin/sh", "-c", Script],
         new Dictionary<string, string>(),
+        [],
         [new WorkspaceFile(request.InstructionPath, Encoding.UTF8.GetBytes(Script))],
         [],
-        ResultPath);
+        ResultLocation.InFile(ResultPath));
+
+    public AgentInvocation DescribeProbe(AuthenticationMode mode) => new(["/bin/sh", "-c", "exit 0"], new Dictionary<string, string>(), [], [], [], ResultLocation.InOutputStream);
+
+    public AgentOutput Parse(IEnumerable<string> lines) => new([], null, [], 0);
+
+    public FailureClass? ClassifyExit(int exitCode, AgentOutput output) => exitCode == 0 ? null : FailureClass.Unknown;
 }

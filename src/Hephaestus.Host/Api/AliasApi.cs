@@ -47,7 +47,7 @@ internal static class AliasApi
     {
         AliasFailure.InvalidName => new(StatusCodes.Status400BadRequest, "alias-name-invalid", MessageIds.ProblemAliasNameInvalidTitle, new Message(MessageIds.ProblemAliasNameInvalidDetail, AliasShape.MaximumNameLength)),
         AliasFailure.Incomplete => new(StatusCodes.Status400BadRequest, "alias-incomplete", MessageIds.ProblemAliasIncompleteTitle, new Message(MessageIds.ProblemAliasIncompleteDetail)),
-        AliasFailure.UnknownAgent => new(StatusCodes.Status422UnprocessableEntity, "alias-agent-unknown", MessageIds.ProblemAliasAgentUnknownTitle, new Message(MessageIds.ProblemAliasAgentUnknownDetail, body.Agent ?? string.Empty, string.Join(", ", Agents.Tags))),
+        AliasFailure.UnknownAgent => new(StatusCodes.Status422UnprocessableEntity, "alias-agent-unknown", MessageIds.ProblemAliasAgentUnknownTitle, new Message(MessageIds.ProblemAliasAgentUnknownDetail, body.Agent ?? string.Empty, string.Join(", ", Core.Aliases.Agents.Tags))),
         AliasFailure.InvalidModel => new(StatusCodes.Status400BadRequest, "alias-model-invalid", MessageIds.ProblemAliasModelInvalidTitle, new Message(MessageIds.ProblemAliasModelInvalidDetail, AliasShape.MaximumModelLength)),
         AliasFailure.UnknownEffort => new(StatusCodes.Status422UnprocessableEntity, "alias-effort-unknown", MessageIds.ProblemAliasEffortUnknownTitle, new Message(MessageIds.ProblemAliasEffortUnknownDetail, body.Effort ?? string.Empty, string.Join(", ", Efforts.Tags))),
         AliasFailure.DefinedDifferently => new(StatusCodes.Status409Conflict, "alias-defined-differently", MessageIds.ProblemAliasDefinedDifferentlyTitle, new Message(MessageIds.ProblemAliasDefinedDifferentlyDetail, name)),

@@ -30,5 +30,6 @@ Each record states one decision, the alternatives weighed, and what follows from
 | [0022](0022-checkout-from-a-bundle.md) | The checkout of every step: a bare mirror, one bundle, a tools container | Accepted | AD-4, AD-6, AD-9 |
 | [0023](0023-checkpoint-as-one-commit.md) | The checkpoint of a step: one commit made outside the volume's git directory, one bundle file read back | Accepted | AD-6, AD-9, AD-18 |
 | [0024](0024-push-through-the-gateways-checks.md) | Push a Task branch only through the gateway's checks, as a journaled fast-forward | Accepted | AD-4, AD-5, AD-9, AD-19 |
+| [0025](0025-drive-claude-code-through-its-official-interface.md) | Drive Claude Code with one hardened invocation and read what it printed, and name a failure only when the stream does | Accepted | AD-7, AD-10, AD-11, AD-12 |
 
 The brief asked for records on eight topics. They map as follows: modular monolith (0001); agent integration strategy (0004, 0005, 0011); task provider abstraction (0006); local persistence (0014); workspace isolation (0008, 0009, 0010); workflow execution (0002); control plane and execution plane separation (0015, 0008); security boundaries (0008, 0010, 0013, 0018).
