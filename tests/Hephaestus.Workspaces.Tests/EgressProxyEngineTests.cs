@@ -89,8 +89,9 @@ public sealed class EgressProxyEngineTests(EngineFixture engine) : IClassFixture
         Assert.Contains(proxy.HostConfig!.SecurityOpt!, option => option.StartsWith("no-new-privileges", StringComparison.Ordinal));
         Assert.False(proxy.HostConfig!.Privileged);
         Assert.True(proxy.HostConfig!.ReadonlyRootfs);
-        Assert.Equal(["/tmp"], proxy.Mounts!.Select(mount => mount.Destination));
-        Assert.All(proxy.Mounts!, mount => Assert.Equal("tmpfs", mount.Type));
+        // Docker lists volumes and binds under Mounts and a tmpfs under HostConfig.Tmpfs alone: the proxy has none of the first and one of the second.
+        Assert.Empty(proxy.Mounts! ?? []);
+        Assert.Equal(["/tmp"], proxy.HostConfig!.Tmpfs!.Keys);
         Assert.Empty(proxy.NetworkSettings!.Ports! ?? new Dictionary<string, IList<PortBinding>>());
         Assert.Equal(engine.ProxyImage, proxy.Config!.Image);
         Assert.Equal(["hephaestus", "egress-proxy"], proxy.Path is "hephaestus" ? ["hephaestus", .. proxy.Args!] : proxy.Config!.Entrypoint!);
@@ -177,8 +178,8 @@ public sealed class EgressProxyEngineTests(EngineFixture engine) : IClassFixture
         var signal = Assert.Single(recording.Appended);
         Assert.Equal(["api.anthropic.com"], signal.RefusedHosts!);
         // Everything of the step run is gone: the container, the proxy, and the network.
-        await Assert.ThrowsAsync<Docker.DotNet.DockerApiException>(() => engine.Docker.Containers.InspectContainerAsync($"hephaestus-egress-{stepRunId}", Cancel));
-        await Assert.ThrowsAsync<Docker.DotNet.DockerApiException>(() => engine.Docker.Networks.InspectNetworkAsync($"hephaestus-net-{stepRunId}", Cancel));
+        await Assert.ThrowsAnyAsync<Docker.DotNet.DockerApiException>(() => engine.Docker.Containers.InspectContainerAsync($"hephaestus-egress-{stepRunId}", Cancel));
+        await Assert.ThrowsAnyAsync<Docker.DotNet.DockerApiException>(() => engine.Docker.Networks.InspectNetworkAsync($"hephaestus-net-{stepRunId}", Cancel));
         await watcher.DisposeAsync();
     }
 
