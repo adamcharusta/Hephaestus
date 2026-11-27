@@ -1,5 +1,6 @@
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.GitHub;
+using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Settings;
 using Hephaestus.Core.Tasks;
@@ -47,13 +48,16 @@ public sealed partial class OrchestratorLoop
             return;
         }
 
-        var retries = InstallationSettings.EffectRetriesFrom(await reads.ListSettingsAsync(cancellationToken));
+        var settings = await reads.ListSettingsAsync(cancellationToken);
+        var retries = InstallationSettings.EffectRetriesFrom(settings);
+        // No Task or Project has a language of its own yet (AD-21), so the text on GitHub is in the installation's.
+        var language = LanguageResolver.ForText(task: null, project: null, LanguageResolver.Installation(InstallationSettings.StoredLanguage(settings), fallbackLanguage));
         foreach (var listed in due)
         {
             // An earlier effect of this tick may have moved the Task, and what is decided about it now is decided about the Task as it is.
-            var pending = run.Moved.TryGetValue(listed.Task.Id, out var state) ? listed with { Task = listed.Task with { State = state } } : listed;
+            var pending = listed.Task is { } task && run.Moved.TryGetValue(task.Id, out var state) ? listed with { Task = task with { State = state } } : listed;
             // When GitHub as a whole is not answering, the rest would only fail the same way and spend their retries for nothing.
-            if (!await AttemptAsync(pending, retries, run, cancellationToken))
+            if (!await AttemptAsync(pending, retries, language, run, cancellationToken))
             {
                 break;
             }
@@ -63,9 +67,21 @@ public sealed partial class OrchestratorLoop
     }
 
     /// <summary>Attempts one effect. Returns false when GitHub as a whole is not available, so that the tick stops attempting.</summary>
-    private async Task<bool> AttemptAsync(PendingEffect pending, int retries, EffectsRun run, CancellationToken cancellationToken)
+    private Task<bool> AttemptAsync(PendingEffect pending, int retries, Language language, EffectsRun run, CancellationToken cancellationToken) =>
+        pending.Effect.Kind == EffectKind.Comment
+            ? AttemptCommentAsync(pending, retries, language, run, cancellationToken)
+            : AttemptLabelAsync(pending, retries, run, cancellationToken);
+
+    private async Task<bool> AttemptLabelAsync(PendingEffect pending, int retries, EffectsRun run, CancellationToken cancellationToken)
     {
-        var (effect, task, failures, _) = pending;
+        var (effect, found, failures, _) = pending;
+        if (found is not { } task)
+        {
+            // A label shows a Task's state, so one that is for no Task cannot be made, now or later.
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            return true;
+        }
+
         if (task.State.Tag() != effect.Detail)
         {
             // A later effect, journaled with the change of state, shows the state the Task has now.
@@ -73,10 +89,10 @@ public sealed partial class OrchestratorLoop
             return true;
         }
 
-        var read = await CallAsync(() => host.ReadIssueLabelsAsync(task.RepositoryId, task.IssueNumber, cancellationToken), run);
+        var read = await CallAsync(() => host.ReadIssueLabelsAsync(task.RepositoryId, task.IssueNumber, cancellationToken), GitHubIssueResult.Failed, run);
         if (read.Failure != GitHubIssueFailure.None)
         {
-            return await FailedAsync(pending, read, retries, run, cancellationToken);
+            return await FailedAsync(pending, read.Failure, read.WaitUntil, retries, run, cancellationToken);
         }
 
         var (add, remove) = Labels.PlanState(read.Labels, task.State);
@@ -86,10 +102,46 @@ public sealed partial class OrchestratorLoop
             return true;
         }
 
-        var change = await CallAsync(() => host.ChangeIssueLabelsAsync(task.RepositoryId, task.IssueNumber, add, remove, effect.Key, cancellationToken), run);
+        var change = await CallAsync(() => host.ChangeIssueLabelsAsync(task.RepositoryId, task.IssueNumber, add, remove, effect.Key, cancellationToken), GitHubIssueResult.Failed, run);
         if (change.Failure != GitHubIssueFailure.None)
         {
-            return await FailedAsync(pending, change, retries, run, cancellationToken);
+            return await FailedAsync(pending, change.Failure, change.WaitUntil, retries, run, cancellationToken);
+        }
+
+        await EndAsync(effect, EffectResult.Applied, null, failures, run, cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Says on an issue what Hephaestus ignored (Story 2.5). Like a label, it starts by reading the far side: the comment is looked for by its
+    /// marker, so that one posted before a crash and not recorded is found and not posted again (NFR-9).
+    /// </summary>
+    private async Task<bool> AttemptCommentAsync(PendingEffect pending, int retries, Language language, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var (effect, _, failures, _) = pending;
+        if (effect.RepositoryId is not { } repositoryId || effect.IssueNumber is not { } issueNumber || !IssueNotices.TryWrite(effect.Detail, language, out var text))
+        {
+            // An intent that this version cannot make: it is never going to be, so it ends as a refusal and not as a loop that stops here.
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            return true;
+        }
+
+        var found = await CallAsync(() => host.FindIssueCommentAsync(repositoryId, issueNumber, effect.Key, cancellationToken), GitHubCommentResult.Failed, run);
+        if (found.Failure != GitHubIssueFailure.None)
+        {
+            return await FailedAsync(pending, found.Failure, found.WaitUntil, retries, run, cancellationToken);
+        }
+
+        if (found.CommentId is not null)
+        {
+            await EndAsync(effect, EffectResult.AlreadyInPlace, null, failures, run, cancellationToken);
+            return true;
+        }
+
+        var posted = await CallAsync(() => host.PostIssueCommentAsync(repositoryId, issueNumber, text, effect.Key, cancellationToken), GitHubCommentResult.Failed, run);
+        if (posted.Failure != GitHubIssueFailure.None)
+        {
+            return await FailedAsync(pending, posted.Failure, posted.WaitUntil, retries, run, cancellationToken);
         }
 
         await EndAsync(effect, EffectResult.Applied, null, failures, run, cancellationToken);
@@ -97,7 +149,7 @@ public sealed partial class OrchestratorLoop
     }
 
     /// <summary>A gateway that throws is treated as one that did not answer: the attempt counts, and the exception is reported with the tick.</summary>
-    private static async Task<GitHubIssueResult> CallAsync(Func<Task<GitHubIssueResult>> call, EffectsRun run)
+    private static async Task<T> CallAsync<T>(Func<Task<T>> call, Func<GitHubIssueFailure, DateTimeOffset?, T> failed, EffectsRun run)
     {
         try
         {
@@ -106,23 +158,23 @@ public sealed partial class OrchestratorLoop
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             run.Failure ??= exception;
-            return GitHubIssueResult.Failed(GitHubIssueFailure.Unreachable);
+            return failed(GitHubIssueFailure.Unreachable, null);
         }
     }
 
-    private async Task<bool> FailedAsync(PendingEffect pending, GitHubIssueResult result, int retries, EffectsRun run, CancellationToken cancellationToken)
+    private async Task<bool> FailedAsync(PendingEffect pending, GitHubIssueFailure failure, DateTimeOffset? waitUntil, int retries, EffectsRun run, CancellationToken cancellationToken)
     {
-        var (effect, task, failures, _) = pending;
+        var (effect, _, failures, _) = pending;
         var now = time.GetUtcNow();
-        switch (result.Failure)
+        switch (failure)
         {
             case GitHubIssueFailure.RateLimited:
                 // GitHub asked to wait: the wait is not a failure, and nothing else is sent until it is over.
-                await RetryAsync(effect, EffectReasons.RateLimited, failures, result.WaitUntil ?? now + RateLimitWait, run, cancellationToken);
+                await RetryAsync(effect, EffectReasons.RateLimited, failures, waitUntil ?? now + RateLimitWait, run, cancellationToken);
                 return false;
 
             case GitHubIssueFailure.Unreachable or GitHubIssueFailure.NotConnected or GitHubIssueFailure.KeyUnreadable:
-                var reason = result.Failure switch
+                var reason = failure switch
                 {
                     GitHubIssueFailure.NotConnected => EffectReasons.NotConnected,
                     GitHubIssueFailure.KeyUnreadable => EffectReasons.KeyUnreadable,
@@ -146,7 +198,7 @@ public sealed partial class OrchestratorLoop
                 await ConcludeAsync(
                     pending,
                     EffectResult.Refused,
-                    result.Failure switch
+                    failure switch
                     {
                         GitHubIssueFailure.IssueNotFound => EffectReasons.IssueNotFound,
                         GitHubIssueFailure.NotInstalled => EffectReasons.AppNotInstalled,
@@ -178,12 +230,15 @@ public sealed partial class OrchestratorLoop
     /// <summary>
     /// Ends an effect that will not be made: the refusal or the give-up is journaled with its reason, and the Task moves to
     /// <c>waiting-for-owner</c>, with the intent of the label that shows it, in the same transaction (AD-5). A Task that is not in a state
-    /// that moves stays as it is; it is the log that tells the Owner, and an error with the Task's id is logged either way.
+    /// that moves stays as it is. So does a Task whose comment could not be made: the comment says something about someone else's action, it
+    /// is not the Task's own effect, and an issue that is locked, or that an outage kept from being written to, is no reason to stop work
+    /// that is going well. It is the log that tells the Owner, and an error is logged either way, with the Task's id when there is one, the
+    /// effect's key, and the repository and issue of a comment.
     /// </summary>
     private async Task ConcludeAsync(PendingEffect pending, EffectResult result, string reason, int failures, EffectsRun run, CancellationToken cancellationToken)
     {
         var (effect, task, _, _) = pending;
-        var moves = task.State.MovesToWaitingForOwnerWhenAnEffectFails();
+        var moves = effect.Kind == EffectKind.Label && (task?.State.MovesToWaitingForOwnerWhenAnEffectFails() ?? false);
         var recording = new EffectRecording(
             effect,
             result,
@@ -191,14 +246,14 @@ public sealed partial class OrchestratorLoop
             failures,
             NextAttemptAt: null,
             moves ? TaskState.WaitingForOwner : null,
-            moves ? [new NewEffect(task.Id, effect.Cause, EffectKind.Label, TaskState.WaitingForOwner.Tag())] : null);
+            moves ? [new NewEffect(task!.Id, effect.Cause, EffectKind.Label, TaskState.WaitingForOwner.Tag())] : null);
         if (await work.RecordEffectAsync(recording, cancellationToken))
         {
             run.Ended++;
-            run.Problems.Add(new EffectProblem(task.Id, effect.Key, result, reason, moves));
+            run.Problems.Add(new EffectProblem(task?.Id, effect.Key, result, reason, moves, effect.RepositoryId, effect.IssueNumber));
             if (moves)
             {
-                run.Moved[task.Id] = TaskState.WaitingForOwner;
+                run.Moved[task!.Id] = TaskState.WaitingForOwner;
             }
         }
     }

@@ -1,6 +1,6 @@
 namespace Hephaestus.Core.GitHub;
 
-/// <summary>Why a read or a change of an issue's labels did not happen.</summary>
+/// <summary>Why a read or a change of an issue, its labels or its comments, did not happen.</summary>
 public enum GitHubIssueFailure
 {
     /// <summary>It happened.</summary>

@@ -163,7 +163,7 @@ public class EffectJournalTests
         Assert.Equal((EffectResult.GaveUp, "unreachable", 6), (journal[1].Result, journal[1].Reason, journal[1].Failures));
         Assert.Equal(($"{task.Id}:g1:label:1", "waiting-for-owner"), (journal[2].Effect.Key, journal[2].Effect.Detail));
         var unfinished = Assert.Single(await installation.Reads.ListUnfinishedEffectsAsync(Token));
-        Assert.Equal(TaskState.WaitingForOwner, unfinished.Task.State);
+        Assert.Equal(TaskState.WaitingForOwner, unfinished.Task!.State);
     }
 
     [Fact]
@@ -213,7 +213,7 @@ public class EffectJournalTests
         Assert.Equal([first.Id, second.Id], (await installation.Reads.ListJournalAsync(null, Token)).Select(e => e.Effect.TaskId));
         Assert.Equal([second.Id], (await installation.Reads.ListJournalAsync(second.Id, Token)).Select(e => e.Effect.TaskId));
         Assert.Empty(await installation.Reads.ListJournalAsync(EntityId.New(TimeProvider.System), Token));
-        Assert.Equal([first.Id, second.Id], (await installation.Reads.ListUnfinishedEffectsAsync(Token)).Select(p => p.Task.Id));
+        Assert.Equal([first.Id, second.Id], (await installation.Reads.ListUnfinishedEffectsAsync(Token)).Select(p => p.Task!.Id));
     }
 
     [Fact]
@@ -228,7 +228,7 @@ public class EffectJournalTests
         await using var restarted = installation.Restart();
 
         var pending = Assert.Single(await restarted.GetRequiredService<IReadStore>().ListUnfinishedEffectsAsync(Token));
-        Assert.Equal((task.Id, 1, (DateTimeOffset?)Noon.AddMinutes(1)), (pending.Task.Id, pending.Failures, pending.NextAttemptAt));
+        Assert.Equal((task.Id, 1, (DateTimeOffset?)Noon.AddMinutes(1)), (pending.Task!.Id, pending.Failures, pending.NextAttemptAt));
     }
 
     [Fact]
@@ -239,7 +239,7 @@ public class EffectJournalTests
         await using (var context = installation.Database.OpenWriter())
         {
             await context.Database.ExecuteSqlRawAsync("DROP TRIGGER EffectJournal_NoUpdate", Token);
-            await context.Database.ExecuteSqlRawAsync("UPDATE EffectJournal SET Kind = 'comment'", Token);
+            await context.Database.ExecuteSqlRawAsync("UPDATE EffectJournal SET Kind = 'push'", Token);
         }
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => installation.Reads.ListJournalAsync(task.Id, Token));

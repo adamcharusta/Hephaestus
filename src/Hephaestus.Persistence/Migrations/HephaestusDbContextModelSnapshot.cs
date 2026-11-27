@@ -61,7 +61,7 @@ namespace Hephaestus.Persistence.Migrations
 
                     b.Property<string>("Detail")
                         .IsRequired()
-                        .HasMaxLength(64)
+                        .HasMaxLength(128)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Entry")
@@ -70,6 +70,9 @@ namespace Hephaestus.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<int>("Failures")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("IssueNumber")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Key")
@@ -85,6 +88,10 @@ namespace Hephaestus.Persistence.Migrations
                     b.Property<string>("NextAttemptAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("NoticeKey")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Ordinal")
                         .HasColumnType("INTEGER");
 
@@ -92,12 +99,14 @@ namespace Hephaestus.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<long?>("RepositoryId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Result")
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("TaskId")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Sequence");
@@ -115,6 +124,11 @@ namespace Hephaestus.Persistence.Migrations
                     b.HasIndex("Key", "Sequence");
 
                     b.HasIndex("TaskId", "Sequence");
+
+                    b.HasIndex("RepositoryId", "IssueNumber", "NoticeKey")
+                        .IsUnique()
+                        .HasDatabaseName("IX_EffectJournal_Notice")
+                        .HasFilter("\"Entry\" = 'intent' AND \"NoticeKey\" IS NOT NULL");
 
                     b.ToTable("EffectJournal", (string)null);
                 });

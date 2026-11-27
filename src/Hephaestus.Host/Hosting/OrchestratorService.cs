@@ -29,14 +29,15 @@ internal sealed class OrchestratorService(OrchestratorLoop loop, ILoggerFactory 
         foreach (var problem in report.Problems ?? [])
         {
             // In v0.1 this line is how the Owner learns of it: the issue can no longer be written to, so nothing can be said there.
-            using var scope = _log.BeginScope(new Dictionary<string, object> { ["taskId"] = problem.TaskId });
+            // An effect on an issue that is no Task has no Task's id; the log names the repository and the issue instead.
+            using var scope = problem.TaskId is { } taskId ? _log.BeginScope(new Dictionary<string, object> { ["taskId"] = taskId }) : null;
             _log.LogError(
-                "The effect {Key} of Task {TaskId} was not made ({Result}: {Reason}); {Outcome}.",
+                "The effect {Key} of {Subject} was not made ({Result}: {Reason}); {Outcome}.",
                 problem.Key,
-                problem.TaskId,
+                problem.TaskId is { } id ? $"Task {id}" : $"an issue that is no Task (repository {problem.RepositoryId}, issue #{problem.IssueNumber})",
                 problem.Result.Tag(),
                 problem.Reason,
-                problem.MovedToWaitingForOwner ? "the Task moved to waiting-for-owner" : "the Task keeps its state");
+                problem.MovedToWaitingForOwner ? "the Task moved to waiting-for-owner" : problem.TaskId is null ? "no Task is affected" : "the Task keeps its state");
         }
 
         if (report.EffectsRetried > 0)

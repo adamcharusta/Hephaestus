@@ -17,6 +17,12 @@ public static class LanguageResolver
     /// </summary>
     public static Language Installation(Language? stored, Language fallback) => stored ?? fallback;
 
+    /// <summary>
+    /// The language of text on GitHub (AD-21): the Task's, else the Project's when no Task has one, else the installation's. The Task's is its
+    /// configuration snapshot's and the Project's is its configuration's; neither is stored yet, so callers pass what they have.
+    /// </summary>
+    public static Language ForText(Language? task, Language? project, Language installation) => task ?? project ?? installation;
+
     /// <summary>The first supported language an <c>Accept-Language</c> value names, else the installation's.</summary>
     public static Language ForRequest(string? acceptLanguage, Language installation) => FromHeader(acceptLanguage) ?? installation;
 

@@ -132,7 +132,7 @@ public class StateLabelEndToEndTests
         var after = Assert.Single(await second.App.Services.GetRequiredService<IReadStore>().ListUnfinishedEffectsAsync(Token));
         Assert.Equal((before.Effect.Key, 1, before.NextAttemptAt), (after.Effect.Key, after.Failures, after.NextAttemptAt));
         Assert.NotNull(after.NextAttemptAt);
-        Assert.Equal(TaskState.Queued, after.Task.State);
+        Assert.Equal(TaskState.Queued, after.Task!.State);
         Assert.Empty(github.LabelChanges);
     }
 }

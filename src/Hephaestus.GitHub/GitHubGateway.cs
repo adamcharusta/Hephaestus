@@ -1,6 +1,7 @@
 using System.Net;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Secrets;
 using Hephaestus.Core.Trust;
 using Octokit;
 using Octokit.Internal;
@@ -29,6 +30,7 @@ public sealed partial class GitHubGateway : ICodeHost
     private readonly Func<HttpMessageHandler> _handler;
     private readonly TimeSpan _deadline;
     private readonly GitHubRateLimit _limit;
+    private readonly SecretMasker _masker;
 
     // The key and the App id are two stores; one gate keeps a second connect, or a check, from seeing half of a change.
     private readonly SemaphoreSlim _credential = new(1, 1);
@@ -36,6 +38,7 @@ public sealed partial class GitHubGateway : ICodeHost
     /// <param name="handler">The transport; a test gives its own. The default is Octokit's, which honours the proxy settings.</param>
     /// <param name="deadline">How long one read of the identity may take altogether; a test shortens it.</param>
     /// <param name="rateLimit">The gate a rate-limit answer closes; the poller shares it, so that nothing is sent while GitHub asks to wait.</param>
+    /// <param name="masker">The host's one masker, which every comment passes through before it is sent; one built from the secret store when none is given.</param>
     public GitHubGateway(
         ISecretStore secrets,
         IReadStore reads,
@@ -43,7 +46,8 @@ public sealed partial class GitHubGateway : ICodeHost
         TimeProvider time,
         Func<HttpMessageHandler>? handler = null,
         TimeSpan? deadline = null,
-        GitHubRateLimit? rateLimit = null)
+        GitHubRateLimit? rateLimit = null,
+        SecretMasker? masker = null)
     {
         _secrets = secrets;
         _reads = reads;
@@ -52,6 +56,7 @@ public sealed partial class GitHubGateway : ICodeHost
         _handler = handler ?? (() => HttpMessageHandlerFactory.CreateDefault());
         _deadline = deadline ?? DefaultDeadline;
         _limit = rateLimit ?? new GitHubRateLimit(time);
+        _masker = masker ?? new SecretMasker(secrets);
     }
 
     public async Task<GitHubIdentityResult> ConnectIdentityAsync(long appId, string privateKey, CancellationToken cancellationToken)

@@ -109,16 +109,17 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         }
 
         var keys = intents.Select(e => e.Key).ToList();
-        var taskIds = intents.Select(e => e.TaskId).Distinct().ToList();
+        var taskIds = intents.Where(e => e.TaskId is not null).Select(e => e.TaskId!.Value).Distinct().ToList();
         var retries = (await context.EffectJournal.Where(e => e.Entry == retry && keys.Contains(e.Key)).OrderBy(e => e.Sequence).ToListAsync(cancellationToken))
             .GroupBy(e => e.Key)
             .ToDictionary(group => group.Key, group => group.Last());
         var tasks = (await context.Tasks.Where(t => taskIds.Contains(t.Id)).ToListAsync(cancellationToken)).ToDictionary(t => t.Id);
 
-        // A journal line whose Task is missing cannot be: the intent is written in the transaction that writes the Task.
+        // A journal line whose Task is missing cannot be: the intent is written in the transaction that writes the Task. One that is for no
+        // Task, a comment on an issue that is none, has none to find.
         return [.. intents.Select(entry => new PendingEffect(
             ToEffect(entry),
-            ToTask(tasks[entry.TaskId]),
+            entry.TaskId is { } taskId ? ToTask(tasks[taskId]) : null,
             retries.TryGetValue(entry.Key, out var last) ? last.Failures : 0,
             retries.TryGetValue(entry.Key, out last) ? last.NextAttemptAt : null))];
     }
@@ -144,7 +145,9 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         entry.Cause,
         EffectKinds.TryParse(entry.Kind, out var kind) ? kind : throw new InvalidOperationException($"The journal line {entry.Sequence} has the unknown effect kind '{entry.Kind}'."),
         entry.Detail,
-        entry.Ordinal);
+        entry.Ordinal,
+        entry.RepositoryId,
+        entry.IssueNumber);
 
     internal static TaskRecord ToTask(TaskEntry entry) => new(
         entry.Id,

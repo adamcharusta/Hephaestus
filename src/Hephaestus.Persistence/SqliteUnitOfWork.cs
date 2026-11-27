@@ -86,13 +86,13 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
         var entry = (recording.Result is null ? JournalEntryKind.Retry : JournalEntryKind.Result).Tag();
         var result = recording.Result?.Tag();
         var next = recording.NextAttemptAt is { } instant ? UtcInstantConverter.ToText(instant) : null;
-        var taskId = EntityIdConverter.ToText(effect.TaskId);
+        var taskId = effect.TaskId is { } id ? EntityIdConverter.ToText(id) : null;
         var kind = effect.Kind.Tag();
         var resultEntry = JournalEntryKind.Result.Tag();
         var appended = await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
-            INSERT INTO "EffectJournal" ("Key", "Entry", "TaskId", "Cause", "Kind", "Detail", "Ordinal", "Result", "Reason", "Failures", "NextAttemptAt", "At")
-            SELECT {effect.Key}, {entry}, {taskId}, {effect.Cause}, {kind}, {effect.Detail}, {effect.Ordinal}, {result}, {recording.Reason}, {recording.Failures}, {next}, {at}
+            INSERT INTO "EffectJournal" ("Key", "Entry", "TaskId", "RepositoryId", "IssueNumber", "Cause", "Kind", "Detail", "Ordinal", "Result", "Reason", "Failures", "NextAttemptAt", "At")
+            SELECT {effect.Key}, {entry}, {taskId}, {effect.RepositoryId}, {effect.IssueNumber}, {effect.Cause}, {kind}, {effect.Detail}, {effect.Ordinal}, {result}, {recording.Reason}, {recording.Failures}, {next}, {at}
             WHERE NOT EXISTS (SELECT 1 FROM "EffectJournal" WHERE "Key" = {effect.Key} AND "Entry" = {resultEntry})
             """,
             cancellationToken);
@@ -120,25 +120,46 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
     }
 
     /// <summary>
-    /// Adds the intents of effects to the journal. The key is made here, from the ordinal: how many effects of the kind the cause had for
-    /// the Task before, counting those of this transaction, which the database has not seen yet.
+    /// Adds the intents of effects to the journal. The key is made here, from the ordinal: how many effects of the kind the cause had in the
+    /// scope before, counting those of this transaction, which the database has not seen yet. An effect that names a notice is left out when
+    /// the journal has an intent for the same notice on the same issue already, or this transaction has just added one.
     /// </summary>
     private static async Task AppendIntentsAsync(HephaestusDbContext context, IReadOnlyList<NewEffect> effects, string at, CancellationToken cancellationToken)
     {
-        var added = new Dictionary<(Guid TaskId, string Cause, EffectKind Kind), int>();
+        var added = new Dictionary<(string Scope, string Cause, EffectKind Kind), int>();
+        var notices = new HashSet<(long? RepositoryId, int? IssueNumber, string NoticeKey)>();
         var intent = JournalEntryKind.Intent.Tag();
         foreach (var effect in effects)
         {
-            var group = (effect.TaskId, effect.Cause, effect.Kind);
+            if (effect.NoticeKey is { } noticeKey)
+            {
+                var said = !notices.Add((effect.RepositoryId, effect.IssueNumber, noticeKey))
+                    || await context.EffectJournal.AnyAsync(e => e.Entry == intent && e.RepositoryId == effect.RepositoryId && e.IssueNumber == effect.IssueNumber && e.NoticeKey == noticeKey, cancellationToken);
+                if (said)
+                {
+                    continue;
+                }
+            }
+
+            var scope = effect.Scope;
+            var group = (scope, effect.Cause, effect.Kind);
             var kind = effect.Kind.Tag();
-            var stored = await context.EffectJournal.CountAsync(e => e.Entry == intent && e.TaskId == effect.TaskId && e.Cause == effect.Cause && e.Kind == kind, cancellationToken);
+            var stored = await context.EffectJournal.CountAsync(
+                e => e.Entry == intent
+                    && e.Cause == effect.Cause
+                    && e.Kind == kind
+                    && (effect.TaskId != null ? e.TaskId == effect.TaskId : e.TaskId == null && e.RepositoryId == effect.RepositoryId),
+                cancellationToken);
             var ordinal = stored + added.GetValueOrDefault(group);
             added[group] = added.GetValueOrDefault(group) + 1;
             context.EffectJournal.Add(new EffectJournalEntryEntity
             {
-                Key = EffectKeys.For(effect.TaskId, effect.Cause, effect.Kind, ordinal),
+                Key = EffectKeys.For(scope, effect.Cause, effect.Kind, ordinal),
                 Entry = intent,
                 TaskId = effect.TaskId,
+                RepositoryId = effect.RepositoryId,
+                IssueNumber = effect.IssueNumber,
+                NoticeKey = effect.NoticeKey,
                 Cause = effect.Cause,
                 Kind = kind,
                 Detail = effect.Detail,

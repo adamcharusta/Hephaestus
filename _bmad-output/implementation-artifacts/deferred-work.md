@@ -54,3 +54,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-4-see-a-task-s-state-on-its-issue.md`
   summary: Decide how long the effect journal is kept, now that it is append-only by trigger and only grows.
   evidence: Story 2.4 makes the journal append-only in the database, so retention cannot prune it without dropping the triggers. A journal line is small and one pending effect per Task answers hand-made label changes, but no story sets a retention for it (review of Story 2.4).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-say-on-the-issue-what-was-ignored-and-why.md`
+  summary: Decide whether a rejected comment from a user who is not a Trusted User should be logged as a warning one by one.
+  evidence: The criterion requires the Signal recorded as rejected, and the host logs every rejection as a warning, so a busy public repository, or a deliberate flood of comments, writes one line each. Aggregating them, or logging them at a lower level, is not in any criterion (review of Story 2.5).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-5-say-on-the-issue-what-was-ignored-and-why.md`
+  summary: Cut the cost of finding a comment by its marker, which reads every comment of the issue on each attempt.
+  evidence: The search pages through the whole thread, and it runs before each post and on each retry; a long pull request thread costs several requests. A bounded read would need the comment's time or id, which the journal does not keep (review of Story 2.5).
+

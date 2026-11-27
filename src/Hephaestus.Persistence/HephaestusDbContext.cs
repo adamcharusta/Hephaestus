@@ -154,7 +154,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             entry.Property(e => e.Entry).IsRequired().HasMaxLength(8);
             entry.Property(e => e.Cause).IsRequired().HasMaxLength(32);
             entry.Property(e => e.Kind).IsRequired().HasMaxLength(16);
-            entry.Property(e => e.Detail).IsRequired().HasMaxLength(64);
+            entry.Property(e => e.Detail).IsRequired().HasMaxLength(128);
+            entry.Property(e => e.NoticeKey).HasMaxLength(64);
             entry.Property(e => e.Result).HasMaxLength(16);
             entry.Property(e => e.Reason).HasMaxLength(32);
 
@@ -163,6 +164,9 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             entry.HasIndex(e => e.Key).IsUnique().HasFilter("\"Entry\" = 'result'").HasDatabaseName("IX_EffectJournal_Key_Result");
             entry.HasIndex(e => new { e.Key, e.Sequence });
             entry.HasIndex(e => new { e.TaskId, e.Sequence });
+
+            // What is said on an issue to one user about one kind of action is said once; the database refuses a second intent that would.
+            entry.HasIndex(e => new { e.RepositoryId, e.IssueNumber, e.NoticeKey }).IsUnique().HasFilter("\"Entry\" = 'intent' AND \"NoticeKey\" IS NOT NULL").HasDatabaseName("IX_EffectJournal_Notice");
         });
 
         model.Entity<PollCursorEntry>(cursor =>

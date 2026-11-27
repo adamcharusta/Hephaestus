@@ -180,4 +180,32 @@ internal sealed class FakeCodeHost : ICodeHost
         labels.AddRange(add.Where(label => !labels.Contains(label, StringComparer.OrdinalIgnoreCase)));
         return Task.FromResult(GitHubIssueResult.Labelled([.. labels]));
     }
+
+    /// <summary>The comments on the issues, written by Hephaestus's own account unless a test says otherwise, with the key of the effect that posted each.</summary>
+    public List<(long RepositoryId, int IssueNumber, string Text, string Key, bool Own)> Comments { get; } = [];
+
+    /// <summary>When set, every search for a comment and every post fails with it.</summary>
+    public GitHubIssueFailure? CommentFails { get; set; }
+
+    public Task<GitHubCommentResult> FindIssueCommentAsync(long repositoryId, int issueNumber, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        if (CommentFails is { } failure)
+        {
+            return Task.FromResult(GitHubCommentResult.Failed(failure));
+        }
+
+        var index = Comments.FindIndex(c => c.Own && c.RepositoryId == repositoryId && c.IssueNumber == issueNumber && c.Key == idempotencyKey);
+        return Task.FromResult(index < 0 ? GitHubCommentResult.Absent : GitHubCommentResult.Present(index + 1));
+    }
+
+    public Task<GitHubCommentResult> PostIssueCommentAsync(long repositoryId, int issueNumber, string text, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        if (CommentFails is { } failure)
+        {
+            return Task.FromResult(GitHubCommentResult.Failed(failure));
+        }
+
+        Comments.Add((repositoryId, issueNumber, text, idempotencyKey, true));
+        return Task.FromResult(GitHubCommentResult.Present(Comments.Count));
+    }
 }

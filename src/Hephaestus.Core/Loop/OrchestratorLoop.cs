@@ -1,6 +1,7 @@
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Identity;
+using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Signals;
@@ -28,11 +29,14 @@ public sealed record TickReport(
     int EffectsRetried = 0,
     IReadOnlyList<EffectProblem>? Problems = null);
 
-/// <summary>An effect that ended without being made: the far side stayed unreachable until the bound, or refused for good. The Task waits for the Owner.</summary>
+/// <summary>An effect that ended without being made: the far side stayed unreachable until the bound, or refused for good. A Task whose label could not be made waits for the Owner.</summary>
+/// <param name="TaskId">The Task the effect was for; null for a comment on an issue that is no Task, which the key then names the Project of.</param>
 /// <param name="Result">Gave up or refused.</param>
 /// <param name="Reason">One of <see cref="EffectReasons"/>.</param>
 /// <param name="MovedToWaitingForOwner">Whether the Task moved to <c>waiting-for-owner</c> because of it.</param>
-public sealed record EffectProblem(Guid TaskId, string Key, EffectResult Result, string Reason, bool MovedToWaitingForOwner);
+/// <param name="RepositoryId">The repository of the issue a comment was for, so that the log says which issue went unanswered.</param>
+/// <param name="IssueNumber">The issue a comment was for.</param>
+public sealed record EffectProblem(Guid? TaskId, string Key, EffectResult Result, string Reason, bool MovedToWaitingForOwner, long? RepositoryId = null, int? IssueNumber = null);
 
 /// <summary>
 /// The orchestrator loop (AD-1): the only writer of Task state, and, through <see cref="IUnitOfWork"/>, the only code that depends on
@@ -41,6 +45,7 @@ public sealed record EffectProblem(Guid TaskId, string Key, EffectResult Result,
 /// id (AD-15). Startup recovery is the first tick: a Signal appended and not yet applied when the host stopped is still pending, and
 /// so is an effect whose intent was journaled and whose result was not (AD-5).
 /// </summary>
+/// <param name="fallbackLanguage">The installation's language when the Owner has stored none: the one the environment names.</param>
 public sealed partial class OrchestratorLoop(
     ISignalInbox inbox,
     IReadStore reads,
@@ -48,7 +53,8 @@ public sealed partial class OrchestratorLoop(
     ICodeHost host,
     TimeProvider time,
     LoopHeartbeat heartbeat,
-    Func<TimeSpan, CancellationToken, Task>? delay = null)
+    Func<TimeSpan, CancellationToken, Task>? delay = null,
+    Language fallbackLanguage = Language.English)
 {
     /// <summary>How long the loop waits when no Signal is pending.</summary>
     public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
@@ -251,8 +257,8 @@ public sealed partial class OrchestratorLoop(
     /// <summary>The Tasks that have an effect, journaled and not ended, that shows the state they have now.</summary>
     private async Task<HashSet<Guid>> TasksShowingTheirStateAsync(CancellationToken cancellationToken) =>
         [.. (await reads.ListUnfinishedEffectsAsync(cancellationToken))
-            .Where(pending => pending.Effect.Kind == EffectKind.Label && pending.Task.State.Tag() == pending.Effect.Detail)
-            .Select(pending => pending.Task.Id)];
+            .Where(pending => pending.Effect.Kind == EffectKind.Label && pending.Task is { } task && task.State.Tag() == pending.Effect.Detail)
+            .Select(pending => pending.Task!.Id)];
 
     private SignalApplication Decide(StoredSignal stored, Context context, TaskRecord? existing, bool covered)
     {
@@ -263,7 +269,12 @@ public sealed partial class OrchestratorLoop(
             return Reproject(stored, context, existing, covered);
         }
 
-        // What the later stories of the epic act on (withdrawal, close, comments, commands) is applied with no change for now: the
+        if (signal.Kind == SignalKind.CommentCreated)
+        {
+            return DecideComment(stored, context);
+        }
+
+        // What the later stories of the epic act on (withdrawal, close, commands, edits) is applied with no change for now: the
         // Signal is consumed, and nothing is inferred from it.
         if (!IsMarkerLabeled(signal))
         {
@@ -282,7 +293,7 @@ public sealed partial class OrchestratorLoop(
             case Admitted.NoActor:
                 return Reject(stored, SignalRejections.ActorUnknown);
             case Admitted.NotTrusted:
-                return Reject(stored, SignalRejections.ActorNotTrusted);
+                return RejectWithNotice(stored, existing);
         }
 
         if (existing is not null)
@@ -322,6 +333,42 @@ public sealed partial class OrchestratorLoop(
         }
 
         return new SignalApplication(stored.Sequence, SignalStatus.Applied, TaskId: existing.Id, NewEffects: [ShowState(existing, stored.Sequence)]);
+    }
+
+    /// <summary>
+    /// A comment was created. One from a user who is not a Trusted User is recorded as rejected, with the actor's id the Signal holds, and
+    /// changes no Task. Nothing is said in reply, whatever it holds, a command included: anyone can comment on a public repository, and a
+    /// reply for every account would let outsiders fill the thread (AD-15). Hephaestus's own comments, and those of a Trusted User, are
+    /// applied with no change; what a command or an answer does belongs to the stories that handle them.
+    /// </summary>
+    private static SignalApplication DecideComment(StoredSignal stored, Context context)
+    {
+        var signal = stored.Signal;
+        if (!context.Projects.Contains(signal.RepositoryId))
+        {
+            return new SignalApplication(stored.Sequence, SignalStatus.Applied);
+        }
+
+        return Admission.Decide(signal.ActorId, signal.ActorLogin, context.TrustedUserIds, context.OwnLogin) switch
+        {
+            Admitted.NotTrusted => Reject(stored, SignalRejections.ActorNotTrusted),
+            Admitted.NoActor => Reject(stored, SignalRejections.ActorUnknown),
+            _ => new SignalApplication(stored.Sequence, SignalStatus.Applied),
+        };
+    }
+
+    /// <summary>
+    /// A label Hephaestus reads, applied by a user who is not a Trusted User: the Signal is rejected, no Task is made or changed, and the
+    /// intent to say so on the issue is journaled with it. The journal keeps one such comment for each user, kind of action, and issue, so a
+    /// user who repeats the action is rejected each time and answered once (NFR-10).
+    /// </summary>
+    private static SignalApplication RejectWithNotice(StoredSignal stored, TaskRecord? existing)
+    {
+        var signal = stored.Signal;
+        var notice = Labels.ReadLabel(signal.Label) is { } label && signal.ActorId is { } actorId
+            ? IssueNotices.IgnoredLabel(existing?.Id, EffectKeys.SignalCause(stored.Sequence), signal.RepositoryId, signal.IssueNumber, actorId, signal.ActorLogin, label)
+            : null;
+        return new SignalApplication(stored.Sequence, SignalStatus.Rejected, SignalRejections.ActorNotTrusted, NewEffects: notice is null ? null : [notice]);
     }
 
     private static SignalApplication Reject(StoredSignal stored, string reason) => new(stored.Sequence, SignalStatus.Rejected, reason);

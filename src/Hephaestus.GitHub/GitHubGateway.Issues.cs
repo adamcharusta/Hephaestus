@@ -1,19 +1,21 @@
 using System.Net;
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.GitHub;
+using Hephaestus.Core.Trust;
 using Octokit;
 using Octokit.Internal;
 
 namespace Hephaestus.GitHub;
 
 /// <summary>
-/// The gateway's work on the labels of an issue (Story 2.4, AD-4, AD-5): a read of the labels, and a change that adds and removes labels as
-/// a set operation. Which labels are wanted is decided by the caller; the gateway only asks GitHub, and tells a wait or an outage, which
-/// are tried again, from a refusal, which is for good.
+/// The gateway's work on an issue (AD-4, AD-5): a read of its labels, and a change that adds and removes labels as a set operation (Story 2.4);
+/// and the finding and the posting of a comment by its hidden marker (Story 2.5). What is wanted is decided by the caller; the gateway only
+/// asks GitHub, and tells a wait or an outage, which are tried again, from a refusal, which is for good.
 /// </summary>
 public sealed partial class GitHubGateway
 {
     public Task<GitHubIssueResult> ReadIssueLabelsAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) =>
-        OnIssueAsync(repositoryId, async (client, token) => GitHubIssueResult.Labelled(await LabelsOfAsync(client, repositoryId, issueNumber, token)), cancellationToken);
+        OnIssueAsync(repositoryId, async (client, token) => GitHubIssueResult.Labelled(await LabelsOfAsync(client, repositoryId, issueNumber, token)), GitHubIssueResult.Failed, cancellationToken);
 
     public Task<GitHubIssueResult> ChangeIssueLabelsAsync(
         long repositoryId,
@@ -50,6 +52,60 @@ public sealed partial class GitHubGateway
 
                 return GitHubIssueResult.Labelled(await LabelsOfAsync(client, repositoryId, issueNumber, token));
             },
+            GitHubIssueResult.Failed,
+            cancellationToken);
+    }
+
+    public async Task<GitHubCommentResult> FindIssueCommentAsync(long repositoryId, int issueNumber, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
+
+        // A marker is believed only in a comment that Hephaestus's own bot account wrote: anyone can write the text of one. Without the App's
+        // slug the account cannot be told, and a comment would be taken for missing and posted twice, so nothing is answered until it is known.
+        var slug = await _reads.GetGitHubAppSlugAsync(cancellationToken);
+        if (slug is null)
+        {
+            // An App connected before the slug was kept: reading the identity stores it, as `github check` does.
+            var identity = await CheckIdentityAsync(cancellationToken);
+            if (identity.Identity is not { } read)
+            {
+                return GitHubCommentResult.Failed(identity.Failure switch
+                {
+                    GitHubIdentityFailure.KeyUnreadable => GitHubIssueFailure.KeyUnreadable,
+                    GitHubIdentityFailure.Rejected => GitHubIssueFailure.Rejected,
+                    GitHubIdentityFailure.Unreachable => GitHubIssueFailure.Unreachable,
+                    _ => GitHubIssueFailure.NotConnected,
+                });
+            }
+
+            slug = read.Slug;
+        }
+
+        var own = GitHubLogin.BotOf(slug);
+        return await OnIssueAsync(
+            repositoryId,
+            async (client, token) =>
+            {
+                var comments = await client.Issue.Comment.GetAllForIssue(repositoryId, issueNumber, new ApiOptions { PageSize = PageSize }).WaitAsync(token);
+                var found = comments.FirstOrDefault(comment => comment.User is { } author && GitHubLogin.SameLogin(author.Login, own) && EffectMarkers.EndsWith(comment.Body, idempotencyKey));
+                return found is null ? GitHubCommentResult.Absent : GitHubCommentResult.Present(found.Id);
+            },
+            GitHubCommentResult.Failed,
+            cancellationToken);
+    }
+
+    public async Task<GitHubCommentResult> PostIssueCommentAsync(long repositoryId, int issueNumber, string text, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
+
+        // The values are read again, so that a secret stored a moment ago is masked too, and the marker is added after the masking, as the
+        // last line, so that it is what the comment ends with whatever the text held.
+        await _masker.RebuildAsync(cancellationToken);
+        var body = EffectMarkers.Append(_masker.Mask(text), idempotencyKey);
+        return await OnIssueAsync(
+            repositoryId,
+            async (client, token) => GitHubCommentResult.Present((await client.Issue.Comment.Create(repositoryId, issueNumber, body).WaitAsync(token)).Id),
+            GitHubCommentResult.Failed,
             cancellationToken);
     }
 
@@ -63,23 +119,27 @@ public sealed partial class GitHubGateway
     /// Runs <paramref name="action"/> with the token of the installation that holds the repository (found by its id, which a rename does not
     /// change). The credential is held for the call and never stored or logged.
     /// </summary>
-    private async Task<GitHubIssueResult> OnIssueAsync(long repositoryId, Func<GitHubClient, CancellationToken, Task<GitHubIssueResult>> action, CancellationToken cancellationToken)
+    private async Task<T> OnIssueAsync<T>(
+        long repositoryId,
+        Func<GitHubClient, CancellationToken, Task<T>> action,
+        Func<GitHubIssueFailure, DateTimeOffset?, T> failed,
+        CancellationToken cancellationToken)
     {
         if (_limit.ClosedUntil is { } closed)
         {
-            return GitHubIssueResult.Failed(GitHubIssueFailure.RateLimited, closed);
+            return failed(GitHubIssueFailure.RateLimited, closed);
         }
 
         var (appId, privateKey) = await ReadCredentialAsync(cancellationToken);
         if (appId is null || privateKey is null)
         {
-            return GitHubIssueResult.Failed(GitHubIssueFailure.NotConnected);
+            return failed(GitHubIssueFailure.NotConnected, null);
         }
 
         var jwt = GitHubAppJwt.TryCreate(appId.Value, privateKey, _time.GetUtcNow());
         if (jwt is null)
         {
-            return GitHubIssueResult.Failed(GitHubIssueFailure.KeyUnreadable);
+            return failed(GitHubIssueFailure.KeyUnreadable, null);
         }
 
         using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -105,28 +165,28 @@ public sealed partial class GitHubGateway
                 }
                 catch (NotFoundException)
                 {
-                    return GitHubIssueResult.Failed(GitHubIssueFailure.IssueNotFound);
+                    return failed(GitHubIssueFailure.IssueNotFound, null);
                 }
                 catch (ApiException exception) when (exception.StatusCode == HttpStatusCode.Gone)
                 {
-                    return GitHubIssueResult.Failed(GitHubIssueFailure.IssueNotFound);
+                    return failed(GitHubIssueFailure.IssueNotFound, null);
                 }
             }
 
-            return GitHubIssueResult.Failed(GitHubIssueFailure.NotInstalled);
+            return failed(GitHubIssueFailure.NotInstalled, null);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested && IsOutage(exception))
         {
             NoteRateLimit(exception);
             return _limit.ClosedUntil is { } until
-                ? GitHubIssueResult.Failed(GitHubIssueFailure.RateLimited, until)
-                : GitHubIssueResult.Failed(GitHubIssueFailure.Unreachable);
+                ? failed(GitHubIssueFailure.RateLimited, until)
+                : failed(GitHubIssueFailure.Unreachable, null);
         }
         catch (ApiException)
         {
             // A host that is stopping is not GitHub refusing: what failed is asked again by the next one.
             cancellationToken.ThrowIfCancellationRequested();
-            return GitHubIssueResult.Failed(GitHubIssueFailure.Rejected);
+            return failed(GitHubIssueFailure.Rejected, null);
         }
     }
 }

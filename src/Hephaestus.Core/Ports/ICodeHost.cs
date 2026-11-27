@@ -7,7 +7,7 @@ namespace Hephaestus.Core.Ports;
 /// <summary>
 /// The one gateway to GitHub (AD-4), implemented by <c>Hephaestus.GitHub</c>. It reads Hephaestus's own identity, users, repositories,
 /// and files, and, as the stories that need them arrive, makes effects, each taking its idempotency key (AD-5): the labels of an issue
-/// are the first.
+/// are the first, and the comments of an issue the second.
 /// </summary>
 public interface ICodeHost
 {
@@ -59,4 +59,17 @@ public interface ICodeHost
         IReadOnlyList<string> remove,
         string idempotencyKey,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Looks for the comment of an effect (AD-5), the way an effect that was started and not recorded is resolved: a comment on the issue, or
+    /// on the pull request, whose last line is the marker of <paramref name="idempotencyKey"/> and that Hephaestus's own bot account wrote.
+    /// A marker in a comment of anyone else is disregarded. A read is not an effect.
+    /// </summary>
+    Task<GitHubCommentResult> FindIssueCommentAsync(long repositoryId, int issueNumber, string idempotencyKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// An effect (AD-5): posts <paramref name="text"/> as a comment on the issue, with every stored secret value masked and the hidden marker of
+    /// <paramref name="idempotencyKey"/> as its last line; the key is the one the loop journaled, and the loop has looked for the comment first.
+    /// </summary>
+    Task<GitHubCommentResult> PostIssueCommentAsync(long repositoryId, int issueNumber, string text, string idempotencyKey, CancellationToken cancellationToken);
 }
