@@ -46,14 +46,15 @@ public class HarnessTests
     {
         IAgentAdapter adapter = new ScriptedAgentAdapter("echo hello; exit 3", Agent.CodexCli);
 
-        var invocation = adapter.DescribeInvocation(new InvocationRequest(Guid.CreateVersion7(), "instruction.md"));
+        var invocation = adapter.DescribeInvocation(new InvocationRequest(Guid.CreateVersion7(), "instruction.md", AuthenticationMode.ApiKey, "scripted"));
 
         Assert.Equal(Agent.CodexCli, adapter.Agent);
         Assert.Equal(["/bin/sh", "-c", "echo hello; exit 3"], invocation.Command);
         Assert.Empty(invocation.Environment);
         Assert.Empty(invocation.EgressHosts);
         Assert.Equal("instruction.md", Assert.Single(invocation.Files).Path);
-        Assert.Equal("/workspace/result.txt", invocation.ResultPath);
+        Assert.Equal(ResultLocation.InFile("/workspace/result.txt"), invocation.Result);
+        Assert.Empty(invocation.SecretReferences);
         Assert.DoesNotContain(invocation.Command, part => part.Contains("claude", StringComparison.OrdinalIgnoreCase) || part.Contains("codex", StringComparison.OrdinalIgnoreCase));
     }
 }

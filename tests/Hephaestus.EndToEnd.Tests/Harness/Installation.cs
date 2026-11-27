@@ -126,7 +126,7 @@ internal sealed class Installation : IAsyncDisposable
         var time = TimeProvider.System;
         var taskId = EntityId.New(time);
         var stepRunId = EntityId.New(time);
-        var invocation = adapter.DescribeInvocation(new InvocationRequest(stepRunId, "instruction.md"));
+        var invocation = adapter.DescribeInvocation(new InvocationRequest(stepRunId, "instruction.md", AuthenticationMode.ApiKey, "scripted"));
         var resolved = await runtime.ResolveImageAsync(image, Cancel);
         await runtime.EnsureTaskVolumeAsync(taskId, resolved, $"task:{taskId:N}:volume:0", Cancel);
         var started = await runtime.StartStepAsync(

@@ -349,4 +349,7 @@ public static class MessageIds
     public const string WorkspaceCheckpointResultSize = "workspace.checkpoint.result-size";
     public const string WorkspaceCheckpointResultHeader = "workspace.checkpoint.result-header";
     public const string WorkspaceCheckpointStepRunning = "workspace.checkpoint.step-running";
+
+    public const string AgentAuthenticationUnsupported = "agent.authentication.unsupported";
+    public const string AgentEffortUnsupported = "agent.effort.unsupported";
 }

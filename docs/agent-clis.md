@@ -70,3 +70,24 @@ A pin changes when Hephaestus moves to a newer version of a CLI. The adapter and
    version the lock pins.
 
 To run the arm64 check by hand, start Hephaestus once on an arm64 machine so that the volume is filled, then run `bash eng/check-agent-binaries.sh`.
+
+## The Claude Code adapter
+
+Story 3.8, AD-10, [ADR-0025](adr/0025-drive-claude-code-through-its-official-interface.md). `Hephaestus.Agents` holds the adapter of Claude Code. It describes an invocation, a probe, how to read a stored output stream, and how to read the end of a CLI that exited by itself. It starts no process and knows nothing of Docker; the runtime does both. It is released with Claude Code 2.1.332, the version `deploy/agents.lock` pins, and a test fails when the two differ.
+
+| Part | Value |
+| --- | --- |
+| Executable | `/hephaestus/agents/claude-code/claude`, whichever C library the Project's image has |
+| Prompt | `Read /hephaestus/context/instruction.md and carry out the step it describes.`, the same for every Agent |
+| Authentication | an API key (`anthropic-api-key` as `ANTHROPIC_API_KEY`) or a subscription token (`claude-code-oauth-token` as `CLAUDE_CODE_OAUTH_TOKEN`); the argument vector is the same, only the secret reference differs |
+| Egress host | `api.anthropic.com`, in both modes |
+| Effort | `--effort low`, `medium`, `high`, `xhigh`, or `max`; none given leaves the CLI's own |
+| Result | the output stream: `structured_output` of the final `result` event when Core gave a schema, its `result` text otherwise |
+| Failure class | `agent-error` when the stream names the error (`authentication_failed`, or a result ending that starts with `error_`); `unknown` for any other failure; never `usage-limit` (Story 7.1) |
+
+The invocation switches off what a repository or the vendor account could run: `--safe-mode` (which the CLI describes as turning off `CLAUDE.md`, skills, installed plugins, hooks, MCP servers, and custom commands; the tests show a session-start hook, a prompt hook, an MCP server, and an `env` block, and nothing shows that it stops a repository's plugin), `--setting-sources user` so that the only settings are those of the throwaway `HOME`, `--strict-mcp-config`, `disableAllHooks`, `disableClaudeAiConnectors`, a closed list of tools (`Bash`, `Read`, `Edit`, `Write`),
+the CLI's permission prompts (`--dangerously-skip-permissions`, because the container is the boundary), its self-update, and the traffic the vendor calls nonessential. It never sends `--bare`, `--resume`, or `--add-dir`.
+
+`ClaudeCodePlantedConfigurationTests` starts the pinned CLI against a repository that plants hooks, an MCP server, and an `env` block, with no credential and no vendor call, and shows that none takes effect. It uses the executable named by `HEPHAESTUS_CLAUDE_CODE`, or else downloads the pinned one from the vendor and checks it against the lock; it is skipped where neither is possible, and fails in GitHub Actions.
+The other tests read recorded streams of 2.1.332 (`tests/Hephaestus.Agents.Tests/Transcripts`): four are the stdout of the injection spike's runs, and the run with no credential was recorded from the pinned CLI with the adapter's invocation. They run no container and make no vendor call. A new pin needs its own transcripts, and the version test fails until they carry its version.
+
