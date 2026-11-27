@@ -102,6 +102,7 @@ docker exec hephaestus hephaestus protected-path add 'docs/**'
 docker exec hephaestus hephaestus protected-path remove 'docs/**'
 docker exec hephaestus hephaestus setting list
 docker exec hephaestus hephaestus setting set language pl
+docker exec hephaestus hephaestus setting set pollingInterval 120                                 # how often GitHub is polled, in seconds
 docker exec hephaestus hephaestus config show                                                     # all of it; secrets by name only
 ```
 
@@ -132,6 +133,19 @@ id, so a repository that is renamed is still the same Project: register it again
 remove it by its new name. Registering a Project again with another Base Branch changes the Base Branch. `project remove` retires the
 Project and keeps its record and everything recorded under it; registering it again brings it back. The Projects live in the database
 on the `hephaestus-data` volume and survive a restart. Nothing starts a Task yet.
+
+### Noticing what happens on GitHub
+
+While the host runs it polls GitHub for each registered Project (and for no other repository): an issue labelled, unlabelled, closed, or
+reopened, and a comment created or edited, each become one Signal in a persisted inbox, with the numeric id of the user GitHub names as the
+actor. There is no public endpoint, so it works behind a home router. Requests are conditional, GitHub's `304` and any minimum interval
+and rate-limit wait are respected, and a restart loses or doubles nothing. Nothing acts on the Signals yet.
+
+```bash
+docker exec hephaestus hephaestus setting set pollingInterval 120   # seconds, 10 to 3600; the default is 60
+```
+
+[`docs/polling.md`](docs/polling.md) describes what is watched, what a Signal holds, and the waits.
 
 ### The Project's configuration file
 

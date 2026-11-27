@@ -13,9 +13,9 @@ public class SettingServiceTests
     {
         var service = new SettingService(new FakeInstallation(), new FakeInstallation());
 
-        var setting = Assert.Single(await service.ListAsync(Token));
+        var settings = await service.ListAsync(Token);
 
-        Assert.Equal(new SettingValue("language", "en", "en", IsSet: false), setting);
+        Assert.Equal(new SettingValue("language", "en", "en", IsSet: false), settings[0]);
     }
 
     [Theory]
@@ -32,7 +32,7 @@ public class SettingServiceTests
         Assert.Equal(SettingFailure.None, result.Failure);
         Assert.Equal(new SettingValue("language", stored, "en", IsSet: true), result.Setting);
         Assert.Equal(stored, store.Settings["language"]);
-        Assert.Equal(stored, Assert.Single(await service.ListAsync(Token)).Value);
+        Assert.Equal(stored, (await service.ListAsync(Token))[0].Value);
     }
 
     [Theory]
@@ -71,7 +71,7 @@ public class SettingServiceTests
         store.Settings["language"] = "tlh";
         var service = new SettingService(store, store);
 
-        var setting = Assert.Single(await service.ListAsync(Token));
+        var setting = (await service.ListAsync(Token))[0];
         Assert.Equal("en", setting.Value);
         Assert.False(setting.IsSet);
         Assert.Null(InstallationSettings.StoredLanguage(store.Settings));
@@ -112,5 +112,64 @@ public class SettingServiceTests
         Assert.Same(InstallationSettings.Language, InstallationSettings.Find("language"));
         Assert.Null(InstallationSettings.Find("nope"));
         Assert.Null(InstallationSettings.Find(null));
+    }
+
+    [Fact]
+    public async Task A_new_installation_polls_every_sixty_seconds_and_the_setting_says_what_it_accepts()
+    {
+        var service = new SettingService(new FakeInstallation(), new FakeInstallation());
+
+        var setting = Assert.Single(await service.ListAsync(Token), s => s.Name == "pollingInterval");
+
+        Assert.Equal(new SettingValue("pollingInterval", "60", "60", IsSet: false), setting);
+        Assert.Equal("10-3600 s", InstallationSettings.PollingInterval.Accepts);
+        Assert.Equal(TimeSpan.FromSeconds(60), InstallationSettings.PollingIntervalFrom(new Dictionary<string, string>()));
+    }
+
+    [Theory]
+    [InlineData("10", 10)]
+    [InlineData("90", 90)]
+    [InlineData("3600", 3600)]
+    public async Task The_polling_interval_is_stored_as_whole_seconds_and_the_poller_reads_it(string value, int seconds)
+    {
+        var store = new FakeInstallation();
+        var service = new SettingService(store, store);
+
+        var result = await service.SetAsync("pollingInterval", value, Token);
+
+        Assert.Equal(SettingFailure.None, result.Failure);
+        Assert.Equal(value, store.Settings["pollingInterval"]);
+        Assert.Equal(TimeSpan.FromSeconds(seconds), InstallationSettings.PollingIntervalFrom(store.Settings));
+    }
+
+    [Theory]
+    [InlineData("9")]
+    [InlineData("3601")]
+    [InlineData("0")]
+    [InlineData("-60")]
+    [InlineData("1.5")]
+    [InlineData("60s")]
+    [InlineData("")]
+    [InlineData("٦٠")]
+    [InlineData("99999999999999999999")]
+    public async Task A_polling_interval_outside_ten_to_3600_seconds_or_not_a_whole_number_is_refused(string value)
+    {
+        var store = new FakeInstallation();
+        store.Settings["pollingInterval"] = "30";
+        var service = new SettingService(store, store);
+
+        var result = await service.SetAsync("pollingInterval", value, Token);
+
+        Assert.Equal(SettingFailure.InvalidValue, result.Failure);
+        Assert.Equal("30", store.Settings["pollingInterval"]);
+    }
+
+    [Theory]
+    [InlineData("5")]
+    [InlineData("junk")]
+    [InlineData("")]
+    public void A_stored_polling_interval_that_is_no_longer_valid_reads_as_the_default(string stored)
+    {
+        Assert.Equal(TimeSpan.FromSeconds(60), InstallationSettings.PollingIntervalFrom(new Dictionary<string, string> { ["pollingInterval"] = stored }));
     }
 }

@@ -59,6 +59,18 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// <summary>The refs the contents were asked for at, in order: what the gateway reads a file at.</summary>
     public List<string> ContentRefs { get; } = [];
 
+    /// <summary>Issue events by repository id: GitHub's id and the JSON of each, in any order.</summary>
+    public Dictionary<long, List<(long Id, string Json)>> IssueEvents { get; } = [];
+
+    /// <summary>Issue comments by repository id: when each was last updated and the JSON of each, in any order.</summary>
+    public Dictionary<long, List<(DateTimeOffset UpdatedAt, string Json)>> Comments { get; } = [];
+
+    /// <summary>The headers added to every answer of the event and comment lists, for example <c>X-Poll-Interval</c>.</summary>
+    public Dictionary<string, string> ListHeaders { get; } = [];
+
+    /// <summary>The polled lists asked for, in order: the path, the query, and the entity tag the request carried.</summary>
+    public List<(string Path, string Query, string? IfNoneMatch)> ListRequests { get; } = [];
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -91,6 +103,8 @@ internal sealed class FakeGitHub : HttpMessageHandler
             "/app" => Json(HttpStatusCode.OK, AppJson),
             "/app/installations" => Json(HttpStatusCode.OK, InstallationsJson),
             "/installation/repositories" => Json(HttpStatusCode.OK, RepositoriesOf(request)),
+            _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.EndsWith("/issues/events", StringComparison.Ordinal) => ListOf(request, path, "/issues/events"),
+            _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.EndsWith("/issues/comments", StringComparison.Ordinal) => ListOf(request, path, "/issues/comments"),
             _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/contents/", StringComparison.Ordinal) => ContentAt(request),
             _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/branches/", StringComparison.Ordinal) => BranchAt(path),
             _ when path.StartsWith("/users/", StringComparison.Ordinal) => Users.TryGetValue(Uri.UnescapeDataString(path["/users/".Length..]), out var user)
@@ -100,6 +114,63 @@ internal sealed class FakeGitHub : HttpMessageHandler
                 => Json(HttpStatusCode.Created, $$"""{"token":"{{InstallationToken}}","expires_at":"2099-01-01T00:00:00Z"}"""),
             _ => Json(HttpStatusCode.NotFound, """{"message":"Not Found"}"""),
         };
+    }
+
+    /// <summary>
+    /// GitHub's lists of a repository's issue events (newest first) and issue comments (by update time, from <c>since</c>), paged by
+    /// <c>per_page</c> and <c>page</c> with a <c>Link</c> header, and answered with <c>304</c> to the entity tag of the first page.
+    /// </summary>
+    private HttpResponseMessage ListOf(HttpRequestMessage request, string path, string suffix)
+    {
+        var query = System.Web.HttpUtility.ParseQueryString(request.RequestUri!.Query);
+        var repository = long.Parse(path["/repositories/".Length..^suffix.Length], System.Globalization.CultureInfo.InvariantCulture);
+        var ifNoneMatch = request.Headers.IfNoneMatch.FirstOrDefault()?.ToString();
+        ListRequests.Add((path, request.RequestUri.Query, ifNoneMatch));
+        Assert.Equal(InstallationToken, request.Headers.Authorization!.Parameter);
+
+        List<string> all;
+        if (suffix == "/issues/events")
+        {
+            all = [.. IssueEvents.GetValueOrDefault(repository, []).OrderByDescending(e => e.Id).Select(e => e.Json)];
+        }
+        else
+        {
+            var since = query["since"] is { } text ? DateTimeOffset.Parse(text, System.Globalization.CultureInfo.InvariantCulture) : DateTimeOffset.MinValue;
+            all = [.. Comments.GetValueOrDefault(repository, []).Where(c => c.UpdatedAt >= since).OrderBy(c => c.UpdatedAt).Select(c => c.Json)];
+        }
+
+        var perPage = int.Parse(query["per_page"] ?? "30", System.Globalization.CultureInfo.InvariantCulture);
+        var page = int.Parse(query["page"] ?? "1", System.Globalization.CultureInfo.InvariantCulture);
+        var entityTag = $"W/\"{System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(request.RequestUri.Query.Replace("&page=" + page, string.Empty, StringComparison.Ordinal) + string.Concat(all))).Aggregate(string.Empty, (hex, b) => hex + b.ToString("x2", System.Globalization.CultureInfo.InvariantCulture))[..16]}\"";
+
+        HttpResponseMessage response;
+        if (page == 1 && ifNoneMatch == entityTag)
+        {
+            response = new HttpResponseMessage(HttpStatusCode.NotModified);
+        }
+        else
+        {
+            response = Json(HttpStatusCode.OK, "[" + string.Join(',', all.Skip((page - 1) * perPage).Take(perPage)) + "]");
+            if (page == 1)
+            {
+                response.Headers.TryAddWithoutValidation("ETag", entityTag);
+            }
+
+            if (page * perPage < all.Count)
+            {
+                var next = request.RequestUri.Query.Contains("&page=", StringComparison.Ordinal)
+                    ? request.RequestUri.Query.Replace("&page=" + page, "&page=" + (page + 1), StringComparison.Ordinal)
+                    : request.RequestUri.Query + "&page=2";
+                response.Headers.TryAddWithoutValidation("Link", $"<https://api.github.com{path}{next}>; rel=\"next\"");
+            }
+        }
+
+        foreach (var (name, value) in ListHeaders)
+        {
+            response.Headers.TryAddWithoutValidation(name, value);
+        }
+
+        return response;
     }
 
     private HttpResponseMessage BranchAt(string path)

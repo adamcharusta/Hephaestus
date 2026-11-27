@@ -22,6 +22,10 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<ProjectEntry> Projects => Set<ProjectEntry>();
 
+    public DbSet<SignalEntry> Signals => Set<SignalEntry>();
+
+    public DbSet<PollCursorEntry> PollCursors => Set<PollCursorEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -95,6 +99,28 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             project.Property(p => p.RepositoryId).ValueGeneratedNever();
             project.Property(p => p.FullName).IsRequired().HasMaxLength(Core.Projects.ProjectName.MaximumOwnerLength + 1 + Core.Projects.ProjectName.MaximumRepositoryLength);
             project.Property(p => p.BaseBranch).IsRequired().HasMaxLength(Core.Projects.ProjectName.MaximumBranchLength);
+        });
+
+        model.Entity<SignalEntry>(signal =>
+        {
+            signal.ToTable("Signals");
+            signal.HasKey(s => s.Sequence);
+            signal.Property(s => s.Sequence).ValueGeneratedOnAdd();
+            signal.Property(s => s.Source).IsRequired().HasMaxLength(32);
+            signal.Property(s => s.SourceEventId).IsRequired().HasMaxLength(128);
+            signal.Property(s => s.Kind).IsRequired().HasMaxLength(32);
+            signal.Property(s => s.ActorLogin).HasMaxLength(Core.Trust.GitHubLogin.MaximumLength + Core.Trust.GitHubLogin.BotSuffix.Length);
+            signal.Property(s => s.Label).HasMaxLength(100);
+            signal.HasIndex(s => new { s.Source, s.SourceEventId }).IsUnique();
+        });
+
+        model.Entity<PollCursorEntry>(cursor =>
+        {
+            cursor.ToTable("PollCursors");
+            cursor.HasKey(c => new { c.RepositoryId, c.Stream });
+            cursor.Property(c => c.Stream).IsRequired().HasMaxLength(32);
+            cursor.Property(c => c.Position).IsRequired().HasMaxLength(64);
+            cursor.Property(c => c.ETag).HasMaxLength(256);
         });
     }
 }

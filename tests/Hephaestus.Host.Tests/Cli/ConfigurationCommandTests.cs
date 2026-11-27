@@ -184,13 +184,13 @@ public class ConfigurationCommandTests
     }
 
     [Fact]
-    public async Task Settings_list_the_language_with_its_default_and_a_new_installation_is_in_English()
+    public async Task Settings_list_the_language_and_the_polling_interval_with_their_defaults_and_a_new_installation_is_in_English()
     {
         await using var host = await RunningHost.StartAsync();
 
         var list = await RunAsync(host, "setting", "list");
 
-        Assert.Equal($"Setting   Value  Default{Nl}language  en     en{Nl}", list.Output);
+        Assert.Equal($"Setting          Value  Default{Nl}language         en     en{Nl}pollingInterval  60     60{Nl}", list.Output);
     }
 
     [Fact]

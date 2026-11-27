@@ -14,6 +14,11 @@ public sealed partial class GitHubGateway
 {
     public async Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken)
     {
+        if (_limit.ClosedUntil is not null)
+        {
+            return GitHubRepositoryResult.Failed(GitHubRepositoryFailure.Unreachable);
+        }
+
         if (!ProjectName.TryParse(fullName, out var owner, out _))
         {
             return GitHubRepositoryResult.Failed(GitHubRepositoryFailure.NotInstalled);
@@ -61,6 +66,7 @@ public sealed partial class GitHubGateway
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested && IsOutage(exception))
         {
+            NoteRateLimit(exception);
             return GitHubRepositoryResult.Failed(GitHubRepositoryFailure.Unreachable);
         }
         catch (ApiException)
@@ -84,6 +90,11 @@ public sealed partial class GitHubGateway
 
     public async Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken)
     {
+        if (_limit.ClosedUntil is not null)
+        {
+            return GitHubFileResult.Failed(GitHubFileFailure.Unreachable);
+        }
+
         var (appId, privateKey) = await ReadCredentialAsync(cancellationToken);
         if (appId is null || privateKey is null)
         {
@@ -122,6 +133,7 @@ public sealed partial class GitHubGateway
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested && IsOutage(exception))
         {
+            NoteRateLimit(exception);
             return GitHubFileResult.Failed(GitHubFileFailure.Unreachable);
         }
         catch (ApiException)
