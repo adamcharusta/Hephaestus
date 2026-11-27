@@ -112,6 +112,7 @@ internal static class TarFiles
     /// </summary>
     public static async Task<(ReadOutcome Outcome, string? Sha256, string? Detail)> ReadOneFileAsync(Stream archive, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
     {
+        var phase = "the first entry";
         try
         {
             await using var reader = new TarReader(archive, leaveOpen: true);
@@ -134,6 +135,7 @@ internal static class TarFiles
             string checksum;
             try
             {
+                phase = "the file";
                 using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 await using (var file = new FileStream(destination, System.IO.FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous))
                 {
@@ -146,11 +148,19 @@ internal static class TarFiles
                     }
                 }
 
-                // Whatever follows the file is an extra entry, unless it is the end of the archive.
-                if (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is { } extra)
+                // Whatever follows the file is an extra entry, unless it is the end of the archive. A stream that ends there, before the blocks that end an archive, holds no second entry: only the first is ever used.
+                phase = "the end of the archive";
+                try
                 {
-                    File.Delete(destination);
-                    return (ReadOutcome.NotOneRegularFile, null, $"extra entry {extra.EntryType} {Printable(extra.Name)}");
+                    if (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is { } extra)
+                    {
+                        File.Delete(destination);
+                        return (ReadOutcome.NotOneRegularFile, null, $"extra entry {extra.EntryType} {Printable(extra.Name)}");
+                    }
+                }
+                catch (EndOfStreamException)
+                {
+                    // The Engine closes the stream of a copy out of a container without the blocks that end an archive.
                 }
 
                 checksum = Convert.ToHexStringLower(hash.GetHashAndReset());
@@ -165,7 +175,7 @@ internal static class TarFiles
         }
         catch (Exception exception) when (exception is InvalidDataException or EndOfStreamException or FormatException)
         {
-            return (ReadOutcome.NotOneRegularFile, null, $"{exception.GetType().Name}: {Printable(exception.Message)}");
+            return (ReadOutcome.NotOneRegularFile, null, $"{exception.GetType().Name} in {phase}: {Printable(exception.Message)}");
         }
     }
 

@@ -481,6 +481,75 @@ public sealed class CheckpointContainerTests : IDisposable
         Assert.Contains("InvalidDataException", (string)failure.Info.Arguments[1], StringComparison.Ordinal);
     }
 
+    /// <summary>Where the first entry of <see cref="ResultTar"/> ends: a pax header of the entry and its records (two blocks), the entry's header, and the file padded to a block.</summary>
+    private const int EndOfFirstEntry = 4 * 512;
+
+    [Fact]
+    public async Task A_stream_the_engine_closes_before_the_blocks_that_end_an_archive_holds_no_second_entry_and_the_first_is_used()
+    {
+        var tar = ResultTar(ResultBundle());
+        _docker.ResultArchive = (_, _) => Task.FromResult(new Docker.DotNet.Models.ContainerArchiveResponse { Stat = new Docker.DotNet.Models.ContainerPathStatResponse(), Stream = new BrokenStream(tar, EndOfFirstEntry) });
+
+        var result = await CheckpointAsync(WriteParent());
+
+        Assert.Equal(Tip, result.Bundle!.Tip);
+    }
+
+    [Fact]
+    public async Task A_stream_that_breaks_inside_the_file_is_an_infrastructure_error_that_says_where()
+    {
+        var tar = ResultTar(ResultBundle());
+        _docker.ResultArchive = (_, _) => Task.FromResult(new Docker.DotNet.Models.ContainerArchiveResponse { Stat = new Docker.DotNet.Models.ContainerPathStatResponse(), Stream = new BrokenStream(tar, EndOfFirstEntry - 500) });
+
+        var failure = await RefusedAsync();
+
+        Assert.Equal(MessageIds.WorkspaceCheckpointResultArchive, failure.Info.Id);
+        Assert.StartsWith("EndOfStreamException in the file", (string)failure.Info.Arguments[1], StringComparison.Ordinal);
+    }
+
+    /// <summary>A stream that gives its bytes as far as <paramref name="breaksAt"/> and then fails as the Engine's chunked response does when the connection closes: it supports only asynchronous reads.</summary>
+    private sealed class BrokenStream(byte[] bytes, int breaksAt) : Stream
+    {
+        private int _position;
+
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => throw new NotSupportedException();
+
+        public override long Position
+        {
+            get => _position;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            if (_position >= breaksAt)
+            {
+                throw new EndOfStreamException("The connection closed in the middle of a chunk.");
+            }
+
+            var count = Math.Min(Math.Min(buffer.Length, breaksAt - _position), bytes.Length - _position);
+            bytes.AsMemory(_position, count).CopyTo(buffer);
+            _position += count;
+            return ValueTask.FromResult(count);
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
     [Fact]
     public async Task An_empty_archive_and_an_archive_without_a_stream_are_infrastructure_errors()
     {
