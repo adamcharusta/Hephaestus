@@ -39,9 +39,12 @@ public static class EscalationKinds
     }
 }
 
-/// <summary>How an Escalation ended without an answer: the Task left <c>WaitingForOwner</c> because a Trusted User cancelled or closed it.</summary>
+/// <summary>How an Escalation ended: a Trusted User answered it, or cancelled or closed the Task, which left <c>WaitingForOwner</c> without an answer.</summary>
 public enum EscalationOutcome
 {
+    /// <summary>A Trusted User replied on the issue, and the Task returned to <c>Queued</c> with the reply as the answer (Story 2.10, FR-49).</summary>
+    Answered,
+
     /// <summary>A Trusted User removed the Marker Label, and the Task became <c>Cancelled</c>.</summary>
     Cancelled,
 
@@ -53,6 +56,7 @@ public static class EscalationOutcomes
 {
     public static string Tag(this EscalationOutcome outcome) => outcome switch
     {
+        EscalationOutcome.Answered => "answered",
         EscalationOutcome.Cancelled => "cancelled",
         EscalationOutcome.Closed => "closed",
         _ => throw new ArgumentOutOfRangeException(nameof(outcome), outcome, null),
@@ -87,7 +91,7 @@ public sealed record FailedEffect(string Key, EffectKind Kind, string Detail, st
 /// <param name="ResumeCondition">What ends the wait, one of <see cref="ResumeConditions"/> (AD-1: every wait has one).</param>
 /// <param name="Cause">What caused it, as the journal names causes.</param>
 /// <param name="Effect">The effect that could not be completed, when that is the reason.</param>
-/// <param name="ClosedAt">When the Task left <c>WaitingForOwner</c> without an answer; null while the Escalation is open.</param>
+/// <param name="ClosedAt">When the Task left <c>WaitingForOwner</c>, answered or not; null while the Escalation is open.</param>
 public sealed record Escalation(
     Guid Id,
     Guid TaskId,

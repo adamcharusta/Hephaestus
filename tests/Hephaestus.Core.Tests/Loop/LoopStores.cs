@@ -28,6 +28,9 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
 
     public Dictionary<Guid, List<IssueSnapshot>> Snapshots { get; } = [];
 
+    /// <summary>The comments of Trusted Users the loop admitted, in the order it admitted them.</summary>
+    public List<AdmittedComment> AdmittedComments { get; } = [];
+
     public string? AppSlug { get; set; }
 
     /// <summary>GitHub, as far as the loop asks it: the labels of the issues.</summary>
@@ -136,6 +139,11 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             }
         }
 
+        if (application.AdmitComment is { } admitted)
+        {
+            AdmittedComments.Add(admitted);
+        }
+
         AppendIntents(application.NewEffects);
         return Task.FromResult(true);
     }
@@ -226,6 +234,9 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         return Task.FromResult<IReadOnlyList<PendingEffect>>([.. unfinished]);
     }
 
+    public Task<IReadOnlyList<AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<AdmittedComment>>([.. AdmittedComments.Where(c => c.TaskId == taskId)]);
+
     public Task<Escalation?> FindEscalationAsync(Guid escalationId, CancellationToken cancellationToken) =>
         Task.FromResult(Escalations.FirstOrDefault(e => e.Id == escalationId));
 
@@ -237,6 +248,9 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
 
     public static Signal Labeled(string id, long? actor = 29, string? login = "alice", string label = "hephaestus", int issue = 7, long repository = RepositoryId, string? title = "Add a login page", string? body = "Details.") =>
         new(Signal.GitHubSource, id, SignalKind.Labeled, repository, issue, actor, login, label, null, null, new DateTimeOffset(2026, 11, 27, 11, 0, 0, TimeSpan.Zero), title, body);
+
+    public static Signal Comment(string id, long? actor = 29, string? login = "alice", string? body = "Use Postgres.", int issue = 7, long commentId = 500, long repository = RepositoryId, DateTimeOffset? at = null) =>
+        new(Signal.GitHubSource, id, SignalKind.CommentCreated, repository, issue, actor, login, null, commentId, actor, at ?? new DateTimeOffset(2026, 11, 27, 13, 0, 0, TimeSpan.Zero), CommentBody: body);
 
     public static Signal Unlabeled(string id, long? actor = 1001, string? login = "bob", string label = "hephaestus:queued", int issue = 7, long repository = RepositoryId) =>
         new(Signal.GitHubSource, id, SignalKind.Unlabeled, repository, issue, actor, login, label, null, null, new DateTimeOffset(2026, 11, 27, 11, 5, 0, TimeSpan.Zero));

@@ -53,6 +53,9 @@ public interface IReadStore
     /// <summary>The Escalations of a Task in the order they were raised; the open one, if there is one, is the last.</summary>
     Task<IReadOnlyList<Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken);
 
+    /// <summary>The comments Trusted Users wrote on the Task's issue that were admitted, oldest first; one that answered an Escalation says which.</summary>
+    Task<IReadOnlyList<AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken);
+
     /// <summary>The effects that have an intent and no result (AD-5), in the order they were journaled, with the Task each is for and how its attempts went.</summary>
     Task<IReadOnlyList<PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken);
 

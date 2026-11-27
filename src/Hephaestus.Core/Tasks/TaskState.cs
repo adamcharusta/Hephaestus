@@ -58,11 +58,14 @@ public static class TaskStates
 }
 
 /// <summary>
-/// The rows of the lifecycle table (AR-31) that a Trusted User's removal of the Marker Label or close of the issue takes. Only the rows of a
-/// Task that waits for the Owner are here; Story 2.3 adds those of the other states.
+/// The rows of the lifecycle table (AR-31) that a Trusted User's removal of the Marker Label, close of the issue, or reply takes. Only the
+/// rows of a Task that waits for the Owner are here; Story 2.3 adds those of the other states.
 /// </summary>
 public static class TaskLifecycle
 {
+    /// <summary>The state a Trusted User's answer on the issue takes a Task in <paramref name="state"/> to, or null when it takes it nowhere (FR-49).</summary>
+    public static TaskState? AfterAnswer(TaskState state) => state == TaskState.WaitingForOwner ? TaskState.Queued : null;
+
     /// <summary>The state a Trusted User's removal of the Marker Label takes a Task in <paramref name="state"/> to, or null when it takes it nowhere.</summary>
     public static TaskState? AfterMarkerRemoved(TaskState state) => state == TaskState.WaitingForOwner ? TaskState.Cancelled : null;
 

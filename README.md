@@ -82,7 +82,7 @@ A user is identified by GitHub's numeric id, so one who changes their login stay
 not inherit anything. Adding a login GitHub does not know fails, and so does adding the App's own bot account (`<slug>[bot]`).
 `remove` works from what `list` shows, without asking GitHub, so trust can be taken back while GitHub is down; a user who has since changed their login
 can be removed by the new one. The users live in the database on the `hephaestus-data` volume and survive a restart. The Marker Label
-is the first thing that reads the list (see [Opting an issue in](#opting-an-issue-in)); answers and commands are not acted on yet.
+is the first thing that reads the list (see [Opting an issue in](#opting-an-issue-in)); a reply on the issue of a waiting Task is acted on (see [When Hephaestus needs a decision](#when-hephaestus-needs-a-decision)), commands are not yet.
 
 ## Aliases, limits, protected paths, and settings
 
@@ -169,8 +169,10 @@ the Task moves to `waiting-for-owner`, and in v0.1 a Task whose issue can no lon
 
 When it cannot go on with a Task, Hephaestus posts one specific question on the Task's issue, **Hephaestus needs a decision.**, with the options
 lettered one per line, and the Task waits in `waiting-for-owner` while other Tasks go on. The same happens when a change to the issue could not
-be made within the retries, and the comment then says which one. Answering is a later story; until then, fix the cause, or remove the label
-`hephaestus` from the issue to cancel the Task (closing the issue closes it). The notification channels are a later release: in v0.1 the comment
+be made within the retries, and the comment then says which one. **Reply on the issue to answer**: the first reply from a Trusted User puts
+the Task back in the Queue with your reply recorded as the answer among its admitted comments, and the issue shows `hephaestus:queued` again. A reply from anyone else changes nothing and gets no
+reply, and a comment that begins with `/hephaestus` is a command, not an answer. Or remove the label `hephaestus` from the issue to cancel the
+Task (closing the issue closes it). The notification channels are a later release: in v0.1 the comment
 is how you are told. [`docs/escalation.md`](docs/escalation.md) has the shape of the comment and what is done to text an Agent wrote.
 
 ### The Project's configuration file

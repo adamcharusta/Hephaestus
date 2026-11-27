@@ -104,6 +104,8 @@ public class TrustedUserServiceTests
 
         public Task<IReadOnlyList<Hephaestus.Core.Escalations.Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<Hephaestus.Core.Tasks.AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

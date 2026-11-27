@@ -111,6 +111,25 @@ public class GitHubEventsTests
     }
 
     [Fact]
+    public void A_created_comment_carries_its_text_and_one_with_no_text_carries_an_empty_one()
+    {
+        var withText = GitHubEvents.ReadComment(Json("""{"id":9,"user":{"id":5,"login":"a"},"body":"Use Postgres.\r\nThanks.","created_at":"2026-11-27T12:30:00Z","updated_at":"2026-11-27T12:30:00Z","issue_url":"https://api.github.com/repos/o/r/issues/12"}"""), 42, Watched)!;
+        var withoutText = GitHubEvents.ReadComment(Json("""{"id":10,"user":{"id":5,"login":"a"},"body":null,"created_at":"2026-11-27T12:30:00Z","updated_at":"2026-11-27T12:30:00Z","issue_url":"https://api.github.com/repos/o/r/issues/12"}"""), 42, Watched)!;
+
+        Assert.Equal("Use Postgres.\r\nThanks.", Assert.Single(withText.Signals).CommentBody);
+        Assert.Equal(string.Empty, Assert.Single(withoutText.Signals).CommentBody);
+    }
+
+    [Fact]
+    public void A_comment_that_was_edited_before_it_was_read_carries_no_text_on_its_creation_and_none_on_its_edit()
+    {
+        var read = GitHubEvents.ReadComment(Json("""{"id":9,"user":{"id":5,"login":"a"},"body":"Not what they wrote.","created_at":"2026-11-27T12:30:00Z","updated_at":"2026-11-27T12:45:00Z","issue_url":"https://api.github.com/repos/o/r/issues/12"}"""), 42, Watched)!;
+
+        Assert.Equal([SignalKind.CommentCreated, SignalKind.CommentEdited], read.Signals.Select(s => s.Kind));
+        Assert.All(read.Signals, signal => Assert.Null(signal.CommentBody));
+    }
+
+    [Fact]
     public void A_comment_whose_author_is_gone_has_a_creation_with_no_actor()
     {
         var read = GitHubEvents.ReadComment(Json("""{"id":9,"user":null,"created_at":"2026-11-27T12:30:00Z","updated_at":"2026-11-27T12:30:00Z","issue_url":"https://api.github.com/repos/o/r/issues/12"}"""), 42, Watched)!;

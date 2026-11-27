@@ -165,6 +165,13 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         entry.RepositoryId,
         entry.IssueNumber);
 
+    public async Task<IReadOnlyList<AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.AdmittedComments.Where(c => c.TaskId == taskId).OrderBy(c => c.SignalSequence).ThenBy(c => c.Id).ToListAsync(cancellationToken);
+        return [.. entries.Select(entry => new AdmittedComment(entry.TaskId, entry.CommentId, entry.AuthorId, entry.AuthorLogin, entry.Body, entry.Hash, entry.SignalSequence, entry.AdmittedAt, entry.AnswersEscalationId))];
+    }
+
     private static Escalation ToEscalation(EscalationEntry entry) => new(
         entry.Id,
         entry.TaskId,

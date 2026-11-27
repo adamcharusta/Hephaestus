@@ -90,5 +90,5 @@ A comment that says a label was ignored never moves a Task. On an issue that is 
 issue, and says that no Task is affected; on a Task's issue it says that the Task keeps its state.
 
 Read the log with `docker compose logs hephaestus`. Attempts that will be tried again are one warning line per tick. A Task in
-`waiting-for-owner` is resumed by an answer on the issue, which a later story adds; until then, look at the Task's issue and the App's
-permissions, and fix the cause, or remove the Marker Label to cancel the Task ([`escalation.md`](escalation.md)).
+`waiting-for-owner` is resumed by a reply on the issue from a Trusted User: fix the cause, look at the Task's issue and the App's
+permissions, and reply, or remove the Marker Label to cancel the Task ([`escalation.md`](escalation.md)).
