@@ -28,5 +28,6 @@ Each record states one decision, the alternatives weighed, and what follows from
 | [0020](0020-branches-quality-gate-and-image-channels.md) | Branches, the quality gate, and image channels for Hephaestus's own repository | Accepted | Conventions, NFR-18 |
 | [0021](0021-egress-proxy.md) | The egress proxy: one per step run, built into the hephaestus image | Accepted | AD-7, AD-18, NFR-4 |
 | [0022](0022-checkout-from-a-bundle.md) | The checkout of every step: a bare mirror, one bundle, a tools container | Accepted | AD-4, AD-6, AD-9 |
+| [0023](0023-checkpoint-as-one-commit.md) | The checkpoint of a step: one commit made outside the volume's git directory, one bundle file read back | Accepted | AD-6, AD-9, AD-18 |
 
 The brief asked for records on eight topics. They map as follows: modular monolith (0001); agent integration strategy (0004, 0005, 0011); task provider abstraction (0006); local persistence (0014); workspace isolation (0008, 0009, 0010); workflow execution (0002); control plane and execution plane separation (0015, 0008); security boundaries (0008, 0010, 0013, 0018).

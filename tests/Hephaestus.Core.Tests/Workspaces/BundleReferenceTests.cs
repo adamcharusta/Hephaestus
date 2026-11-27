@@ -168,4 +168,24 @@ public class BundleReferenceTests
         Assert.Contains("1", english, StringComparison.Ordinal);
         Assert.Contains("1", polish, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void A_bundle_that_is_not_whole_names_the_one_commit_it_needs()
+    {
+        var prerequisite = new string('c', 40);
+
+        var bundle = new BundleReference("task/step-checkpoint.bundle", Checksum, Tip, prerequisite);
+
+        Assert.Equal(prerequisite, bundle.Prerequisite);
+        Assert.Null(new BundleReference("a.bundle", Checksum, Tip).Prerequisite);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("abc")]
+    [InlineData("CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC")]
+    public void A_prerequisite_that_is_not_a_commit_id_is_refused(string prerequisite)
+    {
+        Assert.Throws<ArgumentException>(() => new BundleReference("a.bundle", Checksum, Tip, prerequisite));
+    }
 }

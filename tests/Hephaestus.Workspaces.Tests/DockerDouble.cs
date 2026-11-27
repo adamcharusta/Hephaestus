@@ -56,6 +56,11 @@ internal sealed class DockerDouble
         {
             var path = call.Arg<ContainerPathStatParameters>().Path;
             Statted.Add(path);
+            if (path.StartsWith("/checkpoint/", StringComparison.Ordinal))
+            {
+                return ResultArchive(call.Arg<string>(), path);
+            }
+
             return ImagePaths.Contains(path)
                 ? Task.FromResult(new ContainerArchiveResponse { Stat = new ContainerPathStatResponse(), Stream = new MemoryStream() })
                 : Task.FromException<ContainerArchiveResponse>(NotFound());
@@ -145,6 +150,12 @@ internal sealed class DockerDouble
     }
 
     public IDockerClient Client { get; }
+
+    /// <summary>What the Engine returns when a file of a stopped checkpoint container is copied out: a missing file, until a test says otherwise.</summary>
+    public Func<string, string, Task<ContainerArchiveResponse>> ResultArchive { get; set; } = (_, _) => Task.FromException<ContainerArchiveResponse>(NotFound());
+
+    /// <summary>The answer of a copy out of a container: a stream of the tar bytes.</summary>
+    public static Task<ContainerArchiveResponse> Archive(byte[] tar) => Task.FromResult(new ContainerArchiveResponse { Stat = new ContainerPathStatResponse(), Stream = new MemoryStream(tar) });
 
     /// <summary>What the Engine says of a container when asked, given the container and how many times it has been asked: running, until a test says otherwise.</summary>
     public Func<string, int, Task<ContainerInspectResponse>> Inspector { get; set; } = (_, _) => Task.FromResult(Inspected("running"));

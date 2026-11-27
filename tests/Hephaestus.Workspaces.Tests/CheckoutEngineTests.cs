@@ -14,65 +14,18 @@ namespace Hephaestus.Workspaces.Tests;
 [SupportedOSPlatform("linux")]
 public sealed class CheckoutEngineTests(EngineFixture engine) : IClassFixture<EngineFixture>
 {
-    private const string Branch = "hephaestus/12-fresh-checkout";
+    private const string Branch = EngineWorkspaces.Branch;
     private static CancellationToken Cancel => TestContext.Current.CancellationToken;
 
-    private sealed record Made(Guid TaskId, ResolvedImage Image, string Repository, string Tip);
+    private readonly EngineWorkspaces _workspaces = new(engine);
 
-    private async Task<Made> PrepareAsync()
-    {
-        Unless(engine.ToolsImage is not null, $"{EngineFixture.ToolsImageVariable} names no hephaestus-tools image to create the checkout containers from.");
-        Unless(LocalGit.Available, "No git and shell on this machine to make the repository the bundle is made of.");
-        var image = await engine.Runtime.ResolveImageAsync(EngineFixture.Musl, Cancel);
-        var taskId = Guid.CreateVersion7();
-        await engine.Runtime.EnsureTaskVolumeAsync(taskId, image, "task:c1:volume:0", Cancel);
-        var repository = Path.Combine(Path.GetTempPath(), $"hephaestus-checkout-source-{Guid.NewGuid():N}");
-        var tip = LocalGit.Repository(repository);
-        return new Made(taskId, image, repository, tip);
-    }
+    private Task<EngineWorkspaces.Made> PrepareAsync() => _workspaces.PrepareAsync();
 
-    private async Task CheckoutAsync(Made made, Guid? stepRunId = null, string? tip = null)
-    {
-        var step = stepRunId ?? Guid.CreateVersion7();
-        var name = $"{step:D}/{step:D}-checkout.bundle";
-        var path = Path.Combine(engine.BundlesDirectory, name.Replace('/', Path.DirectorySeparatorChar));
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        LocalGit.Bundle(made.Repository, path, "main");
-        string checksum;
-        await using (var file = File.OpenRead(path))
-        {
-            checksum = Convert.ToHexStringLower(await SHA256.HashDataAsync(file, Cancel));
-        }
+    private Task CheckoutAsync(EngineWorkspaces.Made made, Guid? stepRunId = null, string? tip = null) => _workspaces.CheckoutAsync(made, stepRunId, tip);
 
-        await engine.Runtime.CheckoutAsync(new CheckoutRequest(made.TaskId, step, Branch, new BundleReference(name, checksum, tip ?? made.Tip)), $"task:c1:checkout:{step:D}", Cancel);
-    }
+    private Task<(long ExitCode, string Output)> RunAsync(EngineWorkspaces.Made made, string script, string? image = null) => _workspaces.RunAsync(made, script, image);
 
-    /// <summary>Runs a shell command as the step user in a container that mounts the Task volume as a step container does, and returns what it printed. <paramref name="image"/> is the image it runs in.</summary>
-    private async Task<(long ExitCode, string Output)> RunAsync(Made made, string script, string? image = null)
-    {
-        var name = $"hephaestus-probe-{Guid.NewGuid():N}";
-        var created = await engine.Docker.Containers.CreateContainerAsync(
-            new CreateContainerParameters
-            {
-                Name = name,
-                Image = image ?? made.Image.Reference,
-                User = StepContainerLayout.User,
-                Entrypoint = ["sh", "-c", script],
-                Labels = new Dictionary<string, string> { ["hephaestus.installation"] = engine.InstallationId, ["hephaestus.task"] = made.TaskId.ToString(), ["hephaestus.step-run"] = string.Empty },
-                HostConfig = new HostConfig
-                {
-                    NetworkMode = "none",
-                    CapDrop = ["ALL"],
-                    Mounts = [new Mount { Type = "volume", Source = $"hephaestus-ws-{made.TaskId}", Target = "/workspace", VolumeOptions = new VolumeOptions { NoCopy = true } }],
-                },
-            },
-            Cancel);
-        await engine.Docker.Containers.StartContainerAsync(created.ID, new ContainerStartParameters(), Cancel);
-        var wait = await engine.Docker.Containers.WaitContainerAsync(created.ID, Cancel);
-        using var logs = await engine.Docker.Containers.GetContainerLogsAsync(created.ID, new ContainerLogsParameters { ShowStdout = true, ShowStderr = true }, Cancel);
-        var (output, error) = await logs.ReadOutputToEndAsync(Cancel);
-        return (wait.StatusCode, (output + error).Trim());
-    }
+    private static void Unless(bool condition, string reason) => EngineWorkspaces.Unless(condition, reason);
 
     [Fact(Skip = "No Docker Engine answers on this machine.", SkipUnless = nameof(RealEngine.Available), SkipType = typeof(RealEngine))]
     public async Task The_workspace_is_a_fresh_clone_of_the_tip_on_the_task_branch_with_default_configuration_and_no_hook_or_remote()
@@ -163,20 +116,5 @@ public sealed class CheckoutEngineTests(EngineFixture engine) : IClassFixture<En
         var version = System.Version.Parse(output.Split('\n')[0].Split(' ')[2].Split('-')[0]);
         Assert.True(version >= new System.Version(2, 48), output);
         Assert.Equal("none", output.Split('\n')[^1]);
-    }
-
-    private static void Unless(bool condition, string reason)
-    {
-        if (condition)
-        {
-            return;
-        }
-
-        if (RealEngine.Required)
-        {
-            Assert.Fail(reason);
-        }
-
-        Assert.Skip(reason);
     }
 }

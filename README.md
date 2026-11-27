@@ -67,8 +67,8 @@ Only the committed tree survives a step. Before every step a container of the `h
 commit on the Base Branch when nothing was pushed yet: a fresh repository with default configuration, no hook, and no untracked or ignored file, so a hook, a git setting, or a fake test runner that one step planted is gone
 when the next one starts. That container has no network and no credential and is given one file, a git bundle, which the gateway makes from a bare mirror of the Project, kept on the `hephaestus-mirrors` volume (a cache that GitHub can fill
 again; only the `hephaestus` container mounts it). The `hephaestus` container runs git only against a mirror, never in a directory a Task can write to; the git that runs in a Task's directory is the one in the tools container. The machine needs the tools image: the runtime fetches `HEPHAESTUS_TOOLS_IMAGE` when it is missing,
-and in a checkout of this repository `docker compose -f deploy/compose.yaml --profile tools build` builds it. The `hephaestus` image is built on Ubuntu 26.04 so that it carries git 2.53. Nothing starts a step yet, so nothing makes a
-checkout yet; the runtime and the gateway do it when asked ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0022](docs/adr/0022-checkout-from-a-bundle.md)).
+and in a checkout of this repository `docker compose -f deploy/compose.yaml --profile tools build` builds it. The `hephaestus` image is built on Ubuntu 26.04 so that it carries git 2.53. After a step that changes code, a container of the same image keeps the work as one commit on the last pushed commit, without using the repository the Agent worked in, and leaves it as one bundle file. Nothing starts a step yet, so nothing makes a
+checkout or a checkpoint yet; the runtime and the gateway do it when asked ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0022](docs/adr/0022-checkout-from-a-bundle.md)).
 
 ## Secrets
 

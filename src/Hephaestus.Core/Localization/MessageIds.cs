@@ -321,4 +321,19 @@ public static class MessageIds
     public const string WorkspaceCheckoutBundleTip = "workspace.checkout.tip";
     public const string WorkspaceCheckoutFailed = "workspace.checkout.failed";
     public const string WorkspaceCheckoutTimedOut = "workspace.checkout.timed-out";
+    public const string CheckpointSubject = "checkpoint.subject";
+    public const string WorkspaceCheckpointBundleLocation = "workspace.checkpoint.bundle-location";
+    public const string WorkspaceCheckpointBundleFile = "workspace.checkpoint.bundle-file";
+    public const string WorkspaceCheckpointBundleSize = "workspace.checkpoint.bundle-size";
+    public const string WorkspaceCheckpointBundleChecksum = "workspace.checkpoint.bundle-checksum";
+    public const string WorkspaceCheckpointBundleNotVerified = "workspace.checkpoint.not-verified";
+    public const string WorkspaceCheckpointBundleHeads = "workspace.checkpoint.heads";
+    public const string WorkspaceCheckpointBundleTip = "workspace.checkpoint.tip";
+    public const string WorkspaceCheckpointFailed = "workspace.checkpoint.failed";
+    public const string WorkspaceCheckpointTimedOut = "workspace.checkpoint.timed-out";
+    public const string WorkspaceCheckpointResultMissing = "workspace.checkpoint.result-missing";
+    public const string WorkspaceCheckpointResultArchive = "workspace.checkpoint.result-archive";
+    public const string WorkspaceCheckpointResultSize = "workspace.checkpoint.result-size";
+    public const string WorkspaceCheckpointResultHeader = "workspace.checkpoint.result-header";
+    public const string WorkspaceCheckpointStepRunning = "workspace.checkpoint.step-running";
 }

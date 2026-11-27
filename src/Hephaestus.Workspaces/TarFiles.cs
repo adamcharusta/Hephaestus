@@ -93,6 +93,139 @@ internal static class TarFiles
         }
     }
 
+    /// <summary>What reading one file out of an archive found (AD-9): the file, written to <c>destination</c>, with its SHA-256 and size, or why nothing was.</summary>
+    public enum ReadOutcome
+    {
+        Written,
+
+        /// <summary>The archive is not exactly one regular file of the expected name: a link, a directory, a path with a parent or a prefix, another name, an extra entry, or a stream that is not a tar.</summary>
+        NotOneRegularFile,
+
+        /// <summary>The file is larger than the bound; nothing was written.</summary>
+        TooLarge,
+    }
+
+    /// <summary>
+    /// Reads the one file a container returns from a stopped container's archive (Docker's copy-from-container): the first entry must be a regular file called exactly <paramref name="name"/>, no larger than
+    /// <paramref name="maximumBytes"/>, and there must be no second entry. A link entry, a name with a parent or a directory in it, or anything else makes it <see cref="ReadOutcome.NotOneRegularFile"/>, and a file that
+    /// was started is deleted: nothing from such an archive is used. The response is first copied to a file of its own, no larger than the bound and the archive's own overhead, and read from there: the stream of a copy out of
+    /// a container supports only asynchronous reads, and is closed by the Engine without the blocks that end an archive, so it is not parsed as it arrives. What the Engine closed early holds no second entry that anyone uses, but
+    /// a file that is cut short is refused, because the entry's data runs out. Both files are deleted when this returns.
+    /// </summary>
+    public static async Task<(ReadOutcome Outcome, string? Sha256, string? Detail)> ReadOneFileAsync(Stream response, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
+    {
+        var staged = destination + ".tar";
+        var phase = "the response";
+        long received = 0;
+        try
+        {
+            await using (var staging = new FileStream(staged, System.IO.FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous))
+            {
+                var buffer = new byte[81920];
+                try
+                {
+                    int read;
+                    while ((read = await response.ReadAsync(buffer, cancellationToken)) > 0)
+                    {
+                        received += read;
+                        if (received > maximumBytes + ArchiveOverheadBytes)
+                        {
+                            return (ReadOutcome.TooLarge, null, null);
+                        }
+
+                        await staging.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    }
+                }
+                catch (EndOfStreamException)
+                {
+                    // The Engine closed the stream early; what arrived is read, and a file that is not whole is refused below.
+                }
+            }
+
+            phase = "the first entry";
+            await using var archive = new FileStream(staged, System.IO.FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous);
+            await using var reader = new TarReader(archive, leaveOpen: true);
+            var entry = await reader.GetNextEntryAsync(copyData: false, cancellationToken);
+            if (entry is null)
+            {
+                return (ReadOutcome.NotOneRegularFile, null, "no entry");
+            }
+
+            if (entry is not { EntryType: TarEntryType.RegularFile or TarEntryType.V7RegularFile, DataStream: { } data } || !string.Equals(entry.Name, name, StringComparison.Ordinal))
+            {
+                return (ReadOutcome.NotOneRegularFile, null, $"first entry {entry.EntryType} {Printable(entry.Name)}");
+            }
+
+            if (entry.Length > maximumBytes)
+            {
+                return (ReadOutcome.TooLarge, null, null);
+            }
+
+            string checksum;
+            long copied = 0;
+            try
+            {
+                phase = "the file";
+                using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                await using (var file = new FileStream(destination, System.IO.FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous))
+                {
+                    var buffer = new byte[81920];
+                    int read;
+                    while ((read = await data.ReadAsync(buffer, cancellationToken)) > 0)
+                    {
+                        copied += read;
+                        hash.AppendData(buffer, 0, read);
+                        await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    }
+                }
+
+                if (copied != entry.Length)
+                {
+                    File.Delete(destination);
+                    return (ReadOutcome.NotOneRegularFile, null, $"the file is cut short: {copied} of {entry.Length} bytes");
+                }
+
+                // Whatever follows the file is an extra entry, unless it is the end of the archive or the end of what arrived.
+                phase = "the end of the archive";
+                try
+                {
+                    if (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is { } extra)
+                    {
+                        File.Delete(destination);
+                        return (ReadOutcome.NotOneRegularFile, null, $"extra entry {extra.EntryType} {Printable(extra.Name)}");
+                    }
+                }
+                catch (EndOfStreamException)
+                {
+                    // The Engine closes the stream of a copy out of a container without the blocks that end an archive.
+                }
+
+                checksum = Convert.ToHexStringLower(hash.GetHashAndReset());
+            }
+            catch
+            {
+                File.Delete(destination);
+                throw;
+            }
+
+            return (ReadOutcome.Written, checksum, null);
+        }
+        catch (Exception exception) when (exception is InvalidDataException or EndOfStreamException or FormatException)
+        {
+            return (ReadOutcome.NotOneRegularFile, null, $"{exception.GetType().Name} in {phase} after {received} bytes: {Printable(exception.Message)}");
+        }
+        finally
+        {
+            File.Delete(staged);
+        }
+    }
+
+    /// <summary>What a tar archive of one file adds to the file: headers, extended headers, padding, and the blocks that end it.</summary>
+    private const long ArchiveOverheadBytes = 64 * 1024;
+
+    /// <summary>What a container named, as text that is safe to print: no control character, at most 80 characters. The name is the container's to choose, and it is shown to the Owner.</summary>
+    private static string Printable(string text) => string.Concat(text.Take(80).Select(character => char.IsControl(character) ? '?' : character));
+
     /// <summary>A stream that feeds everything read through it to a hash.</summary>
     private sealed class HashingReadStream(Stream inner, IncrementalHash hash) : Stream
     {
