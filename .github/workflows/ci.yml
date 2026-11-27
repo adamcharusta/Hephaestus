@@ -152,7 +152,7 @@ jobs:
           docker exec hephaestus test -r /var/run/docker.sock
           docker exec hephaestus test -w /var/run/docker.sock
           # Its mounts are the socket and its own three volumes: no other host path and no Task volume (`hephaestus-ws-<task-id>`).
-          actual="$(docker inspect --format '{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Destination}}{{println}}{{end}}' hephaestus | sort)"
+          actual="$(docker inspect --format '{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Destination}}{{println}}{{end}}' hephaestus | grep -v '^$' | sort)"
           expected="$(printf '%s\n' 'bind||/var/run/docker.sock' 'volume|hephaestus-agents|/var/lib/hephaestus/agents' 'volume|hephaestus-data|/var/lib/hephaestus/data' 'volume|hephaestus-secrets|/var/lib/hephaestus/secrets' | sort)"
           echo "mounts of the hephaestus container:"; echo "$actual"
           test "$actual" = "$expected"
