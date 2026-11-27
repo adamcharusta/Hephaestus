@@ -104,15 +104,19 @@ public class ComposeFileTests
     }
 
     [Fact]
-    public void The_data_and_secrets_volumes_are_named_as_the_architecture_names_them_and_mounted_where_the_image_expects()
+    public void The_data_secrets_and_agents_volumes_are_named_as_the_architecture_names_them_and_mounted_where_the_image_expects()
     {
         var document = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(Deploy("compose.yaml")));
         var volumes = (Dictionary<object, object>)document["volumes"];
 
-        Assert.Equal(["hephaestus-data", "hephaestus-secrets"], volumes.Keys.Cast<string>().Order(StringComparer.Ordinal));
+        Assert.Equal(["hephaestus-agents", "hephaestus-data", "hephaestus-secrets"], volumes.Keys.Cast<string>().Order(StringComparer.Ordinal));
         Assert.All(volumes, volume => Assert.Equal(volume.Key, ((Dictionary<object, object>)volume.Value)["name"]));
         Assert.Equal(
-            [$"hephaestus-data:{HostSettings.DefaultDataDirectory}", $"hephaestus-secrets:{HostSettings.DefaultSecretsDirectory}"],
+            [
+                $"hephaestus-data:{HostSettings.DefaultDataDirectory}",
+                $"hephaestus-secrets:{HostSettings.DefaultSecretsDirectory}",
+                $"hephaestus-agents:{HostSettings.DefaultAgentsDirectory}",
+            ],
             ((List<object>)Service()["volumes"]).Cast<string>());
     }
 
@@ -120,11 +124,14 @@ public class ComposeFileTests
     public void The_image_creates_the_data_and_secrets_directories_for_the_process_user_alone()
     {
         var dockerfile = File.ReadAllText(Deploy("Dockerfile"));
+        Assert.Equal(HostSettings.DefaultAgentsDirectory, Environment(dockerfile, "HEPHAESTUS_AGENTS_DIR"));
 
         Assert.Contains($"HEPHAESTUS_DATA_DIR={HostSettings.DefaultDataDirectory}", dockerfile, StringComparison.Ordinal);
         Assert.Contains($"HEPHAESTUS_SECRETS_DIR={HostSettings.DefaultSecretsDirectory}", dockerfile, StringComparison.Ordinal);
-        Assert.Contains($"chown \"$APP_UID\" /run/hephaestus {HostSettings.DefaultDataDirectory} {HostSettings.DefaultSecretsDirectory}", dockerfile, StringComparison.Ordinal);
+        Assert.Contains($"chown \"$APP_UID\" /run/hephaestus {HostSettings.DefaultDataDirectory} {HostSettings.DefaultSecretsDirectory} {HostSettings.DefaultAgentsDirectory}", dockerfile, StringComparison.Ordinal);
         Assert.Contains($"chmod 700 /run/hephaestus {HostSettings.DefaultDataDirectory} {HostSettings.DefaultSecretsDirectory}", dockerfile, StringComparison.Ordinal);
+        // The agents directory is the one the step containers read, as users of their own.
+        Assert.Contains($"chmod 755 {HostSettings.DefaultAgentsDirectory}", dockerfile, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -132,4 +139,7 @@ public class ComposeFileTests
     {
         Assert.Equal("/run/hephaestus/control.sock", HostSettings.DefaultControlSocketPath);
     }
+
+    private static string Environment(string dockerfile, string name) =>
+        System.Text.RegularExpressions.Regex.Match(dockerfile, $@"{name}=(\S+)").Groups[1].Value;
 }

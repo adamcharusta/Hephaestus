@@ -4,9 +4,9 @@ Deployment files of the spine's source tree. Each is added by the story that fir
 
 | File | Story | Holds |
 | --- | --- | --- |
-| `compose.yaml` | 1.4, 1.5 | The `hephaestus` service: one container, no published port, healthy when its API answers; the `hephaestus-data` and `hephaestus-secrets` volumes |
-| `Dockerfile` | 1.4, 1.5 | The `hephaestus` image for linux/amd64 and linux/arm64, with the mount points of the two volumes |
-| `agents.lock` | 3.1 | |
+| `compose.yaml` | 1.4, 1.5, 3.1 | The `hephaestus` service: one container, no published port, healthy when its API answers; the `hephaestus-data`, `hephaestus-secrets`, and `hephaestus-agents` volumes |
+| `Dockerfile` | 1.4, 1.5, 3.1 | The `hephaestus` image for linux/amd64 and linux/arm64, with the mount points of the three volumes and `agents.lock`, and no Agent binary |
+| `agents.lock` | 3.1 | The Agent CLIs this release was tested with: one version of each, and the SHA-256 of every executable, per architecture and C library ([`docs/agent-clis.md`](../docs/agent-clis.md)) |
 | `tools.Dockerfile` | the story that first starts a helper container | |
 
 ## Run Hephaestus
@@ -25,6 +25,11 @@ docker exec hephaestus hephaestus version
   `/var/lib/hephaestus/secrets` (`HEPHAESTUS_SECRETS_DIR`) holds one file per secret, mode 0600, in a directory only the
   host's user can enter. Only the `hephaestus` service mounts either; a copy of both volumes is a backup of the installation.
   `docker compose down --volumes` deletes them, and with them the installation.
+- **Agent CLIs.** `hephaestus-agents` at `/var/lib/hephaestus/agents` (`HEPHAESTUS_AGENTS_DIR`) holds the pinned Claude Code and Codex CLI executables.
+  At every start, after the database is migrated and before the loop's first tick, the host downloads what the volume lacks from each vendor's
+  official channel, verifies every executable against `agents.lock`, and stops, naming the file, unless all of them match. The first start therefore needs the
+  vendors' download hosts and about a gigabyte of download; later starts download nothing. The volume is not installation state, so it is not part of a
+  backup. [`docs/agent-clis.md`](../docs/agent-clis.md) has the details.
 - **Secrets.** `docker exec -i hephaestus hephaestus secret set <name>` reads the value from standard input; see the
   [README](../README.md#secrets).
 - **Health.** The container's health check is `hephaestus version --json`, so it is healthy when the API answers.

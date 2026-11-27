@@ -238,6 +238,11 @@ public sealed class RunningExecutableTests : IAsyncLifetime
         start.Environment["HEPHAESTUS_CONTROL_SOCKET"] = SocketPath;
         start.Environment["HEPHAESTUS_DATA_DIR"] = DataDirectory;
         start.Environment["HEPHAESTUS_SECRETS_DIR"] = SecretsDirectory;
+        foreach (var (name, value) in AgentsEnvironment.Prepare(_directory))
+        {
+            start.Environment[name] = value;
+        }
+
         foreach (var (name, value) in environment)
         {
             start.Environment[name] = value;

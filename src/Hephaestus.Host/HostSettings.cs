@@ -6,17 +6,24 @@ namespace Hephaestus.Host;
 /// <summary>
 /// What the host and the command line read from the environment. The installation's language is a setting the Owner stores
 /// (Story 1.9); <see cref="Language"/> is what the environment names, English when it names none, and serves only an installation that has
-/// stored none and a command that cannot ask the host. The two directories are the mount points of the <c>hephaestus-data</c> and
-/// <c>hephaestus-secrets</c> volumes (AR-39); only the host reads them.
+/// stored none and a command that cannot ask the host. The three directories are the mount points of the <c>hephaestus-data</c>,
+/// <c>hephaestus-secrets</c>, and <c>hephaestus-agents</c> volumes (AR-39); only the host reads or writes them. The lock is the <c>deploy/agents.lock</c>
+/// the image carries beside the executable, and the CA bundle is the image's own certificate store (Story 3.1).
 /// </summary>
-internal sealed record HostSettings(string ControlSocketPath, Language Language, string DataDirectory, string SecretsDirectory)
+internal sealed record HostSettings(string ControlSocketPath, Language Language, string DataDirectory, string SecretsDirectory, string AgentsDirectory, string AgentsLockFile, string CaBundleFile)
 {
     public const string DefaultControlSocketPath = "/run/hephaestus/control.sock";
     public const string DefaultDataDirectory = "/var/lib/hephaestus/data";
     public const string DefaultSecretsDirectory = "/var/lib/hephaestus/secrets";
+    public const string DefaultAgentsDirectory = "/var/lib/hephaestus/agents";
+    public const string DefaultCaBundleFile = "/etc/ssl/certs/ca-certificates.crt";
+    public const string AgentsLockFileName = "agents.lock";
     public const string ControlSocketVariable = "HEPHAESTUS_CONTROL_SOCKET";
     public const string DataDirectoryVariable = "HEPHAESTUS_DATA_DIR";
     public const string SecretsDirectoryVariable = "HEPHAESTUS_SECRETS_DIR";
+    public const string AgentsDirectoryVariable = "HEPHAESTUS_AGENTS_DIR";
+    public const string AgentsLockVariable = "HEPHAESTUS_AGENTS_LOCK";
+    public const string CaBundleVariable = "HEPHAESTUS_CA_BUNDLE";
     public const string LanguageVariable = "HEPHAESTUS_LANGUAGE";
 
     public PersistenceOptions Persistence => new(DataDirectory, SecretsDirectory);
@@ -25,7 +32,10 @@ internal sealed record HostSettings(string ControlSocketPath, Language Language,
         ValueOrDefault(getVariable(ControlSocketVariable), DefaultControlSocketPath),
         LanguageResolver.Installation(getVariable(LanguageVariable)),
         ValueOrDefault(getVariable(DataDirectoryVariable), DefaultDataDirectory),
-        ValueOrDefault(getVariable(SecretsDirectoryVariable), DefaultSecretsDirectory));
+        ValueOrDefault(getVariable(SecretsDirectoryVariable), DefaultSecretsDirectory),
+        ValueOrDefault(getVariable(AgentsDirectoryVariable), DefaultAgentsDirectory),
+        ValueOrDefault(getVariable(AgentsLockVariable), Path.Combine(AppContext.BaseDirectory, AgentsLockFileName)),
+        ValueOrDefault(getVariable(CaBundleVariable), DefaultCaBundleFile));
 
     private static string ValueOrDefault(string? value, string fallback) => string.IsNullOrWhiteSpace(value) ? fallback : value;
 }

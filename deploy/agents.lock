@@ -1,0 +1,31 @@
+# The Agent CLIs this release of Hephaestus was tested with, and the SHA-256 of every executable (AD-8, Story 3.1).
+# At every start the host reads this file, downloads what the agent binaries volume lacks from the vendor's official
+# channel, verifies it, and stops unless every executable named here for the host's architecture is present and matches.
+#
+# One line per executable, columns separated by white space:
+#   agent  version  arch  libc  file  sha256  url  [archive-sha256]
+#
+#   agent   claude-code or codex-cli.
+#   version one version per agent, the same on every line of that agent; three numbers, a pre-release is not pinned.
+#   arch    x64 or arm64.
+#   libc    glibc or musl where the vendor builds per C library (Claude Code), static for a statically linked build (Codex CLI).
+#   file    the executable's name in the volume: <agent>/<arch>-<libc>/<file>.
+#   sha256  the executable's own digest, checked at every start. For Claude Code it is the checksum in the vendor's signed manifest.
+#   url     the vendor's download address, https only.
+#   archive-sha256  present when the url is a .tar.gz holding the one executable: the digest the vendor publishes for the archive.
+#
+# A pull request that changes this file fails the "Agent CLI pins" check unless each digest matches what the vendor publishes
+# and the vendor's signature over that release verifies (eng/verify-agents-lock.py). Changing a pin also repeats the credentialed
+# runs of docs/spikes/injection with the Owner's credentials (docs/agent-clis.md).
+#
+# Claude Code 2.1.332: https://downloads.claude.ai/claude-code-releases/2.1.332/manifest.json, signed with the key whose
+#   fingerprint is 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE (manifest.json.sig).
+# Codex CLI 0.172.0: https://github.com/openai/codex/releases/tag/rust-v0.172.0, each executable signed with sigstore (<asset>.sigstore).
+claude-code 2.1.332 x64   glibc  claude a2df1f41bb00250992926420d0063f89b127cb81abdd284dbefb80c50ff1d026 https://downloads.claude.ai/claude-code-releases/2.1.332/linux-x64/claude
+claude-code 2.1.332 x64   musl   claude 81f466623d672aed9504ad29b8bb2f240b24f3cc05c255054649250720a1900f https://downloads.claude.ai/claude-code-releases/2.1.332/linux-x64-musl/claude
+claude-code 2.1.332 arm64 glibc  claude 50c305fcb8912851ce774429131d94ed6f84edbe3d8d0ed7a59dade5d893acc0 https://downloads.claude.ai/claude-code-releases/2.1.332/linux-arm64/claude
+claude-code 2.1.332 arm64 musl   claude 122dd3751257a9e769d8c08b19d16e45f3e86c43a09e18d7182fc01c81143246 https://downloads.claude.ai/claude-code-releases/2.1.332/linux-arm64-musl/claude
+codex-cli   0.172.0 x64   static codex  ad83b94c093f0cdd8176a6bc8005a461bdf23a759863e157d40f562b8a9d664d https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-x86_64-unknown-linux-musl.tar.gz a2342a8f7f68f088be30620ccfe9cb84162c93a6b56177855961cda3ed6be392
+codex-cli   0.172.0 x64   static codex-code-mode-host 1800682c85429ff546b23a1aa96b5c1405fe74ac6743690d89d6dc5cfaf3b4f1 https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-code-mode-host-x86_64-unknown-linux-musl.tar.gz 20b0a4bcf332415a5997914c943d04af6c3627af0c379fdbf65400550e352bb4
+codex-cli   0.172.0 arm64 static codex  28c24ad7fb3bf29c95cd66a12e72d2219f06170efefae8b02002ceb50e2866b9 https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-aarch64-unknown-linux-musl.tar.gz 0b99526c185a4425fe96a2214fb7b6a6a7f7c1471883b7afbebe97e15e83e79e
+codex-cli   0.172.0 arm64 static codex-code-mode-host 1d3fe18a94191af82b5d58af3441b04016f8256501f309388f2a05a011b90bd7 https://github.com/openai/codex/releases/download/rust-v0.172.0/codex-code-mode-host-aarch64-unknown-linux-musl.tar.gz b6637ebaa353ea3a934d40e3751289a9a39ed81cf96fe3fa3afea11e3840dc68

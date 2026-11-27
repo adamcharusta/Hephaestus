@@ -23,6 +23,14 @@ internal static class EntryPoint
         {
             await using var app = ControlHost.Build(settings);
             await ControlHost.MigrateAsync(app, cancellationToken);
+            // The loop's first tick is the host's start: nothing runs until the Agent executables are in the volume and verified (AR-40).
+            var log = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Hephaestus.Host");
+            if (await AgentBinaryStartup.PrepareAsync(settings, log, cancellationToken) is { } stopped)
+            {
+                await error.WriteLineAsync(stopped);
+                return 1;
+            }
+
             await app.RunAsync(cancellationToken);
             return 0;
         }

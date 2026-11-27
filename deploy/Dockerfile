@@ -24,6 +24,9 @@ RUN case "$TARGETARCH" in \
 COPY src/ src/
 # The Methodologies the image ships; the publish step places them beside the executable.
 COPY methodologies/ methodologies/
+# The lock of the Agent CLIs this release was tested with (AD-8). The image holds the lock and no Agent binary: the host fetches the
+# pinned executables from each vendor into the `hephaestus-agents` volume at start, because Claude Code may not be redistributed.
+COPY deploy/agents.lock deploy/agents.lock
 RUN dotnet publish src/Hephaestus.Host/Hephaestus.Host.csproj \
       --no-restore -c Release -a "$(cat /arch)" --no-self-contained -o /app \
  && mv /app/Hephaestus.Host /app/hephaestus
@@ -36,14 +39,18 @@ COPY --from=build /app ./
 # The aspnet image sets ASPNETCORE_HTTP_PORTS; the host listens on a Unix socket only, so no port is named here.
 # The data and secrets directories are the mount points of the `hephaestus-data` and `hephaestus-secrets` volumes. A named
 # volume copies their owner and mode from the image on first use, so the process user owns both and only it can enter them.
+# The agents directory is the mount point of `hephaestus-agents`, which the host fills at start and every step container mounts
+# read-only; it is readable by every user because a step container runs as a user of its own, and writable by the process user alone.
 ENV PATH="/app:${PATH}" \
     HEPHAESTUS_CONTROL_SOCKET=/run/hephaestus/control.sock \
     HEPHAESTUS_DATA_DIR=/var/lib/hephaestus/data \
     HEPHAESTUS_SECRETS_DIR=/var/lib/hephaestus/secrets \
+    HEPHAESTUS_AGENTS_DIR=/var/lib/hephaestus/agents \
     ASPNETCORE_HTTP_PORTS=
-RUN mkdir -p /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
- && chown "$APP_UID" /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
- && chmod 700 /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets
+RUN mkdir -p /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets /var/lib/hephaestus/agents \
+ && chown "$APP_UID" /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets /var/lib/hephaestus/agents \
+ && chmod 700 /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
+ && chmod 755 /var/lib/hephaestus/agents
 
 USER $APP_UID
 ENTRYPOINT ["hephaestus", "serve"]

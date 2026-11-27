@@ -40,8 +40,9 @@ GitHub Actions runs `.github/workflows/ci.yml` on every pull request into `devel
 | Check (job name) | Fails when |
 | --- | --- |
 | `Build and test` | the solution does not build, because a compiler warning is an error and nullable reference types are on; a test fails; line coverage over all code is below 80% (`eng/check-coverage.py`); or a package, direct or transitive, carries a license that is not on `eng/allowed-licenses.txt` (`eng/check-licenses.py`) |
-| `Image (linux/amd64)` and `Image (linux/arm64)` | the image does not build on that architecture, the Compose file does not start a healthy `hephaestus` container, the command line cannot reach the API, a port is published, something listens on a network address, or a log line is not a JSON object |
-| `Gate scripts` | the tests of the two gate scripts fail |
+| `Image (linux/amd64)` and `Image (linux/arm64)` | the image does not build on that architecture, the Compose file does not start a healthy `hephaestus` container, the command line cannot reach the API, a port is published, something listens on a network address, or a log line is not a JSON object; the first start does not download and verify the four pinned Agent executables of that architecture, the image holds an Agent binary, an executable does not print its version in a hardened container, or a second start downloads again (Story 3.1) |
+| `Agent CLI pins` | a pull request changes `deploy/agents.lock` and a digest in it is not the one the vendor publishes, or the vendor's signature over that release does not verify (`eng/verify-agents-lock.py`, [`agent-clis.md`](agent-clis.md)); it passes at once for a pull request that leaves the lock alone |
+| `Gate scripts` | the tests of the gate scripts fail |
 | `Branch policy` | a pull request into `main` does not come from `develop` or a `hotfix/*` branch of this repository (it is skipped for pull requests into `develop`) |
 
 The same commands run locally; they are in [`AGENTS.md`](../AGENTS.md) under "Running and verifying". The pull request
@@ -61,5 +62,5 @@ Only the Owner administers the repository, so these are not set by a pull reques
 
 - `develop` is the default branch.
 - `develop` and `main` are protected: no direct push, no force push, no deletion; a pull request is required.
-- The checks `Build and test`, `Image (linux/amd64)`, `Image (linux/arm64)`, `Gate scripts`, and `Branch policy` are required status checks on both branches.
+- The checks `Build and test`, `Image (linux/amd64)`, `Image (linux/arm64)`, `Agent CLI pins`, `Gate scripts`, and `Branch policy` are required status checks on both branches.
 - Branches are up to date before they merge.

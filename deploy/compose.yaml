@@ -4,6 +4,9 @@
 # run inside the container:  docker exec hephaestus hephaestus version
 # State lives on two named volumes: `hephaestus-data` (the SQLite database) and `hephaestus-secrets` (one file per secret).
 # The secrets volume is mounted into this service alone, and the database holds only the names of the secrets.
+# A third, `hephaestus-agents`, holds the Agent CLIs: at every start the host downloads what the volume lacks from each vendor,
+# checks every executable against deploy/agents.lock, and places a CA certificate bundle beside them (Story 3.1). It is not state:
+# an empty volume is filled again at the next start, which needs the vendors' download hosts.
 name: hephaestus
 
 services:
@@ -29,6 +32,7 @@ services:
     volumes:
       - hephaestus-data:/var/lib/hephaestus/data
       - hephaestus-secrets:/var/lib/hephaestus/secrets
+      - hephaestus-agents:/var/lib/hephaestus/agents
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     healthcheck:
@@ -37,10 +41,13 @@ services:
       interval: 15s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      # The API answers only after the first start has downloaded the Agent CLIs, about a gigabyte.
+      start_period: 10m
 
 volumes:
   hephaestus-data:
     name: hephaestus-data
   hephaestus-secrets:
     name: hephaestus-secrets
+  hephaestus-agents:
+    name: hephaestus-agents
