@@ -61,4 +61,57 @@ public sealed class DirectoryMethodologyCatalogTests : IDisposable
 
         Assert.Contains("default", shipped);
     }
+
+    [Fact]
+    public async Task A_Methodology_is_read_with_all_its_files_under_forward_slash_paths_in_ordinal_order()
+    {
+        Make("default/manifest.yml", "name: default\n");
+        Make("default/implementation.md", "Do it.\n");
+        Make("default/nested/deeper/note.txt", "x");
+
+        var methodology = await new DirectoryMethodologyCatalog(_root).ReadAsync("default", TestContext.Current.CancellationToken);
+
+        Assert.Equal("default", methodology!.Name);
+        Assert.Equal(["implementation.md", "manifest.yml", "nested/deeper/note.txt"], methodology.Files.Select(file => file.Path));
+        Assert.Equal("Do it.\n", System.Text.Encoding.UTF8.GetString(methodology.Files[0].Content));
+    }
+
+    [Theory]
+    [InlineData("absent")]
+    [InlineData("bmad")]
+    [InlineData("../default")]
+    [InlineData("Not Valid")]
+    [InlineData("")]
+    public async Task A_Methodology_that_is_not_available_is_not_read(string name)
+    {
+        Make("default/manifest.yml");
+        Make("bmad/README.md");
+
+        Assert.Null(await new DirectoryMethodologyCatalog(_root).ReadAsync(name, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task A_link_in_a_Methodology_is_not_followed()
+    {
+        Make("default/manifest.yml");
+        var outside = Path.Combine(_root, "outside.txt");
+        File.WriteAllText(outside, "secret");
+        File.CreateSymbolicLink(Path.Combine(_root, "default", "link.txt"), outside);
+
+        var methodology = await new DirectoryMethodologyCatalog(_root).ReadAsync("default", TestContext.Current.CancellationToken);
+
+        Assert.Equal(["manifest.yml"], methodology!.Files.Select(file => file.Path));
+    }
+
+    [Fact]
+    public async Task A_Methodology_with_too_many_files_is_refused()
+    {
+        Make("default/manifest.yml");
+        for (var index = 0; index <= DirectoryMethodologyCatalog.MaximumFiles; index++)
+        {
+            Make($"default/f/{index}.txt", "x");
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => new DirectoryMethodologyCatalog(_root).ReadAsync("default", TestContext.Current.CancellationToken));
+    }
 }

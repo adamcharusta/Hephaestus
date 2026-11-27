@@ -77,6 +77,8 @@ public class ProjectConfigurationServiceTests
     private sealed class Methodologies(params string[] names) : IMethodologyCatalog
     {
         public IReadOnlyList<string> ListNames() => names;
+
+        public Task<Hephaestus.Core.Methodologies.Methodology?> ReadAsync(string name, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private static (ProjectConfigurationService Service, Gateway Gateway, FakeInstallation Store) Create(params string[] methodologies)

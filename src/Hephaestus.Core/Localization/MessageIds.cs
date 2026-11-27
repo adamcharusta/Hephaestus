@@ -353,6 +353,10 @@ public static class MessageIds
     public const string AgentAuthenticationUnsupported = "agent.authentication.unsupported";
     public const string AgentEffortUnsupported = "agent.effort.unsupported";
     public const string AgentNoAdapter = "agent.no-adapter";
+
+    public const string MethodologyUnavailable = "methodology.unavailable";
+    public const string MethodologyTemplateMissing = "methodology.template-missing";
+
     public const string AgentCredentialRequired = "agent.credential-required";
     public const string AgentNotConfigured = "agent.not-configured";
     public const string AgentProbeCredentialMissing = "agent.probe.credential-missing";

@@ -1,3 +1,5 @@
+using Hephaestus.Core.Methodologies;
+
 namespace Hephaestus.Core.Ports;
 
 /// <summary>
@@ -8,4 +10,7 @@ public interface IMethodologyCatalog
 {
     /// <summary>The names of the available Methodologies in ascending order.</summary>
     IReadOnlyList<string> ListNames();
+
+    /// <summary>The Methodology of this name with all its files, or null when none is shipped under it.</summary>
+    Task<Methodology?> ReadAsync(string name, CancellationToken cancellationToken);
 }
