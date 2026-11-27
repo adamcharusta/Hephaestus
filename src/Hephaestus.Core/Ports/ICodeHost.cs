@@ -32,4 +32,11 @@ public interface ICodeHost
     /// whether or not it exists. Nothing is stored.
     /// </summary>
     Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the file at <paramref name="path"/> of the repository with GitHub's id <paramref name="repositoryId"/> (the name a Project is
+    /// shown by may be stale), as it is at the tip of <paramref name="branch"/>: the raw bytes and the commit id they belong to, and
+    /// nothing else of any other branch (AD-16). A file larger than <paramref name="maximumLength"/> is not read. The gateway parses nothing.
+    /// </summary>
+    Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken);
 }

@@ -1,6 +1,7 @@
 using System.Globalization;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
+using Hephaestus.Core.Localization;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Settings;
 using Hephaestus.Core.Trust;
@@ -34,4 +35,28 @@ internal static class Documents
         project.RemovedAt is { } removed ? Time(removed) : null,
         change switch { ProjectChange.Registered => "registered", ProjectChange.Updated => "updated", ProjectChange.Unchanged => "unchanged", _ => null },
         baseBranchProtected);
+
+    public static ConfigurationCheckDocument ConfigurationCheck(Project project, ConfigurationStatus status, string commitId, IReadOnlyList<ConfigurationIssue> issues, ProjectConfiguration? configuration) => new(
+        project.RepositoryId,
+        project.FullName,
+        project.BaseBranch,
+        status switch { ConfigurationStatus.Valid => "valid", ConfigurationStatus.Invalid => "invalid", _ => "missing" },
+        commitId,
+        [.. issues.Select(issue => new ConfigurationIssueDocument(issue.Setting, issue.Line, issue.Reason.Id, [.. issue.Reason.Arguments.Select(argument => Convert.ToString(argument, CultureInfo.InvariantCulture) ?? string.Empty)]))],
+        configuration is null ? null : Settings(configuration));
+
+    private static ProjectConfigurationDocument Settings(ProjectConfiguration configuration) => new(
+        configuration.PrimaryAlias,
+        configuration.FallbackAlias,
+        configuration.Effort,
+        configuration.Methodology,
+        configuration.Validation,
+        configuration.CorrectionRounds,
+        configuration.Image,
+        new ProjectLimitsDocument(
+            configuration.Limits.TaskDuration is { } duration ? LimitFormat.FormatDuration(duration) : null,
+            configuration.Limits.CpuMillis is { } cpus ? LimitFormat.FormatCpus(cpus) : null,
+            configuration.Limits.MemoryBytes is { } memory ? LimitFormat.FormatMemory(memory) : null),
+        configuration.AllowedEgressHosts,
+        configuration.Language?.Tag());
 }

@@ -96,7 +96,9 @@ internal sealed class CommandTree
         ProjectAdd = new Command("add", Describe(MessageIds.CliProjectAddDescription)) { ProjectAddName, ProjectBaseBranch, Json };
         ProjectList = new Command("list", Describe(MessageIds.CliProjectListDescription)) { ProjectAll, Json };
         ProjectRemove = new Command("remove", Describe(MessageIds.CliProjectRemoveDescription)) { ProjectRemoveName, Json };
-        Project = new Command("project", Describe(MessageIds.CliProjectDescription)) { ProjectAdd, ProjectList, ProjectRemove };
+        ProjectCheckName = new Argument<string>("owner/repo");
+        ProjectCheck = new Command("check", Describe(MessageIds.CliProjectCheckDescription)) { ProjectCheckName, Json };
+        Project = new Command("project", Describe(MessageIds.CliProjectDescription)) { ProjectAdd, ProjectList, ProjectRemove, ProjectCheck };
 
         Project.SetAction(_ => 0);
 
@@ -194,6 +196,10 @@ internal sealed class CommandTree
     public Command ProjectList { get; }
 
     public Command ProjectRemove { get; }
+
+    public Command ProjectCheck { get; }
+
+    public Argument<string> ProjectCheckName { get; }
 
     public Argument<string> ProjectAddName { get; }
 

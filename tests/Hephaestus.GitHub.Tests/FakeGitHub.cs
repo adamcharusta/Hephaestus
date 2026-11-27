@@ -50,6 +50,15 @@ internal sealed class FakeGitHub : HttpMessageHandler
         ["2/main"] = false,
     };
 
+    /// <summary>The commit at the tip of a branch by repository id and name; a branch that is not here has the commit <c>abc</c>.</summary>
+    public Dictionary<string, string> Commits { get; } = [];
+
+    /// <summary>Files by repository id, path, and the commit they are asked for at: <c>{id}/{path}@{commit}</c>, as GitHub answers <c>GET /repositories/{id}/contents/{path}?ref={commit}</c>.</summary>
+    public Dictionary<string, byte[]> Files { get; } = [];
+
+    /// <summary>The refs the contents were asked for at, in order: what the gateway reads a file at.</summary>
+    public List<string> ContentRefs { get; } = [];
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -82,6 +91,7 @@ internal sealed class FakeGitHub : HttpMessageHandler
             "/app" => Json(HttpStatusCode.OK, AppJson),
             "/app/installations" => Json(HttpStatusCode.OK, InstallationsJson),
             "/installation/repositories" => Json(HttpStatusCode.OK, RepositoriesOf(request)),
+            _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/contents/", StringComparison.Ordinal) => ContentAt(request),
             _ when path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/branches/", StringComparison.Ordinal) => BranchAt(path),
             _ when path.StartsWith("/users/", StringComparison.Ordinal) => Users.TryGetValue(Uri.UnescapeDataString(path["/users/".Length..]), out var user)
                 ? Json(HttpStatusCode.OK, user)
@@ -96,8 +106,24 @@ internal sealed class FakeGitHub : HttpMessageHandler
     {
         var parts = Uri.UnescapeDataString(path["/repositories/".Length..]).Split("/branches/", 2);
         return Branches.TryGetValue(parts[0] + "/" + parts[1], out var isProtected)
-            ? Json(HttpStatusCode.OK, $$$"""{"name":"{{{parts[1]}}}","protected":{{{(isProtected ? "true" : "false")}}},"commit":{"sha":"abc","url":"https://api.github.com/x"}}""")
+            ? Json(HttpStatusCode.OK, $$$"""{"name":"{{{parts[1]}}}","protected":{{{(isProtected ? "true" : "false")}}},"commit":{"sha":"{{{Commits.GetValueOrDefault(parts[0] + "/" + parts[1], "abc")}}}","url":"https://api.github.com/x"}}""")
             : Json(HttpStatusCode.NotFound, """{"message":"Branch not found"}""");
+    }
+
+    private HttpResponseMessage ContentAt(HttpRequestMessage request)
+    {
+        var path = Uri.UnescapeDataString(request.RequestUri!.AbsolutePath["/repositories/".Length..]);
+        var id = path[..path.IndexOf('/', StringComparison.Ordinal)];
+        var file = path[(path.IndexOf("/contents/", StringComparison.Ordinal) + "/contents/".Length)..];
+        var reference = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["ref"] ?? string.Empty;
+        ContentRefs.Add(reference);
+        if (!Files.TryGetValue($"{id}/{file}@{reference}", out var bytes))
+        {
+            return Json(HttpStatusCode.NotFound, """{"message":"Not Found"}""");
+        }
+
+        var encoded = Convert.ToBase64String(bytes, Base64FormattingOptions.InsertLineBreaks).Replace("\r\n", "\n", StringComparison.Ordinal).Replace("\n", "\\n", StringComparison.Ordinal);
+        return Json(HttpStatusCode.OK, $$"""{"type":"file","encoding":"base64","size":{{bytes.Length}},"name":"{{file}}","path":"{{file}}","sha":"f00","content":"{{encoded}}"}""");
     }
 
     /// <summary>The repositories of the installation whose token the request carries; every token here belongs to the last one asked for.</summary>
