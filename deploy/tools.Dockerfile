@@ -4,3 +4,5 @@
 FROM alpine:3.23
 RUN apk add --no-cache git \
  && git --version | awk '{ split($3, v, "."); exit !(v[1] > 2 || (v[1] == 2 && v[2] >= 48)) }'
+# The runtime names the user of every container it creates from this image, and it is the step user's; the image is not run as root either.
+USER 10001:10001

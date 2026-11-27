@@ -171,7 +171,8 @@ public class ComposeFileTests
     [Fact]
     public void The_image_creates_the_data_and_secrets_directories_for_the_process_user_alone()
     {
-        var dockerfile = File.ReadAllText(Deploy("Dockerfile"));
+        // The long lines are continued; a continuation is one line.
+        var dockerfile = System.Text.RegularExpressions.Regex.Replace(File.ReadAllText(Deploy("Dockerfile")), @"\s*\\\r?\n\s*", " ");
         Assert.Equal(HostSettings.DefaultAgentsDirectory, Environment(dockerfile, "HEPHAESTUS_AGENTS_DIR"));
 
         Assert.Contains($"HEPHAESTUS_DATA_DIR={HostSettings.DefaultDataDirectory}", dockerfile, StringComparison.Ordinal);
@@ -241,6 +242,7 @@ public class ComposeFileTests
         Assert.DoesNotContain("ADD ", dockerfile, StringComparison.Ordinal);
         Assert.DoesNotContain("ENTRYPOINT", dockerfile, StringComparison.Ordinal);
         Assert.DoesNotContain("openssh", dockerfile, StringComparison.Ordinal);
+        Assert.Equal("USER 10001:10001", instructions[^1]);
         Assert.Single(instructions, line => line.StartsWith("RUN", StringComparison.Ordinal));
     }
 

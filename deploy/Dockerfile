@@ -57,8 +57,10 @@ ENV PATH="/app:${PATH}" \
     HEPHAESTUS_AGENTS_DIR=/var/lib/hephaestus/agents \
     HEPHAESTUS_MIRRORS_DIR=/var/lib/hephaestus/mirrors \
     ASPNETCORE_HTTP_PORTS=
-RUN mkdir -p /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets /var/lib/hephaestus/agents /var/lib/hephaestus/mirrors \
- && chown "$APP_UID" /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets /var/lib/hephaestus/agents /var/lib/hephaestus/mirrors \
+RUN mkdir -p /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
+      /var/lib/hephaestus/agents /var/lib/hephaestus/mirrors \
+ && chown "$APP_UID" /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets \
+      /var/lib/hephaestus/agents /var/lib/hephaestus/mirrors \
  && chmod 700 /run/hephaestus /var/lib/hephaestus/data /var/lib/hephaestus/secrets /var/lib/hephaestus/mirrors \
  && chmod 755 /var/lib/hephaestus/agents
 

@@ -181,6 +181,8 @@ jobs:
 
       - name: The Docker socket is mounted into this container only, and the container holds nothing else of the host
         run: |
+          set -x
+          docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}'
           # Only this container holds the Docker socket, and the host process can use it as the user it runs as (Story 3.2, AD-7).
           test "$(docker ps -a --filter volume=/var/run/docker.sock --format '{{.Names}}')" = hephaestus
           docker exec hephaestus test -S /var/run/docker.sock
