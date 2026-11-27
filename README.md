@@ -150,8 +150,9 @@ docker exec hephaestus hephaestus setting set pollingInterval 120   # seconds, 1
 
 ### Opting an issue in
 
-An issue becomes a Task when a Trusted User applies the label `hephaestus` to it on GitHub; the label from anyone else does nothing
-(Hephaestus records who it was and why it was refused). The Task starts `queued` with the issue's title and body, as GitHub showed them with the label event, snapshotted and its
+An issue becomes a Task when a Trusted User applies the label `hephaestus` to it on GitHub; the label from anyone else does nothing:
+Hephaestus records who it was and why it was refused, and says on the issue, once for each user, that the label was ignored because that user
+is not a Trusted User. A comment or a `/hephaestus` command from someone who is not a Trusted User is recorded and gets no reply. The Task starts `queued` with the issue's title and body, as GitHub showed them with the label event, snapshotted and its
 branch `hephaestus/<issue-number>-<slug>` chosen. Its state shows on the issue as one label, `hephaestus:queued`, which GitHub's issue filter
 lists; Hephaestus puts it back if you change it by hand. Nothing works on the Task yet: dispatch, withdrawing, and the Dashboard are later
 stories. Ask whether the orchestrator loop is running:
@@ -160,7 +161,7 @@ stories. Ask whether the orchestrator loop is running:
 docker exec hephaestus hephaestus health          # Loop: alive, last tick 2026-11-27T12:00:03Z.  Exit code 1 when it is not alive
 ```
 
-[`docs/intake.md`](docs/intake.md) says what the loop does with each Signal, what the snapshot holds, and how the branch is named.
+[`docs/intake.md`](docs/intake.md) says what the loop does with each Signal, what Hephaestus says on an issue when it ignores something, what the snapshot holds, and how the branch is named.
 [`docs/state-labels.md`](docs/state-labels.md) lists the state labels and says what happens when GitHub cannot be reached or refuses a change:
 the Task moves to `waiting-for-owner`, and in v0.1 a Task whose issue can no longer be written to is visible only in the log.
 

@@ -96,4 +96,17 @@ public class LabelsTests
     {
         Assert.Equal(moves, state.MovesToWaitingForOwnerWhenAnEffectFails());
     }
+
+    [Theory]
+    [InlineData("hephaestus", "hephaestus")]
+    [InlineData("Hephaestus", "hephaestus")]
+    [InlineData("HEPHAESTUS", "hephaestus")]
+    [InlineData("hephaestus:queued", null)]
+    [InlineData("bug", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void Only_the_Marker_Label_is_one_that_Hephaestus_reads_for_now_and_it_is_named_as_it_is_written_here(string? label, string? expected)
+    {
+        Assert.Equal(expected, Labels.ReadLabel(label));
+    }
 }

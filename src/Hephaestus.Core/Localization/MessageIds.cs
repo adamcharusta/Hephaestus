@@ -269,4 +269,6 @@ public static class MessageIds
     public const string ConfigIssueNotYaml = "config.issue.not-yaml";
     public const string ConfigIssueAliasNotAllowed = "config.issue.alias-not-allowed";
     public const string ConfigIssueMethodologyNoneShipped = "config.issue.methodology-none-shipped";
+
+    public const string CommentIgnoredLabel = "comment.ignored-label";
 }

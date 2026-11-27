@@ -43,7 +43,8 @@ internal static class ControlHost
             provider.GetRequiredService<IReadStore>(),
             provider.GetRequiredService<IInstallationConfiguration>(),
             provider.GetRequiredService<TimeProvider>(),
-            rateLimit: provider.GetRequiredService<GitHubRateLimit>()));
+            rateLimit: provider.GetRequiredService<GitHubRateLimit>(),
+            masker: provider.GetRequiredService<SecretMasker>()));
         builder.Services.TryAddSingleton(provider => new GitHubPoller(
             provider.GetRequiredService<IReadStore>(),
             provider.GetRequiredService<ISecretStore>(),
@@ -53,7 +54,8 @@ internal static class ControlHost
             provider.GetRequiredService<GitHubRateLimit>()));
         builder.Services.AddHostedService<PollerService>();
         builder.Services.TryAddSingleton<LoopHeartbeat>();
-        builder.Services.TryAddSingleton<OrchestratorLoop>();
+        // The loop takes the language the environment names, for the installation that has stored none.
+        builder.Services.TryAddSingleton(provider => ActivatorUtilities.CreateInstance<OrchestratorLoop>(provider, settings.Language));
         builder.Services.AddHostedService<OrchestratorService>();
         builder.Services.TryAddSingleton<TrustedUserService>();
         builder.Services.TryAddSingleton<AliasService>();

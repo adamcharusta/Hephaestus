@@ -38,7 +38,7 @@ public class EffectTests
 
         Assert.Equal(["applied", "already-in-place", "superseded", "gave-up", "refused"], Enum.GetValues<EffectResult>().Select(EffectResults.Tag));
         Assert.Equal(["intent", "retry", "result"], Enum.GetValues<JournalEntryKind>().Select(JournalEntryKinds.Tag));
-        Assert.False(EffectKinds.TryParse("comment", out _));
+        Assert.False(EffectKinds.TryParse("push", out _));
         Assert.False(EffectResults.TryParse(null, out _));
         Assert.False(JournalEntryKinds.TryParse("", out _));
         Assert.Throws<ArgumentOutOfRangeException>(() => ((EffectKind)9).Tag());
@@ -91,5 +91,70 @@ public class EffectTests
     {
         Assert.Null(InstallationSettings.EffectRetries.Accept(value));
         Assert.Equal(5, InstallationSettings.EffectRetriesFrom(new Dictionary<string, string> { ["effectRetries"] = value }));
+    }
+
+    [Fact]
+    public void The_scope_of_an_effect_on_an_issue_that_is_no_Task_is_the_Project_and_a_Tasks_is_its_id()
+    {
+        Assert.Equal("project:101:g4:comment:0", EffectKeys.For(EffectKeys.Scope(null, 101), "g4", EffectKind.Comment, 0));
+        Assert.Equal("0197a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b:g4:comment:1", EffectKeys.For(EffectKeys.Scope(Task, 101), "g4", EffectKind.Comment, 1));
+        Assert.Equal("project:101", new NewEffect(null, "g4", EffectKind.Comment, "x", RepositoryId: 101, IssueNumber: 7).Scope);
+        Assert.Throws<ArgumentException>(() => EffectKeys.Scope(null, null));
+    }
+
+    [Fact]
+    public void The_marker_is_a_hidden_comment_with_the_key_and_is_the_last_line_after_one_empty_line()
+    {
+        Assert.Equal("<!-- hephaestus:effect=project:101:g4:comment:0 -->", EffectMarkers.For("project:101:g4:comment:0"));
+        Assert.Equal("Said.\n\n<!-- hephaestus:effect=k -->", EffectMarkers.Append("Said.\n\n", "k"));
+    }
+
+    [Theory]
+    [InlineData("Said.\n\n<!-- hephaestus:effect=k -->", true)]
+    [InlineData("Said.\r\n\r\n<!-- hephaestus:effect=k -->\r\n", true)]
+    [InlineData("<!-- hephaestus:effect=k -->", true)]
+    [InlineData("<!-- hephaestus:effect=k -->\nMore.", false)]
+    [InlineData("Said <!-- hephaestus:effect=k -->", false)]
+    [InlineData("Said.\n\n<!-- hephaestus:effect=other -->", false)]
+    [InlineData("<!-- hephaestus:effect=k-->", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void A_marker_counts_only_as_the_last_line_and_only_for_its_own_key(string? body, bool expected)
+    {
+        Assert.Equal(expected, EffectMarkers.EndsWith(body, "k"));
+    }
+
+    [Fact]
+    public void The_comment_that_says_a_label_was_ignored_keeps_its_facts_in_the_detail_and_one_notice_for_each_user_kind_of_action_and_issue()
+    {
+        var notice = IssueNotices.IgnoredLabel(null, "g4", 101, 7, 1001, "bob", "hephaestus")!;
+
+        Assert.Equal((EffectKind.Comment, "ignored-label|bob|hephaestus", "ignored-label:1001", 101L, 7), (notice.Kind, notice.Detail, notice.NoticeKey, notice.RepositoryId, notice.IssueNumber));
+        Assert.True(IssueNotices.TryWrite(notice.Detail, Hephaestus.Core.Localization.Language.English, out var text));
+        Assert.Equal("**Ignored.** `bob` is not a Trusted User, so the `hephaestus` label has no effect.", text);
+        Assert.NotEqual(notice.NoticeKey, IssueNotices.IgnoredLabel(null, "g5", 101, 7, 1002, "carol", "hephaestus")!.NoticeKey);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("two words")]
+    [InlineData("pipe|login")]
+    [InlineData("`code`")]
+    [InlineData("@everyone")]
+    public void Nothing_but_a_login_is_put_in_a_comment_as_one(string? login)
+    {
+        Assert.Null(IssueNotices.IgnoredLabel(null, "g4", 101, 7, 1001, login, "hephaestus"));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("something-else|x")]
+    [InlineData("ignored-label|bob")]
+    [InlineData("ignored-label|bob|hephaestus|extra")]
+    public void A_detail_of_no_known_kind_is_not_written(string detail)
+    {
+        Assert.False(IssueNotices.TryWrite(detail, Hephaestus.Core.Localization.Language.English, out var text));
+        Assert.Empty(text);
     }
 }

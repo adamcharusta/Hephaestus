@@ -127,6 +127,18 @@ public class OrchestratorServiceTests
     }
 
     [Fact]
+    public void An_effect_that_could_not_be_made_for_an_issue_that_is_no_Task_is_an_error_that_names_the_effect_the_repository_and_the_issue()
+    {
+        var (service, log, _) = Build();
+
+        service.Report(new TickReport(0, 0, 0, null, [], 1, 0, [new EffectProblem(null, "project:101:g1:comment:0", Hephaestus.Core.Effects.EffectResult.GaveUp, "unreachable", MovedToWaitingForOwner: false, RepositoryId: 101, IssueNumber: 7)]));
+
+        var line = Assert.Single(log.Lines);
+        Assert.Equal(LogLevel.Error, line.Level);
+        Assert.Equal("The effect project:101:g1:comment:0 of an issue that is no Task (repository 101, issue #7) was not made (gave-up: unreachable); no Task is affected.", line.Text);
+    }
+
+    [Fact]
     public void Attempts_that_will_be_tried_again_are_one_warning_and_a_tick_with_nothing_to_say_still_writes_no_line()
     {
         var (service, log, _) = Build();

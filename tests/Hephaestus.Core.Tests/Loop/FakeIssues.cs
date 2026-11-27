@@ -32,6 +32,23 @@ internal sealed class FakeIssues : ICodeHost
 
     public int Reads { get; private set; }
 
+    /// <summary>What a search for a comment answers, in order, before it answers as it should; one per call.</summary>
+    public Queue<GitHubCommentResult> FindAnswers { get; } = [];
+
+    /// <summary>What a post answers, in order, before it answers as it should; one per call.</summary>
+    public Queue<GitHubCommentResult> PostAnswers { get; } = [];
+
+    /// <summary>Runs just before a comment is posted, with the key of the effect; a test posts it and loses the answer, or breaks the post.</summary>
+    public Action<string>? BeforePost { get; set; }
+
+    /// <summary>The comments posted, by Hephaestus's own account, with the key of the effect that posted each.</summary>
+    public List<(long RepositoryId, int IssueNumber, string Text, string Key)> Comments { get; } = [];
+
+    /// <summary>What every search for a comment and every post answers instead, while set.</summary>
+    public GitHubCommentResult? CommentAnswer { get; set; }
+
+    public int Finds { get; private set; }
+
     public List<(long RepositoryId, int IssueNumber, string[] Add, string[] Remove, string Key)> Changes { get; } = [];
 
     public List<string> LabelsOf(long repositoryId, int issueNumber) => Of(repositoryId, issueNumber);
@@ -99,6 +116,55 @@ internal sealed class FakeIssues : ICodeHost
         }
 
         return Task.FromResult(Answer ?? GitHubIssueResult.Labelled([.. labels]));
+    }
+
+    public Task<GitHubCommentResult> FindIssueCommentAsync(long repositoryId, int issueNumber, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        Finds++;
+        if (Throws is not null)
+        {
+            throw Throws;
+        }
+
+        if (FindAnswers.TryDequeue(out var scripted))
+        {
+            return Task.FromResult(scripted);
+        }
+
+        if (CommentAnswer is not null)
+        {
+            return Task.FromResult(CommentAnswer);
+        }
+
+        if (Missing.Contains((repositoryId, issueNumber)))
+        {
+            return Task.FromResult(GitHubCommentResult.Failed(GitHubIssueFailure.IssueNotFound));
+        }
+
+        var index = Comments.FindIndex(c => c.RepositoryId == repositoryId && c.IssueNumber == issueNumber && c.Key == idempotencyKey);
+        return Task.FromResult(index < 0 ? GitHubCommentResult.Absent : GitHubCommentResult.Present(index + 1));
+    }
+
+    public Task<GitHubCommentResult> PostIssueCommentAsync(long repositoryId, int issueNumber, string text, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        if (Throws is not null)
+        {
+            throw Throws;
+        }
+
+        BeforePost?.Invoke(idempotencyKey);
+        if (CommentAnswer is not null)
+        {
+            return Task.FromResult(CommentAnswer);
+        }
+
+        if (Missing.Contains((repositoryId, issueNumber)))
+        {
+            return Task.FromResult(GitHubCommentResult.Failed(GitHubIssueFailure.IssueNotFound));
+        }
+
+        Comments.Add((repositoryId, issueNumber, text, idempotencyKey));
+        return Task.FromResult(PostAnswers.TryDequeue(out var scripted) ? scripted : GitHubCommentResult.Present(Comments.Count));
     }
 
     public Task<GitHubIdentityResult> ConnectIdentityAsync(long appId, string privateKey, CancellationToken cancellationToken) => throw new NotSupportedException();

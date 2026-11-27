@@ -155,6 +155,8 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         return Task.FromResult(true);
     }
 
+    private readonly HashSet<(long? RepositoryId, int? IssueNumber, string NoticeKey)> Notices = [];
+
     /// <summary>The clock the journal's lines are stamped with.</summary>
     public TimeProvider TimeProvider { get; set; } = new MovingTime();
 
@@ -162,9 +164,16 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     {
         foreach (var effect in effects ?? [])
         {
-            var ordinal = Journal.Count(e => e.Entry == JournalEntryKind.Intent && e.Effect.TaskId == effect.TaskId && e.Effect.Cause == effect.Cause && e.Effect.Kind == effect.Kind);
-            var key = EffectKeys.For(effect.TaskId, effect.Cause, effect.Kind, ordinal);
-            Journal.Add(new JournalEntry(Journal.Count + 1, JournalEntryKind.Intent, new Effect(key, effect.TaskId, effect.Cause, effect.Kind, effect.Detail, ordinal), null, null, 0, null, TimeProvider.GetUtcNow()));
+            // The rule of the real journal: what is said on an issue about one notice is said once.
+            if (effect.NoticeKey is { } notice && !Notices.Add((effect.RepositoryId, effect.IssueNumber, notice)))
+            {
+                continue;
+            }
+
+            var scope = effect.Scope;
+            var ordinal = Journal.Count(e => e.Entry == JournalEntryKind.Intent && EffectKeys.Scope(e.Effect.TaskId, e.Effect.RepositoryId) == scope && e.Effect.Cause == effect.Cause && e.Effect.Kind == effect.Kind);
+            var key = EffectKeys.For(scope, effect.Cause, effect.Kind, ordinal);
+            Journal.Add(new JournalEntry(Journal.Count + 1, JournalEntryKind.Intent, new Effect(key, effect.TaskId, effect.Cause, effect.Kind, effect.Detail, ordinal, effect.RepositoryId, effect.IssueNumber), null, null, 0, null, TimeProvider.GetUtcNow()));
         }
     }
 
@@ -175,7 +184,7 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             .Select(e =>
             {
                 var last = Journal.LastOrDefault(r => r.Effect.Key == e.Effect.Key && r.Entry == JournalEntryKind.Retry);
-                return new PendingEffect(e.Effect, Tasks.Single(t => t.Id == e.Effect.TaskId), last?.Failures ?? 0, last?.NextAttemptAt);
+                return new PendingEffect(e.Effect, e.Effect.TaskId is { } id ? Tasks.Single(t => t.Id == id) : null, last?.Failures ?? 0, last?.NextAttemptAt);
             });
         return Task.FromResult<IReadOnlyList<PendingEffect>>([.. unfinished]);
     }

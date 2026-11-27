@@ -39,7 +39,8 @@ that one effect, which reads the labels when it is made: whoever can label an is
 
 ## The effect journal
 
-A label change is an outside effect, so it is journaled (ADR 0007). Applying a Signal, the state change and the **intent** to show it are
+A label change is an outside effect, so it is journaled (ADR 0007). A comment is one too, and is journaled the same way; see
+[`intake.md`](intake.md#what-hephaestus-says-on-the-issue-when-it-ignores-something). Applying a Signal, the state change and the **intent** to show it are
 committed together. The change is made after that commit, and its **result** is recorded after it was made:
 
 - An intent has an idempotency key, `<scope>:<cause>:<effect-kind>:<ordinal>`, for example
@@ -82,6 +83,9 @@ issue is gone, or no longer accepts its writes. The log has one error line for i
 ```text
 The effect <key> of Task <id> was not made (refused: issue-not-found); the Task moved to waiting-for-owner.
 ```
+
+A comment that says a label was ignored never moves a Task. On an issue that is no Task the line names the effect, the repository, and the
+issue, and says that no Task is affected; on a Task's issue it says that the Task keeps its state.
 
 Read the log with `docker compose logs hephaestus`. Attempts that will be tried again are one warning line per tick. A Task in
 `waiting-for-owner` is resumed by an answer on the issue, which a later story adds; until then, look at the Task's issue and the App's

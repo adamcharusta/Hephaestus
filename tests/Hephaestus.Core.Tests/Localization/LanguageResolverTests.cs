@@ -27,4 +27,13 @@ public class LanguageResolverTests
     {
         Assert.Equal(expected, LanguageResolver.ForRequest(header, installation));
     }
+
+    [Theory]
+    [InlineData(Language.Polish, Language.English, Language.English, Language.Polish)]
+    [InlineData(null, Language.Polish, Language.English, Language.Polish)]
+    [InlineData(null, null, Language.Polish, Language.Polish)]
+    public void Text_on_GitHub_is_in_the_Tasks_language_else_the_Projects_else_the_installations(Language? task, Language? project, Language installation, Language expected)
+    {
+        Assert.Equal(expected, LanguageResolver.ForText(task, project, installation));
+    }
 }

@@ -77,6 +77,15 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// <summary>The changes made to labels, in order: the method, the path, and the body that came with it.</summary>
     public List<(HttpMethod Method, string Path, string Body)> LabelWrites { get; } = [];
 
+    /// <summary>The comments of issues, by <c>{repository id}/{issue number}</c>, as GitHub holds them, oldest first: the id, the login of the author, and the text; an issue that is not here does not exist.</summary>
+    public Dictionary<string, List<(long Id, string Login, string Body)>> IssueComments { get; } = [];
+
+    /// <summary>The login the comments that are posted are written as.</summary>
+    public string PostedAs { get; set; } = "hephaestus-test[bot]";
+
+    /// <summary>The comments posted, in order: the path and the body of each.</summary>
+    public List<(string Path, string Body)> CommentWrites { get; } = [];
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -102,6 +111,11 @@ internal sealed class FakeGitHub : HttpMessageHandler
         if (path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/issues/", StringComparison.Ordinal) && path.Contains("/labels", StringComparison.Ordinal))
         {
             return await LabelsAtAsync(request, path);
+        }
+
+        if (path.StartsWith("/repositories/", StringComparison.Ordinal) && path.EndsWith("/comments", StringComparison.Ordinal) && path.Contains("/issues/", StringComparison.Ordinal) && !path.EndsWith("/issues/comments", StringComparison.Ordinal))
+        {
+            return await CommentsAtAsync(request, path);
         }
 
         if (path == "/app" && AppStatus is { } status)
@@ -219,6 +233,41 @@ internal sealed class FakeGitHub : HttpMessageHandler
 
         return Json(HttpStatusCode.OK, "[" + string.Join(',', labels.Select(label => $$"""{"name":"{{label}}","color":"ededed"}""")) + "]");
     }
+
+    /// <summary>GitHub's comments of an issue: read them (<c>GET</c>) and add one (<c>POST</c>, as <c>{"body": ...}</c>), written by <see cref="PostedAs"/>.</summary>
+    private async Task<HttpResponseMessage> CommentsAtAsync(HttpRequestMessage request, string path)
+    {
+        Assert.Equal(InstallationToken, request.Headers.Authorization!.Parameter);
+        var parts = Uri.UnescapeDataString(path["/repositories/".Length..^"/comments".Length]).Split("/issues/", 2);
+        var key = $"{parts[0]}/{parts[1]}";
+        if (!IssueComments.TryGetValue(key, out var comments))
+        {
+            return Json(HttpStatusCode.NotFound, """{"message":"Not Found"}""");
+        }
+
+        if (request.Method == HttpMethod.Post)
+        {
+            var body = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync()).RootElement.GetProperty("body").GetString()!;
+            CommentWrites.Add((path, body));
+            comments.Add((comments.Count + 1, PostedAs, body));
+            return Json(HttpStatusCode.Created, CommentJson(comments[^1]));
+        }
+
+        return Json(HttpStatusCode.OK, "[" + string.Join(',', comments.Select(CommentJson)) + "]");
+    }
+
+    private static string CommentJson((long Id, string Login, string Body) comment) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            id = comment.Id,
+            node_id = "IC_" + comment.Id,
+            url = "https://api.github.com/x",
+            html_url = "https://github.com/x",
+            body = comment.Body,
+            user = new { login = comment.Login, id = 9, type = comment.Login.EndsWith("[bot]", StringComparison.Ordinal) ? "Bot" : "User" },
+            created_at = "2026-11-27T12:00:00Z",
+            updated_at = "2026-11-27T12:00:00Z",
+        });
 
     private HttpResponseMessage BranchAt(string path)
     {
