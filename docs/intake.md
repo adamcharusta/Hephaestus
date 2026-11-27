@@ -17,13 +17,15 @@ the Signal is marked and the Task it causes is written together:
 
 | The Signal | What happens | The Signal is |
 | --- | --- | --- |
-| The Marker Label applied by a Trusted User to an issue that is not a Task | a Task is created in `queued`, with the issue's title and body snapshotted and its branch derived | applied, and names the Task |
+| The Marker Label applied by a Trusted User to an issue that is not a Task | a Task is created in `queued`, with the issue's title and body snapshotted and its branch derived, and the intent to show `hephaestus:queued` on the issue is journaled with it | applied, and names the Task |
 | The Marker Label applied by a Trusted User to an issue that is already a Task | nothing; a Task is one Project and one issue for life, and no second Task is made | applied, and names the Task |
 | The Marker Label applied by a user who is not a Trusted User | nothing | rejected: `actor-not-trusted` |
 | The Marker Label applied with no actor in GitHub's data, for example by a deleted account | nothing | rejected: `actor-unknown` |
 | The Marker Label applied by Hephaestus's own GitHub App | nothing; its own content is never admitted, and its bot account is never trusted | rejected: `own-identity` |
 | The Marker Label on a repository that is not a registered Project, or was removed | nothing | rejected: `project-not-registered` |
 | The Marker Label with no issue title in it (a Signal that carries no content for the event to vouch for) | nothing | rejected: `snapshot-missing` |
+| A state label (`hephaestus:<state>`) applied or removed on an issue that is a Task, by anyone but Hephaestus's own App | the issue is made to show the Task's state again (see [`state-labels.md`](state-labels.md)) | applied, and names the Task |
+| A state label on an issue that is not a Task, or applied or removed by Hephaestus's own App | nothing | applied, with no change |
 | Any other label, a removed label, a close, a reopening, a comment | nothing yet; later stories act on them | applied, with no change |
 | A Signal that has failed to apply at least three times over five minutes | it is set aside, so that the Signals behind it are not held back; each failure is in the log | rejected: `apply-failed` |
 
@@ -74,6 +76,7 @@ only asks that the API answers (`version`).
 ## What is not there yet
 
 The Marker Label opts in an issue that is already closed, too: the loop does not look at whether an issue is open. How a close and a
-Task relate is for the story that handles closes. A Task you create is `queued` and nothing more happens to it: nothing dispatches it, shows its state on the issue, withdraws it when you
+Task relate is for the story that handles closes. A Task you create is `queued`, and its state is shown on its issue as the label
+`hephaestus:queued` ([`state-labels.md`](state-labels.md)); nothing more happens to it: nothing dispatches it, withdraws it when you
 remove the label, or says on the issue that a label was ignored. Those are the next stories of the epic. Until the Dashboard shows
-Tasks, they are visible in the database on the `hephaestus-data` volume only.
+Tasks, the label on the issue and the database on the `hephaestus-data` volume are where you see them.

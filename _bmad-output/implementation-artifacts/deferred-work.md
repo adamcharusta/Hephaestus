@@ -38,3 +38,19 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-opt-an-issue-in-with-the-marker-label.md`
   summary: Decide how long the Signal inbox keeps applied and rejected Signals, now that the loop reads it.
   evidence: Story 2.2 added the status index the loop's reads need, but the `Signals` table, and now the issue body each labelled Signal carries, still only grow, and no story's acceptance criteria set a retention (review of Story 2.2).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-see-a-task-s-state-on-its-issue.md`
+  summary: Add the move of a `Queued` Task (and of `WaitingForCapacity` and `PullRequestOpen`) to `WaitingForOwner` when an effect cannot be completed to the lifecycle diagram of the architecture spine.
+  evidence: The diagram lists `Running --> WaitingForOwner: Escalation or effect retry bound` only, but Story 2.4's criteria name this move for a Task that has not started, and a Task that is `Queued` is the only kind that exists until dispatch. The code follows the criteria; the diagram is changed through `bmad-architecture` (review of Story 2.4).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-see-a-task-s-state-on-its-issue.md`
+  summary: Cut the GitHub requests one label effect costs, now about eight (two reads of the installations and tokens, two label reads, the write).
+  evidence: Every gateway call lists the App's installations, mints an installation token, and checks which installation holds the repository, and a change reads the labels again at the end. An installation token lasts an hour and could be kept, and the loop's read and change could share one client. It matters when many Tasks change state together or when the rate limit is near (review of Story 2.4).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-see-a-task-s-state-on-its-issue.md`
+  summary: Decide whether an effect that GitHub keeps rate-limiting should be given up after some number of waits or some total time.
+  evidence: A rate-limit wait counts as no failure and each wait is bounded by two hours, but the number of consecutive waits is not, so an effect that is always rate-limited is never moved to `WaitingForOwner`. Waiting out rate limits is by design (NFR-12); whether it needs an outer bound is not in any acceptance criterion (review of Story 2.4).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-4-see-a-task-s-state-on-its-issue.md`
+  summary: Decide how long the effect journal is kept, now that it is append-only by trigger and only grows.
+  evidence: Story 2.4 makes the journal append-only in the database, so retention cannot prune it without dropping the triggers. A journal line is small and one pending effect per Task answers hand-made label changes, but no story sets a retention for it (review of Story 2.4).

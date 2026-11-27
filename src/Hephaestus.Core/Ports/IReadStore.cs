@@ -1,4 +1,5 @@
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Tasks;
@@ -44,4 +45,10 @@ public interface IReadStore
 
     /// <summary>The newest snapshot of the Task's issue, or null when it has none.</summary>
     Task<IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken);
+
+    /// <summary>The effects that have an intent and no result (AD-5), in the order they were journaled, with the Task each is for and how its attempts went.</summary>
+    Task<IReadOnlyList<PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken);
+
+    /// <summary>The effect journal, in the order it was written: all of it, or only what concerns one Task.</summary>
+    Task<IReadOnlyList<JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken);
 }

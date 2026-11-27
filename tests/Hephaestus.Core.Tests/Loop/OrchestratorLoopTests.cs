@@ -14,8 +14,13 @@ public class OrchestratorLoopTests
     private readonly LoopStores _stores = new();
     private readonly MovingTime _time = new();
 
+    public OrchestratorLoopTests()
+    {
+        _stores.TimeProvider = _time;
+    }
+
     private OrchestratorLoop Loop(List<TimeSpan>? waits = null, Action? onDelay = null) =>
-        new(_stores, _stores, _stores, _time, new LoopHeartbeat(_time), (wait, _) =>
+        new(_stores, _stores, _stores, _stores.Github, _time, new LoopHeartbeat(_time), (wait, _) =>
         {
             waits?.Add(wait);
             onDelay?.Invoke();
@@ -270,7 +275,7 @@ public class OrchestratorLoopTests
     public async Task A_tick_with_nothing_pending_does_nothing_but_beat()
     {
         var heartbeat = new LoopHeartbeat(_time);
-        var loop = new OrchestratorLoop(_stores, _stores, _stores, _time, heartbeat);
+        var loop = new OrchestratorLoop(_stores, _stores, _stores, _stores.Github, _time, heartbeat);
 
         var report = await loop.TickAsync(Token);
 
@@ -414,7 +419,7 @@ public class OrchestratorLoopTests
     public async Task A_tick_that_failed_does_not_beat_so_a_loop_that_fails_every_time_is_not_alive()
     {
         var heartbeat = new LoopHeartbeat(_time);
-        var loop = new OrchestratorLoop(_stores, _stores, _stores, _time, heartbeat);
+        var loop = new OrchestratorLoop(_stores, _stores, _stores, _stores.Github, _time, heartbeat);
         _stores.FailToRead = new InvalidOperationException("The inbox is not there.");
 
         await loop.TickAsync(Token);
@@ -426,7 +431,7 @@ public class OrchestratorLoopTests
     public async Task A_Signal_that_was_applied_beats_even_when_a_later_one_fails()
     {
         var heartbeat = new LoopHeartbeat(_time);
-        var loop = new OrchestratorLoop(_stores, _stores, _stores, _time, heartbeat);
+        var loop = new OrchestratorLoop(_stores, _stores, _stores, _stores.Github, _time, heartbeat);
         await _stores.AppendAsync([LoopStores.Labeled("issue-event:1", issue: 3), LoopStores.Labeled("issue-event:2", issue: 4)], Token);
         _stores.Failures[2] = 1;
 
@@ -578,7 +583,7 @@ public class OrchestratorLoopTests
     public async Task The_default_wait_between_ticks_is_the_interval_on_the_loops_clock()
     {
         using var stop = new CancellationTokenSource();
-        var loop = new OrchestratorLoop(_stores, _stores, _stores, TimeProvider.System, new LoopHeartbeat(TimeProvider.System));
+        var loop = new OrchestratorLoop(_stores, _stores, _stores, _stores.Github, TimeProvider.System, new LoopHeartbeat(TimeProvider.System));
         var reports = new List<TickReport>();
 
         var run = loop.RunAsync(report => { reports.Add(report); stop.Cancel(); }, stop.Token);

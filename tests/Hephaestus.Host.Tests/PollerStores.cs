@@ -29,6 +29,10 @@ internal sealed class PollerStores : IReadStore, ISecretStore, ISignalInbox, IPo
 
     public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => Task.FromResult<Hephaestus.Core.Tasks.IssueSnapshot?>(null);
 
+    public Task<IReadOnlyList<Hephaestus.Core.Effects.PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Hephaestus.Core.Effects.PendingEffect>>([]);
+
+    public Task<IReadOnlyList<Hephaestus.Core.Effects.JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Hephaestus.Core.Effects.JournalEntry>>([]);
+
     public Task<string?> ReadAsync(string name, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
 
     public Task<int> AppendAsync(IReadOnlyList<Signal> signals, CancellationToken cancellationToken) => Task.FromResult(0);

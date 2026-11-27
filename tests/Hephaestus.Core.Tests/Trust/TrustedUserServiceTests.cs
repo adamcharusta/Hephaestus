@@ -70,6 +70,10 @@ public class TrustedUserServiceTests
 
         public Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<GitHubIssueResult> ReadIssueLabelsAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<GitHubIssueResult> ChangeIssueLabelsAsync(long repositoryId, int issueNumber, IReadOnlyList<string> add, IReadOnlyList<string> remove, string idempotencyKey, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -87,6 +91,10 @@ public class TrustedUserServiceTests
         public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Hephaestus.Core.Effects.PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<Hephaestus.Core.Effects.JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 

@@ -85,6 +85,10 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
 
     public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<IReadOnlyList<Hephaestus.Core.Effects.PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Effects.JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task SetGitHubAppIdAsync(long appId, string slug, CancellationToken cancellationToken)
     {
         if (FailToRecordAppId is not null)

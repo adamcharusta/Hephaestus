@@ -51,6 +51,10 @@ public class ProjectConfigurationServiceTests
             });
         }
 
+        public Task<GitHubIssueResult> ReadIssueLabelsAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<GitHubIssueResult> ChangeIssueLabelsAsync(long repositoryId, int issueNumber, IReadOnlyList<string> add, IReadOnlyList<string> remove, string idempotencyKey, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken)
         {
             Lookups.Add(fullName);

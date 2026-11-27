@@ -33,6 +33,13 @@ public static class TaskStates
         _ => throw new ArgumentOutOfRangeException(nameof(state), state, null),
     };
 
+    /// <summary>
+    /// Whether a Task in this state moves to <see cref="TaskState.WaitingForOwner"/> when an effect on its issue cannot be completed (AD-5): a
+    /// Task that is queued or in progress does; one that has ended, or is withdrawn or already waiting for the Owner, stays as it is.
+    /// </summary>
+    public static bool MovesToWaitingForOwnerWhenAnEffectFails(this TaskState state) =>
+        state is TaskState.Queued or TaskState.Running or TaskState.WaitingForCapacity or TaskState.PullRequestOpen;
+
     public static bool TryParse(string? tag, out TaskState state)
     {
         foreach (var candidate in Enum.GetValues<TaskState>())

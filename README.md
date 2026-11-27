@@ -103,6 +103,7 @@ docker exec hephaestus hephaestus protected-path remove 'docs/**'
 docker exec hephaestus hephaestus setting list
 docker exec hephaestus hephaestus setting set language pl
 docker exec hephaestus hephaestus setting set pollingInterval 120                                 # how often GitHub is polled, in seconds
+docker exec hephaestus hephaestus setting set effectRetries 8                                     # how often a change on GitHub is tried again, 0 to 20
 docker exec hephaestus hephaestus config show                                                     # all of it; secrets by name only
 ```
 
@@ -151,14 +152,17 @@ docker exec hephaestus hephaestus setting set pollingInterval 120   # seconds, 1
 
 An issue becomes a Task when a Trusted User applies the label `hephaestus` to it on GitHub; the label from anyone else does nothing
 (Hephaestus records who it was and why it was refused). The Task starts `queued` with the issue's title and body, as GitHub showed them with the label event, snapshotted and its
-branch `hephaestus/<issue-number>-<slug>` chosen. Nothing works on the Task yet: dispatch, the state on the issue, withdrawing, and
-the Dashboard are later stories. Ask whether the orchestrator loop is running:
+branch `hephaestus/<issue-number>-<slug>` chosen. Its state shows on the issue as one label, `hephaestus:queued`, which GitHub's issue filter
+lists; Hephaestus puts it back if you change it by hand. Nothing works on the Task yet: dispatch, withdrawing, and the Dashboard are later
+stories. Ask whether the orchestrator loop is running:
 
 ```bash
 docker exec hephaestus hephaestus health          # Loop: alive, last tick 2026-11-27T12:00:03Z.  Exit code 1 when it is not alive
 ```
 
 [`docs/intake.md`](docs/intake.md) says what the loop does with each Signal, what the snapshot holds, and how the branch is named.
+[`docs/state-labels.md`](docs/state-labels.md) lists the state labels and says what happens when GitHub cannot be reached or refuses a change:
+the Task moves to `waiting-for-owner`, and in v0.1 a Task whose issue can no longer be written to is visible only in the log.
 
 ### The Project's configuration file
 

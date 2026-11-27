@@ -1,3 +1,4 @@
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.Signals;
 using Hephaestus.Core.Tasks;
 
@@ -15,7 +16,8 @@ public sealed record NewTask(TaskRecord Task, IssueSnapshot Snapshot);
 /// <param name="Reason">Why a Signal was rejected, one of <see cref="SignalRejections"/>; null for an applied one.</param>
 /// <param name="TaskId">The Task the Signal concerned, when it concerned one that exists; a new Task's id is taken from <paramref name="NewTask"/>.</param>
 /// <param name="NewTask">The Task this Signal creates, if it does.</param>
-public sealed record SignalApplication(long Sequence, SignalStatus Status, string? Reason = null, Guid? TaskId = null, NewTask? NewTask = null);
+/// <param name="NewEffects">The effects this Signal causes, whose intents commit in the same transaction (AD-5); each is for the Task of <paramref name="NewTask"/> or <paramref name="TaskId"/>.</param>
+public sealed record SignalApplication(long Sequence, SignalStatus Status, string? Reason = null, Guid? TaskId = null, NewTask? NewTask = null, IReadOnlyList<NewEffect>? NewEffects = null);
 
 /// <summary>
 /// The write side of Task state (AD-1). Task and step-run records are written only by the orchestrator loop through this port, and
@@ -24,8 +26,16 @@ public sealed record SignalApplication(long Sequence, SignalStatus Status, strin
 public interface IUnitOfWork
 {
     /// <summary>
-    /// Applies one Signal in one transaction: marks it, and writes the Task that <see cref="SignalApplication.NewTask"/> names. A
-    /// Signal that is no longer pending is left as it is and nothing is written. Returns whether the Signal was applied now.
+    /// Applies one Signal in one transaction: marks it, writes the Task that <see cref="SignalApplication.NewTask"/> names, and journals
+    /// the intents of the effects it causes (AD-5). A Signal that is no longer pending is left as it is and nothing is written. Returns
+    /// whether the Signal was applied now.
     /// </summary>
     Task<bool> ApplyAsync(SignalApplication application, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Appends to the journal what the loop found after it asked the far side (AD-5), in one transaction: a retry that records when the effect
+    /// is tried next, or the result that ends it, with the move of the Task and the intents the move causes when the effect could not be
+    /// completed. An effect that has a result already is left as it is and nothing is written. Returns whether this was recorded now.
+    /// </summary>
+    Task<bool> RecordEffectAsync(EffectRecording recording, CancellationToken cancellationToken);
 }
