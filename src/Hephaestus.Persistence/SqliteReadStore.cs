@@ -1,4 +1,5 @@
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
@@ -91,6 +92,59 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         var entry = await context.IssueSnapshots.Where(s => s.TaskId == taskId).OrderByDescending(s => s.Id).FirstOrDefaultAsync(cancellationToken);
         return entry is null ? null : new IssueSnapshot(entry.Title, entry.Body, entry.Hash, entry.SignalSequence, entry.TakenAt);
     }
+
+    public async Task<IReadOnlyList<PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var intent = JournalEntryKind.Intent.Tag();
+        var retry = JournalEntryKind.Retry.Tag();
+        var result = JournalEntryKind.Result.Tag();
+        var intents = await context.EffectJournal
+            .Where(e => e.Entry == intent && !context.EffectJournal.Any(r => r.Key == e.Key && r.Entry == result))
+            .OrderBy(e => e.Sequence)
+            .ToListAsync(cancellationToken);
+        if (intents.Count == 0)
+        {
+            return [];
+        }
+
+        var keys = intents.Select(e => e.Key).ToList();
+        var taskIds = intents.Select(e => e.TaskId).Distinct().ToList();
+        var retries = (await context.EffectJournal.Where(e => e.Entry == retry && keys.Contains(e.Key)).OrderBy(e => e.Sequence).ToListAsync(cancellationToken))
+            .GroupBy(e => e.Key)
+            .ToDictionary(group => group.Key, group => group.Last());
+        var tasks = (await context.Tasks.Where(t => taskIds.Contains(t.Id)).ToListAsync(cancellationToken)).ToDictionary(t => t.Id);
+
+        // A journal line whose Task is missing cannot be: the intent is written in the transaction that writes the Task.
+        return [.. intents.Select(entry => new PendingEffect(
+            ToEffect(entry),
+            ToTask(tasks[entry.TaskId]),
+            retries.TryGetValue(entry.Key, out var last) ? last.Failures : 0,
+            retries.TryGetValue(entry.Key, out last) ? last.NextAttemptAt : null))];
+    }
+
+    public async Task<IReadOnlyList<JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.EffectJournal.Where(e => taskId == null || e.TaskId == taskId).OrderBy(e => e.Sequence).ToListAsync(cancellationToken);
+        return [.. entries.Select(entry => new JournalEntry(
+            entry.Sequence,
+            JournalEntryKinds.TryParse(entry.Entry, out var kind) ? kind : throw new InvalidOperationException($"The journal line {entry.Sequence} has the unknown entry '{entry.Entry}'."),
+            ToEffect(entry),
+            EffectResults.TryParse(entry.Result, out var result) ? result : null,
+            entry.Reason,
+            entry.Failures,
+            entry.NextAttemptAt,
+            entry.At))];
+    }
+
+    private static Effect ToEffect(EffectJournalEntryEntity entry) => new(
+        entry.Key,
+        entry.TaskId,
+        entry.Cause,
+        EffectKinds.TryParse(entry.Kind, out var kind) ? kind : throw new InvalidOperationException($"The journal line {entry.Sequence} has the unknown effect kind '{entry.Kind}'."),
+        entry.Detail,
+        entry.Ordinal);
 
     internal static TaskRecord ToTask(TaskEntry entry) => new(
         entry.Id,

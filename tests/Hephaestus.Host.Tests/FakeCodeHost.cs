@@ -136,4 +136,48 @@ internal sealed class FakeCodeHost : ICodeHost
             var content => GitHubFileResult.Read(new GitHubFile(content, tip.CommitId)),
         });
     }
+
+    /// <summary>The labels of the issues, by repository id and issue number; an issue that is not here does not exist.</summary>
+    public Dictionary<(long RepositoryId, int IssueNumber), List<string>> IssueLabels { get; } = [];
+
+    /// <summary>When set, every read or change of labels fails with it.</summary>
+    public GitHubIssueFailure? IssueFails { get; set; }
+
+    public List<(long RepositoryId, int IssueNumber, string[] Add, string[] Remove, string Key)> LabelChanges { get; } = [];
+
+    public Task<GitHubIssueResult> ReadIssueLabelsAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken)
+    {
+        if (IssueFails is { } failure)
+        {
+            return Task.FromResult(GitHubIssueResult.Failed(failure));
+        }
+
+        return Task.FromResult(IssueLabels.TryGetValue((repositoryId, issueNumber), out var labels)
+            ? GitHubIssueResult.Labelled([.. labels])
+            : GitHubIssueResult.Failed(GitHubIssueFailure.IssueNotFound));
+    }
+
+    public Task<GitHubIssueResult> ChangeIssueLabelsAsync(
+        long repositoryId,
+        int issueNumber,
+        IReadOnlyList<string> add,
+        IReadOnlyList<string> remove,
+        string idempotencyKey,
+        CancellationToken cancellationToken)
+    {
+        if (IssueFails is { } failure)
+        {
+            return Task.FromResult(GitHubIssueResult.Failed(failure));
+        }
+
+        if (!IssueLabels.TryGetValue((repositoryId, issueNumber), out var labels))
+        {
+            return Task.FromResult(GitHubIssueResult.Failed(GitHubIssueFailure.IssueNotFound));
+        }
+
+        LabelChanges.Add((repositoryId, issueNumber, [.. add], [.. remove], idempotencyKey));
+        labels.RemoveAll(label => remove.Contains(label, StringComparer.OrdinalIgnoreCase));
+        labels.AddRange(add.Where(label => !labels.Contains(label, StringComparer.OrdinalIgnoreCase)));
+        return Task.FromResult(GitHubIssueResult.Labelled([.. labels]));
+    }
 }

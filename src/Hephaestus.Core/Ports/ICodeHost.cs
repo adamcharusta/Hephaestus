@@ -5,8 +5,9 @@ using Hephaestus.Core.Trust;
 namespace Hephaestus.Core.Ports;
 
 /// <summary>
-/// The one gateway to GitHub (AD-4), implemented by <c>Hephaestus.GitHub</c>. This story gives it the two reads of Hephaestus's
-/// own identity and the lookup of a user; the effecting methods arrive with the stories that need them, each taking its idempotency key (AD-5).
+/// The one gateway to GitHub (AD-4), implemented by <c>Hephaestus.GitHub</c>. It reads Hephaestus's own identity, users, repositories,
+/// and files, and, as the stories that need them arrive, makes effects, each taking its idempotency key (AD-5): the labels of an issue
+/// are the first.
 /// </summary>
 public interface ICodeHost
 {
@@ -39,4 +40,23 @@ public interface ICodeHost
     /// nothing else of any other branch (AD-16). A file larger than <paramref name="maximumLength"/> is not read. The gateway parses nothing.
     /// </summary>
     Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the labels the issue has now. A read is not an effect (AD-5); the loop uses it to resolve an effect that was started and not
+    /// recorded, and to see what a change must do.
+    /// </summary>
+    Task<GitHubIssueResult> ReadIssueLabelsAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// An effect (AD-5): adds the labels in <paramref name="add"/> to the issue and removes those in <paramref name="remove"/>, and answers with the
+    /// labels the issue has afterwards. A label already added, or already removed, is not an error, so the same change made twice is one change.
+    /// <paramref name="idempotencyKey"/> is the key the loop journaled for the effect; the gateway neither journals nor derives keys.
+    /// </summary>
+    Task<GitHubIssueResult> ChangeIssueLabelsAsync(
+        long repositoryId,
+        int issueNumber,
+        IReadOnlyList<string> add,
+        IReadOnlyList<string> remove,
+        string idempotencyKey,
+        CancellationToken cancellationToken);
 }

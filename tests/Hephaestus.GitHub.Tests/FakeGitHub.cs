@@ -71,6 +71,12 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// <summary>The polled lists asked for, in order: the path, the query, and the entity tag the request carried.</summary>
     public List<(string Path, string Query, string? IfNoneMatch)> ListRequests { get; } = [];
 
+    /// <summary>The labels of issues, by <c>{repository id}/{issue number}</c>, as GitHub holds them; an issue that is not here does not exist.</summary>
+    public Dictionary<string, List<string>> IssueLabels { get; } = [];
+
+    /// <summary>The changes made to labels, in order: the method, the path, and the body that came with it.</summary>
+    public List<(HttpMethod Method, string Path, string Body)> LabelWrites { get; } = [];
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -91,6 +97,11 @@ internal sealed class FakeGitHub : HttpMessageHandler
         if (Override?.Invoke(request) is { } overridden)
         {
             return overridden;
+        }
+
+        if (path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/issues/", StringComparison.Ordinal) && path.Contains("/labels", StringComparison.Ordinal))
+        {
+            return await LabelsAtAsync(request, path);
         }
 
         if (path == "/app" && AppStatus is { } status)
@@ -171,6 +182,42 @@ internal sealed class FakeGitHub : HttpMessageHandler
         }
 
         return response;
+    }
+
+    /// <summary>GitHub's labels of an issue: read them, add some (<c>POST</c>, as a JSON array of names), and remove one (<c>DELETE</c> of its name).</summary>
+    private async Task<HttpResponseMessage> LabelsAtAsync(HttpRequestMessage request, string path)
+    {
+        Assert.Equal(InstallationToken, request.Headers.Authorization!.Parameter);
+        var parts = Uri.UnescapeDataString(path["/repositories/".Length..]).Split("/issues/", 2);
+        var rest = parts[1].Split("/labels", 2);
+        var key = $"{parts[0]}/{rest[0]}";
+        if (!IssueLabels.TryGetValue(key, out var labels))
+        {
+            return Json(HttpStatusCode.NotFound, """{"message":"Not Found"}""");
+        }
+
+        if (request.Method != HttpMethod.Get)
+        {
+            var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync();
+            LabelWrites.Add((request.Method, path, body));
+            if (request.Method == HttpMethod.Post)
+            {
+                foreach (var name in System.Text.Json.JsonSerializer.Deserialize<string[]>(body)!.Where(name => !labels.Contains(name, StringComparer.OrdinalIgnoreCase)))
+                {
+                    labels.Add(name);
+                }
+            }
+            else if (request.Method == HttpMethod.Delete)
+            {
+                var name = rest[1].TrimStart('/');
+                if (labels.RemoveAll(label => string.Equals(label, name, StringComparison.OrdinalIgnoreCase)) == 0)
+                {
+                    return Json(HttpStatusCode.NotFound, """{"message":"Label does not exist"}""");
+                }
+            }
+        }
+
+        return Json(HttpStatusCode.OK, "[" + string.Join(',', labels.Select(label => $$"""{"name":"{{label}}","color":"ededed"}""")) + "]");
     }
 
     private HttpResponseMessage BranchAt(string path)

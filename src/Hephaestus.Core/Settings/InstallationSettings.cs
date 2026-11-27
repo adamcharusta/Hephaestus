@@ -16,11 +16,17 @@ public static class InstallationSettings
 {
     public const string LanguageName = "language";
     public const string PollingIntervalName = "pollingInterval";
+    public const string EffectRetriesName = "effectRetries";
 
     /// <summary>The polling cycle in seconds (AD-1): how often each registered Project is asked for what happened on GitHub.</summary>
     public const int DefaultPollingIntervalSeconds = 60;
     public const int MinimumPollingIntervalSeconds = 10;
     public const int MaximumPollingIntervalSeconds = 3600;
+
+    /// <summary>How many times an attempt at an effect on GitHub may fail and be tried again before the Task waits for the Owner (AD-5, NFR-12).</summary>
+    public const int DefaultEffectRetries = 5;
+    public const int MinimumEffectRetries = 0;
+    public const int MaximumEffectRetries = 20;
 
     public static SettingDefinition Language { get; } = new(
         LanguageName,
@@ -38,8 +44,18 @@ public static class InstallationSettings
         $"{MinimumPollingIntervalSeconds}-{MaximumPollingIntervalSeconds} s",
         text => TryParseSeconds(text, out var seconds) ? seconds.ToString(CultureInfo.InvariantCulture) : null);
 
+    /// <summary>
+    /// How many times an attempt at an effect on GitHub, such as showing a Task's state on its issue, may fail and be tried again, at the
+    /// times recorded in the journal, before the Task moves to <c>waiting-for-owner</c>. 0 gives the Task up to the Owner at the first failure.
+    /// </summary>
+    public static SettingDefinition EffectRetries { get; } = new(
+        EffectRetriesName,
+        DefaultEffectRetries.ToString(CultureInfo.InvariantCulture),
+        $"{MinimumEffectRetries}-{MaximumEffectRetries}",
+        text => TryParseEffectRetries(text, out var retries) ? retries.ToString(CultureInfo.InvariantCulture) : null);
+
     /// <summary>Every setting, in the order the Owner sees them.</summary>
-    public static IReadOnlyList<SettingDefinition> All { get; } = [Language, PollingInterval];
+    public static IReadOnlyList<SettingDefinition> All { get; } = [Language, PollingInterval, EffectRetries];
 
     public static SettingDefinition? Find(string? name) => All.FirstOrDefault(setting => setting.Name == name);
 
@@ -50,6 +66,19 @@ public static class InstallationSettings
     /// <summary>The polling cycle now: the stored value, or the default when none was stored or the stored one is no value of the setting.</summary>
     public static TimeSpan PollingIntervalFrom(IReadOnlyDictionary<string, string> stored) =>
         TimeSpan.FromSeconds(stored.TryGetValue(PollingIntervalName, out var text) && TryParseSeconds(text, out var seconds) ? seconds : DefaultPollingIntervalSeconds);
+
+    /// <summary>The bound of retries of an effect now: the stored value, or the default when none was stored or the stored one is no value of the setting.</summary>
+    public static int EffectRetriesFrom(IReadOnlyDictionary<string, string> stored) =>
+        stored.TryGetValue(EffectRetriesName, out var text) && TryParseEffectRetries(text, out var retries) ? retries : DefaultEffectRetries;
+
+    private static bool TryParseEffectRetries(string? text, out int retries)
+    {
+        retries = 0;
+        return text is { Length: > 0 and <= 2 }
+            && text.All(character => character is >= '0' and <= '9')
+            && int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out retries)
+            && retries is >= MinimumEffectRetries and <= MaximumEffectRetries;
+    }
 
     // Ascii digits only: `\d`-like parsing would take the digits of other scripts and then fail on them.
     private static bool TryParseSeconds(string? text, out int seconds)

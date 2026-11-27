@@ -30,6 +30,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<IssueSnapshotEntry> IssueSnapshots => Set<IssueSnapshotEntry>();
 
+    public DbSet<EffectJournalEntryEntity> EffectJournal => Set<EffectJournalEntryEntity>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -141,6 +143,26 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             snapshot.Property(s => s.Body).IsRequired();
             snapshot.Property(s => s.Hash).IsRequired().HasMaxLength(64);
             snapshot.HasIndex(s => s.TaskId);
+        });
+
+        model.Entity<EffectJournalEntryEntity>(entry =>
+        {
+            entry.ToTable("EffectJournal");
+            entry.HasKey(e => e.Sequence);
+            entry.Property(e => e.Sequence).ValueGeneratedOnAdd();
+            entry.Property(e => e.Key).IsRequired().HasMaxLength(128);
+            entry.Property(e => e.Entry).IsRequired().HasMaxLength(8);
+            entry.Property(e => e.Cause).IsRequired().HasMaxLength(32);
+            entry.Property(e => e.Kind).IsRequired().HasMaxLength(16);
+            entry.Property(e => e.Detail).IsRequired().HasMaxLength(64);
+            entry.Property(e => e.Result).HasMaxLength(16);
+            entry.Property(e => e.Reason).HasMaxLength(32);
+
+            // An effect has one intent and at most one result; the database refuses a second of either.
+            entry.HasIndex(e => e.Key).IsUnique().HasFilter("\"Entry\" = 'intent'").HasDatabaseName("IX_EffectJournal_Key_Intent");
+            entry.HasIndex(e => e.Key).IsUnique().HasFilter("\"Entry\" = 'result'").HasDatabaseName("IX_EffectJournal_Key_Result");
+            entry.HasIndex(e => new { e.Key, e.Sequence });
+            entry.HasIndex(e => new { e.TaskId, e.Sequence });
         });
 
         model.Entity<PollCursorEntry>(cursor =>

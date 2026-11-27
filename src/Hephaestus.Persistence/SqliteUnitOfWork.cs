@@ -1,3 +1,4 @@
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Signals;
 using Hephaestus.Persistence.Model;
@@ -6,8 +7,9 @@ using Microsoft.EntityFrameworkCore;
 namespace Hephaestus.Persistence;
 
 /// <summary>
-/// <see cref="IUnitOfWork"/> (AD-1): one transaction per Signal, in which the Signal leaves <c>pending</c> and the Task it creates is
-/// written. Only the orchestrator loop uses it; a test fails when anything else names the port.
+/// <see cref="IUnitOfWork"/> (AD-1): one transaction per Signal, in which the Signal leaves <c>pending</c>, the Task it creates is
+/// written, and the intents of the effects it causes are journaled (AD-5); and one transaction for each result of an effect. Only the
+/// orchestrator loop uses it; a test fails when anything else names the port.
 /// </summary>
 internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider time) : IUnitOfWork
 {
@@ -62,8 +64,87 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
             });
         }
 
+        if (application.NewEffects is { Count: > 0 } effects)
+        {
+            await AppendIntentsAsync(context, effects, processedAt, cancellationToken);
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<bool> RecordEffectAsync(EffectRecording recording, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // The first statement is a write, for the reason given in ApplyAsync. It appends the line only while the effect has no result, so
+        // that a second recording of the end of an effect is left out, whatever else is going on.
+        var effect = recording.Effect;
+        var at = UtcInstantConverter.ToText(time.GetUtcNow());
+        var entry = (recording.Result is null ? JournalEntryKind.Retry : JournalEntryKind.Result).Tag();
+        var result = recording.Result?.Tag();
+        var next = recording.NextAttemptAt is { } instant ? UtcInstantConverter.ToText(instant) : null;
+        var taskId = EntityIdConverter.ToText(effect.TaskId);
+        var kind = effect.Kind.Tag();
+        var resultEntry = JournalEntryKind.Result.Tag();
+        var appended = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "EffectJournal" ("Key", "Entry", "TaskId", "Cause", "Kind", "Detail", "Ordinal", "Result", "Reason", "Failures", "NextAttemptAt", "At")
+            SELECT {effect.Key}, {entry}, {taskId}, {effect.Cause}, {kind}, {effect.Detail}, {effect.Ordinal}, {result}, {recording.Reason}, {recording.Failures}, {next}, {at}
+            WHERE NOT EXISTS (SELECT 1 FROM "EffectJournal" WHERE "Key" = {effect.Key} AND "Entry" = {resultEntry})
+            """,
+            cancellationToken);
+        if (appended == 0)
+        {
+            return false;
+        }
+
+        if (recording.MoveTaskTo is { } to)
+        {
+            var state = Core.Tasks.TaskStates.Tag(to);
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Tasks" SET "State" = {state}, "UpdatedAt" = {at} WHERE "Id" = {taskId}""",
+                cancellationToken);
+        }
+
+        if (recording.NewEffects is { Count: > 0 } effects)
+        {
+            await AppendIntentsAsync(context, effects, at, cancellationToken);
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Adds the intents of effects to the journal. The key is made here, from the ordinal: how many effects of the kind the cause had for
+    /// the Task before, counting those of this transaction, which the database has not seen yet.
+    /// </summary>
+    private static async Task AppendIntentsAsync(HephaestusDbContext context, IReadOnlyList<NewEffect> effects, string at, CancellationToken cancellationToken)
+    {
+        var added = new Dictionary<(Guid TaskId, string Cause, EffectKind Kind), int>();
+        var intent = JournalEntryKind.Intent.Tag();
+        foreach (var effect in effects)
+        {
+            var group = (effect.TaskId, effect.Cause, effect.Kind);
+            var kind = effect.Kind.Tag();
+            var stored = await context.EffectJournal.CountAsync(e => e.Entry == intent && e.TaskId == effect.TaskId && e.Cause == effect.Cause && e.Kind == kind, cancellationToken);
+            var ordinal = stored + added.GetValueOrDefault(group);
+            added[group] = added.GetValueOrDefault(group) + 1;
+            context.EffectJournal.Add(new EffectJournalEntryEntity
+            {
+                Key = EffectKeys.For(effect.TaskId, effect.Cause, effect.Kind, ordinal),
+                Entry = intent,
+                TaskId = effect.TaskId,
+                Cause = effect.Cause,
+                Kind = kind,
+                Detail = effect.Detail,
+                Ordinal = ordinal,
+                At = UtcInstantConverter.FromText(at),
+            });
+        }
     }
 }

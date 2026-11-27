@@ -1,4 +1,5 @@
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
@@ -27,6 +28,19 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     public Dictionary<Guid, List<IssueSnapshot>> Snapshots { get; } = [];
 
     public string? AppSlug { get; set; }
+
+    /// <summary>GitHub, as far as the loop asks it: the labels of the issues.</summary>
+    public FakeIssues Github { get; } = new();
+
+    public Dictionary<string, string> Settings { get; } = [];
+
+    /// <summary>The effect journal, in the order it was written, with the rules of the real one: an effect has one intent and at most one result.</summary>
+    public List<JournalEntry> Journal { get; } = [];
+
+    public List<EffectRecording> Recordings { get; } = [];
+
+    /// <summary>Whether recording the end of an effect fails, and with what; for a test of a loop that must try again.</summary>
+    public Exception? FailToRecord { get; set; }
 
     /// <summary>The Signals whose application fails, by sequence, with how many more times each is to fail.</summary>
     public Dictionary<long, int> Failures { get; } = [];
@@ -100,11 +114,80 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             Snapshots[created.Task.Id] = [created.Snapshot];
         }
 
+        AppendIntents(application.NewEffects);
         return Task.FromResult(true);
     }
 
+    /// <summary>Runs when an effect is recorded, before anything is written; a test makes it throw at the recording it chooses.</summary>
+    public Action? OnRecord { get; set; }
+
+    public Task<bool> RecordEffectAsync(EffectRecording recording, CancellationToken cancellationToken)
+    {
+        OnRecord?.Invoke();
+        if (FailToRecord is not null)
+        {
+            throw FailToRecord;
+        }
+
+        if (Journal.Any(e => e.Effect.Key == recording.Effect.Key && e.Entry == JournalEntryKind.Result))
+        {
+            return Task.FromResult(false);
+        }
+
+        Recordings.Add(recording);
+        var now = TimeProvider.GetUtcNow();
+        Journal.Add(new JournalEntry(
+            Journal.Count + 1,
+            recording.Result is null ? JournalEntryKind.Retry : JournalEntryKind.Result,
+            recording.Effect,
+            recording.Result,
+            recording.Reason,
+            recording.Failures,
+            recording.NextAttemptAt,
+            now));
+        if (recording.MoveTaskTo is { } to)
+        {
+            var index = Tasks.FindIndex(t => t.Id == recording.Effect.TaskId);
+            Tasks[index] = Tasks[index] with { State = to, UpdatedAt = now };
+        }
+
+        AppendIntents(recording.NewEffects);
+        return Task.FromResult(true);
+    }
+
+    /// <summary>The clock the journal's lines are stamped with.</summary>
+    public TimeProvider TimeProvider { get; set; } = new MovingTime();
+
+    private void AppendIntents(IReadOnlyList<NewEffect>? effects)
+    {
+        foreach (var effect in effects ?? [])
+        {
+            var ordinal = Journal.Count(e => e.Entry == JournalEntryKind.Intent && e.Effect.TaskId == effect.TaskId && e.Effect.Cause == effect.Cause && e.Effect.Kind == effect.Kind);
+            var key = EffectKeys.For(effect.TaskId, effect.Cause, effect.Kind, ordinal);
+            Journal.Add(new JournalEntry(Journal.Count + 1, JournalEntryKind.Intent, new Effect(key, effect.TaskId, effect.Cause, effect.Kind, effect.Detail, ordinal), null, null, 0, null, TimeProvider.GetUtcNow()));
+        }
+    }
+
+    public Task<IReadOnlyList<PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken)
+    {
+        var unfinished = Journal
+            .Where(e => e.Entry == JournalEntryKind.Intent && !Journal.Any(r => r.Effect.Key == e.Effect.Key && r.Entry == JournalEntryKind.Result))
+            .Select(e =>
+            {
+                var last = Journal.LastOrDefault(r => r.Effect.Key == e.Effect.Key && r.Entry == JournalEntryKind.Retry);
+                return new PendingEffect(e.Effect, Tasks.Single(t => t.Id == e.Effect.TaskId), last?.Failures ?? 0, last?.NextAttemptAt);
+            });
+        return Task.FromResult<IReadOnlyList<PendingEffect>>([.. unfinished]);
+    }
+
+    public Task<IReadOnlyList<JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<JournalEntry>>([.. Journal.Where(e => taskId is null || e.Effect.TaskId == taskId)]);
+
     public static Signal Labeled(string id, long? actor = 29, string? login = "alice", string label = "hephaestus", int issue = 7, long repository = RepositoryId, string? title = "Add a login page", string? body = "Details.") =>
         new(Signal.GitHubSource, id, SignalKind.Labeled, repository, issue, actor, login, label, null, null, new DateTimeOffset(2026, 11, 27, 11, 0, 0, TimeSpan.Zero), title, body);
+
+    public static Signal Unlabeled(string id, long? actor = 1001, string? login = "bob", string label = "hephaestus:queued", int issue = 7, long repository = RepositoryId) =>
+        new(Signal.GitHubSource, id, SignalKind.Unlabeled, repository, issue, actor, login, label, null, null, new DateTimeOffset(2026, 11, 27, 11, 5, 0, TimeSpan.Zero));
 
     public Task<IReadOnlyList<string>> ListSecretNamesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -116,5 +199,5 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
 
     public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyDictionary<string, string>>(Settings);
 }

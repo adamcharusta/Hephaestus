@@ -40,13 +40,15 @@ public class OrchestratorServiceTests
         var capture = new Capture();
         var stores = new PollerStores();
         var heartbeat = new LoopHeartbeat(TimeProvider.System);
-        var loop = new OrchestratorLoop(stores, stores, new NoWrites(), TimeProvider.System, heartbeat, (_, token) => Task.Delay(Timeout.Infinite, token));
+        var loop = new OrchestratorLoop(stores, stores, new NoWrites(), new FakeCodeHost(), TimeProvider.System, heartbeat, (_, token) => Task.Delay(Timeout.Infinite, token));
         return (new OrchestratorService(loop, capture), capture, heartbeat);
     }
 
     private sealed class NoWrites : IUnitOfWork
     {
         public Task<bool> ApplyAsync(SignalApplication application, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> RecordEffectAsync(Hephaestus.Core.Effects.EffectRecording recording, CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
     [Fact]
@@ -99,6 +101,41 @@ public class OrchestratorServiceTests
 
         var line = Assert.Single(log.Lines);
         Assert.Equal((LogLevel.Error, fault), (line.Level, line.Exception));
+    }
+
+    [Fact]
+    public void An_effect_that_could_not_be_made_is_an_error_that_names_the_Task_the_effect_and_what_became_of_the_Task()
+    {
+        var (service, log, _) = Build();
+        var task = Guid.Parse("0197a1b2-c3d4-7e5f-8a6b-7c8d9e0f1a2b");
+
+        service.Report(new TickReport(0, 0, 0, null, [], 1, 0, [new EffectProblem(task, $"{task}:g1:label:0", Hephaestus.Core.Effects.EffectResult.Refused, "issue-not-found", MovedToWaitingForOwner: true)]));
+
+        var line = Assert.Single(log.Lines);
+        Assert.Equal(LogLevel.Error, line.Level);
+        Assert.Equal($"The effect {task}:g1:label:0 of Task {task} was not made (refused: issue-not-found); the Task moved to waiting-for-owner.", line.Text);
+    }
+
+    [Fact]
+    public void An_effect_that_could_not_be_made_for_a_Task_that_stays_as_it_is_says_so()
+    {
+        var (service, log, _) = Build();
+
+        service.Report(new TickReport(0, 0, 0, null, [], 1, 0, [new EffectProblem(Guid.Empty, "k", Hephaestus.Core.Effects.EffectResult.GaveUp, "unreachable", MovedToWaitingForOwner: false)]));
+
+        Assert.EndsWith("the Task keeps its state.", Assert.Single(log.Lines).Text, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Attempts_that_will_be_tried_again_are_one_warning_and_a_tick_with_nothing_to_say_still_writes_no_line()
+    {
+        var (service, log, _) = Build();
+
+        service.Report(new TickReport(0, 0, 0, null, [], 0, 2));
+        service.Report(new TickReport(0, 0, 0, null, [], 1, 0));
+
+        var line = Assert.Single(log.Lines);
+        Assert.Equal((LogLevel.Warning, "2 attempt(s) at an effect on GitHub did not succeed and will be tried again."), (line.Level, line.Text));
     }
 
     [Fact]

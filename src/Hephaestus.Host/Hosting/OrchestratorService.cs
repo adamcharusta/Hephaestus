@@ -1,3 +1,4 @@
+using Hephaestus.Core.Effects;
 using Hephaestus.Core.Loop;
 
 namespace Hephaestus.Host.Hosting;
@@ -17,12 +18,30 @@ internal sealed class OrchestratorService(OrchestratorLoop loop, ILoggerFactory 
     {
         if (report.Failure is { } failure)
         {
-            _log.LogError(failure, "The orchestrator loop failed to apply a Signal; the next tick tries again.");
+            _log.LogError(failure, "The orchestrator loop failed; the next tick tries again.");
         }
 
         foreach (var rejection in report.Rejections)
         {
             _log.LogWarning("{Rejection}", rejection);
+        }
+
+        foreach (var problem in report.Problems ?? [])
+        {
+            // In v0.1 this line is how the Owner learns of it: the issue can no longer be written to, so nothing can be said there.
+            using var scope = _log.BeginScope(new Dictionary<string, object> { ["taskId"] = problem.TaskId });
+            _log.LogError(
+                "The effect {Key} of Task {TaskId} was not made ({Result}: {Reason}); {Outcome}.",
+                problem.Key,
+                problem.TaskId,
+                problem.Result.Tag(),
+                problem.Reason,
+                problem.MovedToWaitingForOwner ? "the Task moved to waiting-for-owner" : "the Task keeps its state");
+        }
+
+        if (report.EffectsRetried > 0)
+        {
+            _log.LogWarning("{Retried} attempt(s) at an effect on GitHub did not succeed and will be tried again.", report.EffectsRetried);
         }
 
         if (report.Applied > 0)
