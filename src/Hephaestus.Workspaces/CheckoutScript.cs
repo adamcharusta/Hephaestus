@@ -12,7 +12,22 @@ internal static class CheckoutScript
     public const int BundleHeads = 22;
     public const int BundleTip = 23;
 
-    public const string Text = """
+    public const string Text = Preparation + VerifyBundle + Checkout;
+
+    /// <summary>The shell the checkout and the checkpoint share: it ends the script, with one of the three codes above, unless the bundle verifies, carries exactly one head, and carries the tip named in <c>HEPHAESTUS_TIP</c>. It leaves the head's reference in <c>$ref</c>.</summary>
+    public const string VerifyBundle = """
+        git bundle verify "$bundle" > /dev/null 2>&1 || exit 21
+        heads="$(git bundle list-heads "$bundle")"
+        case "$heads" in
+          "" | *"
+        "*) exit 22 ;;
+        esac
+        [ "${heads%% *}" = "$HEPHAESTUS_TIP" ] || exit 23
+        ref="${heads#* }"
+
+        """;
+
+    private const string Preparation = """
         set -eu
         workspace="$1"
         bundle="$2"
@@ -24,14 +39,11 @@ internal static class CheckoutScript
         find "$workspace" -mindepth 1 -maxdepth 1 -exec rm -rf {} \;
         git init --quiet --template= "$workspace"
         cd "$workspace"
-        git bundle verify "$bundle" > /dev/null 2>&1 || exit 21
-        heads="$(git bundle list-heads "$bundle")"
-        case "$heads" in
-          "" | *"
-        "*) exit 22 ;;
-        esac
-        [ "${heads%% *}" = "$HEPHAESTUS_TIP" ] || exit 23
-        git fetch --quiet --no-tags "$bundle" "+${heads#* }:refs/heads/$HEPHAESTUS_BRANCH"
+
+        """;
+
+    private const string Checkout = """
+        git fetch --quiet --no-tags "$bundle" "+$ref:refs/heads/$HEPHAESTUS_BRANCH"
         git symbolic-ref HEAD "refs/heads/$HEPHAESTUS_BRANCH"
         git reset --quiet --hard
         chmod -R u+rwX "$workspace"

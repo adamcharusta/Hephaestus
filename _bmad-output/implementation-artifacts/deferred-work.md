@@ -107,3 +107,20 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-5-give-every-step-a-fresh-checkout.md`
   summary: Set a policy for the growth of the mirrors volume: prune what Projects no longer need and remove the mirror of a removed Project.
   evidence: A mirror only grows with its repository, and a removed Project's mirror is never removed; the volume is a cache and can be emptied by hand, but nothing bounds it (review of Story 3.5).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-checkpoint-a-step-s-work-as-one-commit.md`
+  summary: Call the checkpoint from the loop when a checkpointed step has ended, hand the bundle to the gateway's import (Story 3.7), and delete the result bundle once the push is journaled.
+  evidence: Story 3.6 adds `IWorkspaceRuntime.CheckpointAsync` and shows it with tests; the loop that sequences it after the step-exited Signal is Story 3.14, the import is Story 3.7, and a result bundle whose push was never journaled is Story 3.17's leftover to clean.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-checkpoint-a-step-s-work-as-one-commit.md`
+  summary: Decide how a repository an Agent made inside the workspace, and a submodule, are kept by a checkpoint.
+  evidence: The checkpoint removes the entry of a nested repository from the index instead of committing a link to a commit that nobody can fetch, so the files of such a directory are not captured; they stay in the Task volume, which is kept until the push is journaled (AD-6).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-checkpoint-a-step-s-work-as-one-commit.md`
+  summary: Give the checkpoint commit the bot user's id in its address, `<id>+<slug>[bot]@users.noreply.github.com`, so that GitHub links the commit to the App's avatar.
+  evidence: `GitHubIdentity` carries the App id and slug and not the bot user's id, which GitHub serves from `GET /users/<slug>[bot]`; the address without the id is accepted but does not link. Attribution is informational (AD-9).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-checkpoint-a-step-s-work-as-one-commit.md`
+  summary: Bound the disk a checkpoint container may write, and give the checkpoint its own memory and processor limits.
+  evidence: The 2 GiB bound is enforced when the result is read back; inside the container `git add` and `git bundle` write to its layer with no quota, and `StorageOpt` works on some storage drivers only. The checkpoint shares the limits of the checkout, which read no tree (review of Story 3.6).
+

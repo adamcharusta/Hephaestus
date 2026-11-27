@@ -27,16 +27,19 @@ public sealed record WorkspaceRuntimeOptions(string InstallationId, AgentLock Ag
     /// <summary>The directory of the data volume the gateway writes bundles to and the runtime reads them from (AD-9). The runtime reads nothing else from it.</summary>
     public string BundlesDirectory { get; init; } = "/var/lib/hephaestus/data/bundles";
 
-    /// <summary>The largest bundle the runtime hands to a checkout container; the gateway's bound is the same.</summary>
+    /// <summary>The largest bundle the runtime hands to a checkout or checkpoint container and the largest it reads back from a checkpoint; the gateway's bound is the same.</summary>
     public long MaximumBundleBytes { get; init; } = BundleReference.DefaultMaximumBytes;
 
     /// <summary>How long a checkout may take before its container is stopped and the step is not started.</summary>
     public TimeSpan CheckoutLimit { get; init; } = TimeSpan.FromMinutes(10);
 
-    /// <summary>How often the runtime looks at a running checkout container.</summary>
+    /// <summary>How long a checkpoint may take before its container is stopped and the work of the step is not checkpointed: it reads the whole tree of the Workspace once.</summary>
+    public TimeSpan CheckpointLimit { get; init; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>How often the runtime looks at a running checkout or checkpoint container.</summary>
     public TimeSpan CheckoutPollInterval { get; init; } = TimeSpan.FromMilliseconds(250);
 
-    /// <summary>The memory a checkout container may use, and its processor share in thousandths (AD-7): git needs little, and no repository can raise it.</summary>
+    /// <summary>The memory a checkout or checkpoint container may use, and its processor share in thousandths (AD-7): git needs little, and no repository can raise it.</summary>
     public long CheckoutMemoryBytes { get; init; } = 1024L * 1024 * 1024;
 
     public int CheckoutCpuMillis { get; init; } = 1000;

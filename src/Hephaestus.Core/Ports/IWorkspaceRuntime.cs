@@ -38,4 +38,13 @@ public interface IWorkspaceRuntime
     /// </summary>
     /// <exception cref="WorkspaceRuntimeException">The bundle is not the file the reference describes, the tools image cannot be fetched, or the checkout ended with a failure or did not end in time.</exception>
     Task CheckoutAsync(CheckoutRequest request, string idempotencyKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Keeps the work of a step that ended, for any reason, as one commit and one bundle (AD-9, FR-20), in a credential-free container of the <c>hephaestus-tools</c> image that never uses the volume's <c>.git</c>:
+    /// it builds a git directory of its own from the last pushed tip, takes <c>/workspace</c> as work tree only, and writes one commit whose parent is that tip, flattening what the Agent committed. The runtime reads exactly one
+    /// regular file of bounded size from the stopped container and returns it as a bundle reference with its path, checksum, tip, and prerequisite; a tree that is the tip's makes no commit and no bundle. The base bundle's
+    /// file is deleted whatever came of it, and the result's file is the loop's to delete once its push is journaled.
+    /// </summary>
+    /// <exception cref="WorkspaceRuntimeException">The base bundle is not the file the reference describes, the tools image cannot be fetched, the container failed or did not end in time, or what it returned is not exactly one bundle of the size and the shape that was asked for (an infrastructure error: nothing of it is used).</exception>
+    Task<CheckpointResult> CheckpointAsync(CheckpointRequest request, string idempotencyKey, CancellationToken cancellationToken);
 }

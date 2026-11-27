@@ -102,6 +102,20 @@ The gateway keeps the repository the bundle is made from: one bare mirror per Pr
 and never in a directory an Agent can write to. [ADR-0022](adr/0022-checkout-from-a-bundle.md) has the decision. The runtime fetches the `hephaestus-tools` image when the machine lacks it; `HEPHAESTUS_TOOLS_IMAGE` names it (Compose sets the image of the same release), and in a development checkout
 `docker compose -f deploy/compose.yaml --profile tools build` builds it. The loop calls the checkout when it starts a step (Story 3.14); until then the tests and the harness do.
 
+## The checkpoint after a step (AD-9, FR-20, Story 3.6)
+
+Whatever a step of kind `Implementation`, `Correction`, or `Rework` changed is kept as one commit, however the step ended: normally, by timeout, by crash, or by cancellation. A container of the `hephaestus-tools` image runs as `10001:10001` with no network, no credential, every capability dropped, `no-new-privileges`, and one
+mount, the Task volume, read-only and with `volume-nocopy`. It is given the bundle of the Task's last pushed tip, in its own file system, makes a git directory of its own from it outside the volume, and takes `/workspace` as work tree only. It never uses `/workspace/.git`: a configuration entry, a hook, or an attribute driver
+an Agent left there is not read and nothing in it runs, and the volume is not written to.
+
+The commit has exactly one parent, the last pushed tip, so what the Agent committed during the step is flattened into it. The tree is the work tree as it is, with `.gitignore` respected, so an ignored file such as `node_modules` is not committed. A repository the Agent made inside the workspace is not committed as a link, and its files are not captured. A tree
+that equals the tip's makes no commit and no bundle. The message and the identity come from Core: a subject in the Task's language, then the trailers `Hephaestus-Task`, `Hephaestus-Step`, `Hephaestus-Agent`, `Hephaestus-Model`, and `Hephaestus-Effort`, by the bot user of Hephaestus's GitHub App. The checkpoint container has
+exactly one regular file to leave, `/checkpoint/result.bundle`, a bundle of one head, `refs/heads/<Task branch>`, with the tip as its one prerequisite.
+
+The runtime copies that one file out of the stopped container and hands it on as a bundle reference with its path under the bundles directory, its SHA-256, its tip, and its prerequisite. It refuses, as an infrastructure error, an archive with a link entry, a parent path, an extra entry, another name, or a file over the bound of 2 GiB, and a bundle whose header is not
+that one head and that one prerequisite; nothing of a refused archive stays on the data volume. A step of another kind is not checkpointed: what it left in the tree is discarded by the next checkout. The gateway imports and checks the bundle before anything is pushed (Story 3.7); the loop asks for the checkpoint when a step has ended (Story 3.14), and until then the
+tests and the harness do. [ADR-0023](adr/0023-checkpoint-as-one-commit.md) has the decision. `CheckpointScriptTests` run the script with the git of the machine; `CheckpointEngineTests` run it in the real tools image in CI.
+
 ## The egress proxy (AD-7, Story 3.4)
 
 A step container's only way to the network is its egress proxy, reached at **`http://hephaestus-egress:3128`**. That host name and port are part of the versioned public surface: a build tool that does not
