@@ -47,4 +47,13 @@ public interface IWorkspaceRuntime
     /// </summary>
     /// <exception cref="WorkspaceRuntimeException">The base bundle is not the file the reference describes, the tools image cannot be fetched, the container failed or did not end in time, or what it returned is not exactly one bundle of the size and the shape that was asked for (an infrastructure error: nothing of it is used).</exception>
     Task<CheckpointResult> CheckpointAsync(CheckpointRequest request, string idempotencyKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Runs an Agent probe to its end (AD-20, AD-18): a container of the probe image with no Task volume, no context, and no Methodology, whose only way out is its own egress proxy, limited to the hosts the invocation
+    /// declares. The invocation's secret references are resolved through <c>ISecretStore</c> when the container is created and nowhere else. It returns when the container has ended or has been stopped at its limit, and has been
+    /// removed with its proxy and network. What it printed is masked and bounded. A probe is not a step run: it appends no Signal and is journaled nowhere.
+    /// </summary>
+    /// <exception cref="ImageNotUsableException">The probe image cannot be fetched or is not built for this machine.</exception>
+    /// <exception cref="WorkspaceRuntimeException">A secret the invocation references is not stored, the proxy did not start, or isolation cannot be given (AD-7).</exception>
+    Task<ProbeResult> RunProbeAsync(ProbeRequest request, CancellationToken cancellationToken);
 }

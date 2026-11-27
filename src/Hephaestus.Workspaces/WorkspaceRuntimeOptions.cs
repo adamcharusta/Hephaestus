@@ -24,6 +24,12 @@ public sealed record WorkspaceRuntimeOptions(string InstallationId, AgentLock Ag
     /// <summary>The image of the checkout container of every step (AR-34, AR-38): <c>hephaestus-tools</c>, which holds git 2.48 or later and nothing else. It is the same release as the <c>hephaestus</c> image (Story 3.5).</summary>
     public string ToolsImage { get; init; } = "ghcr.io/adamcharusta/hephaestus-tools:latest";
 
+    /// <summary>The image an Agent probe runs in (Story 3.10): fixed by the release, belonging to no Project, and meeting the Project image contract.</summary>
+    public string ProbeImage { get; init; } = Hephaestus.Core.Readiness.ProbeImage.Reference;
+
+    /// <summary>The most a probe's output is kept to, counted from its end, where the result of the run is: the probe's output is read by the adapter, and kept nowhere.</summary>
+    public int ProbeOutputLimit { get; init; } = 256 * 1024;
+
     /// <summary>The directory of the data volume the gateway writes bundles to and the runtime reads them from (AD-9). The runtime reads nothing else from it.</summary>
     public string BundlesDirectory { get; init; } = "/var/lib/hephaestus/data/bundles";
 

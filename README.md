@@ -125,6 +125,22 @@ not inherit anything. Adding a login GitHub does not know fails, and so does add
 can be removed by the new one. The users live in the database on the `hephaestus-data` volume and survive a restart. The Marker Label
 is the first thing that reads the list (see [Opting an issue in](#opting-an-issue-in)); a reply on the issue of a waiting Task is acted on (see [When Hephaestus needs a decision](#when-hephaestus-needs-a-decision)), commands are not yet.
 
+## Agent sign-in
+
+For each Agent you choose how its CLI signs in, with an API key or with a subscription, and you give Hephaestus the credential; it presents no sign-in of its own. Both modes are supported for Claude Code and neither is the default; Codex CLI is
+supported with an API key only. An API key with a spend cap at the vendor is the conservative choice, and a subscription used for automated work carries the risk the vendor's terms describe. [`docs/agent-sign-in.md`](docs/agent-sign-in.md)
+presents both on an equal footing, with the terms that apply to each, says that Claude Code's subscription credential is the token `claude setup-token` prints, and says why Codex CLI is API key only and that it contacts `chatgpt.com` even with an API key.
+
+```bash
+printf '%s' "$ANTHROPIC_API_KEY" | docker exec -i hephaestus hephaestus agent set-auth claude-code --mode api-key   # the credential on standard input; an empty input keeps the one stored
+docker exec hephaestus hephaestus agent check claude-code    # runs the Agent's probe in a container; exit code 0 when ready, 1 when unavailable, with the reason
+docker exec hephaestus hephaestus agent list                 # each Agent: mode, credential stored or missing, status, when it was checked, why it is unavailable
+```
+
+The credential is stored as a secret and reaches only the container that runs that Agent's CLI, in its environment, at the moment the container starts. A check runs the CLI once in a fixed Debian image that belongs to no Project, with no Task volume, through its own egress
+proxy that allows only the Agent's hosts; it needs access to Docker Hub the first time, and it makes one request to the vendor, which costs a few tokens or counts against a plan. What it finds is stored with the time on the capacity record of that credential: an unavailable Agent has no
+capacity, and no step run is failed by it. Nothing chooses an Agent by it yet, and no step starts yet; the check runs when you ask for it. The Codex CLI adapter is not part of this release yet, so `agent set-auth codex-cli` says so and changes nothing.
+
 ## Aliases, limits, protected paths, and settings
 
 An Alias is a name you choose for an Agent with a Model, or for an Effort. Labels will carry it (`primary:opus5.5`), so a new Model needs

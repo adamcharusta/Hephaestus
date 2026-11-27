@@ -1,8 +1,10 @@
 using System.Globalization;
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Settings;
 using Hephaestus.Core.Trust;
 
@@ -17,6 +19,16 @@ internal static class Documents
     public static TrustedUserDocument TrustedUser(TrustedUser user) => new(user.UserId, user.Login, Time(user.AddedAt));
 
     public static AliasDocument Alias(Alias alias) => new(alias.Name, alias.Agent?.Tag(), alias.Model, alias.Effort?.Tag(), Time(alias.AddedAt));
+
+    public static AgentDocument Agent(AgentStatus status) => new(
+        status.Agent.Tag(),
+        status.Mode?.Tag(),
+        status.ChosenAt is { } chosen ? Time(chosen) : null,
+        status.Secret,
+        status.CredentialStored,
+        status.Capacity?.Readiness.Tag(),
+        status.Capacity is { } capacity ? Time(capacity.ProbedAt) : null,
+        status.Capacity is { ReasonId: { } reason } found ? new AgentReasonDocument(reason, found.ReasonArguments) : null);
 
     public static LimitsDocument Limits(InstallationLimits limits) => new(
         limits.TaskDuration is { } duration ? LimitFormat.FormatDuration(duration) : null,

@@ -166,7 +166,7 @@ public sealed class EgressProxyEngineTests(EngineFixture engine) : IClassFixture
             """;
         var recording = new RecordingInbox();
         var watcher = new StepWatcher(engine.Docker, engine.RuntimeOptions, recording, new NullOutputStore(), await Masker(), TimeProvider.System);
-        var runtime = new DockerWorkspaceRuntime(engine.Docker, engine.RuntimeOptions, watcher);
+        var runtime = Runtimes.Of(engine.Docker, engine.RuntimeOptions, watcher);
 
         var started = await runtime.StartStepAsync(Request(taskId, stepRunId, image, script, [PublicHost]), "task:e5:container:0", Cancel);
         var (exit, output) = await RunToEndAsync(started.ContainerId);

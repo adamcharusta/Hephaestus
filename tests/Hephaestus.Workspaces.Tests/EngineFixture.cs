@@ -87,7 +87,7 @@ public sealed class EngineFixture : IAsyncLifetime
 
         Docker = new DockerClientBuilder().WithTimeout(TimeSpan.FromMinutes(10)).Build();
         RuntimeOptions = new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, OutboundNetwork = OutboundNetwork, EgressProxyImage = ProxyImage ?? "hephaestus.invalid/none:0", ToolsImage = ToolsImage ?? "hephaestus.invalid/none:0", BundlesDirectory = BundlesDirectory, CheckoutPollInterval = TimeSpan.FromMilliseconds(100), EgressProxyPollInterval = TimeSpan.FromMilliseconds(100), StepPollInterval = TimeSpan.FromMilliseconds(250) };
-        Runtime = new DockerWorkspaceRuntime(Docker, RuntimeOptions, new RecordingWatcher());
+        Runtime = Runtimes.Of(Docker, RuntimeOptions, new RecordingWatcher());
         var image = await Runtime.ResolveImageAsync(Musl, TestContext.Current.CancellationToken);
         await FillAgentsVolumeAsync(image.Reference, TestContext.Current.CancellationToken);
     }

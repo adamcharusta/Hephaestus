@@ -1,3 +1,5 @@
+using Hephaestus.Core.Readiness;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
@@ -260,6 +262,10 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 

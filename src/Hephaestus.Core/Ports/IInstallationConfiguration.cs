@@ -1,6 +1,8 @@
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
@@ -52,4 +54,16 @@ public interface IInstallationConfiguration
 
     /// <summary>Marks the registered Project with that repository id as removed and keeps everything else; null when it is not registered.</summary>
     Task<Project?> RemoveProjectAsync(long repositoryId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Records how an Agent signs in (FR-25), replacing an earlier choice. When <paramref name="credentialStored"/>, a credential was stored for the mode just now, which may be another than the one a probe
+    /// found: what the probe found of that mode's credential, and the usage limit that held it, are forgotten. A credential that was kept keeps both.
+    /// </summary>
+    Task SetAgentAuthenticationAsync(Agent agent, AuthenticationMode mode, DateTimeOffset chosenAt, bool credentialStored, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Stores what a probe found of an Agent credential on its capacity record (AD-20), replacing an earlier finding and keeping the time until which a usage limit holds the Agent. The reason is a message id
+    /// with its arguments as text, never text a CLI printed.
+    /// </summary>
+    Task RecordAgentProbeAsync(Agent agent, AuthenticationMode mode, AgentReadiness readiness, string? reasonId, IReadOnlyList<string> reasonArguments, DateTimeOffset probedAt, CancellationToken cancellationToken);
 }

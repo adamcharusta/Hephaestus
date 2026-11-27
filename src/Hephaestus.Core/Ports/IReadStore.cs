@@ -3,6 +3,7 @@ using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
 
@@ -61,4 +62,10 @@ public interface IReadStore
 
     /// <summary>The effect journal, in the order it was written: all of it, or only what concerns one Task.</summary>
     Task<IReadOnlyList<JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken);
+
+    /// <summary>How each Agent signs in, as far as the Owner has chosen, ascending by Agent.</summary>
+    Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken);
+
+    /// <summary>The capacity records of the Agent credentials that were probed, ascending by Agent and then mode (AD-20).</summary>
+    Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken);
 }

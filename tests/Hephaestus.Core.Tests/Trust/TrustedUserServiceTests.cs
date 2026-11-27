@@ -1,3 +1,5 @@
+using Hephaestus.Core.Readiness;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Limits;
@@ -108,6 +110,10 @@ public class TrustedUserServiceTests
 
     public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -125,6 +131,10 @@ public class TrustedUserServiceTests
     public Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task SetSettingAsync(string name, string value, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task SetAgentAuthenticationAsync(Agent agent, AuthenticationMode mode, DateTimeOffset chosenAt, bool credentialStored, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task RecordAgentProbeAsync(Agent agent, AuthenticationMode mode, AgentReadiness readiness, string? reasonId, IReadOnlyList<string> reasonArguments, DateTimeOffset probedAt, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     [Fact]
@@ -331,6 +341,10 @@ public class TrustedUserServiceTests
     public Task<bool> RemoveProtectedPathAsync(string glob, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task SetSettingAsync(string name, string value, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task SetAgentAuthenticationAsync(Agent agent, AuthenticationMode mode, DateTimeOffset chosenAt, bool credentialStored, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task RecordAgentProbeAsync(Agent agent, AuthenticationMode mode, AgentReadiness readiness, string? reasonId, IReadOnlyList<string> reasonArguments, DateTimeOffset probedAt, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<ProjectWrite> RegisterProjectAsync(long repositoryId, string fullName, string baseBranch, CancellationToken cancellationToken) => throw new NotSupportedException();
 

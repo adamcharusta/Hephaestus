@@ -34,7 +34,7 @@ public sealed partial class DockerWorkspaceRuntime
             User = StepContainerLayout.User,
             Entrypoint = ["hephaestus", "egress-proxy"],
             Env = environment,
-            Labels = WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey, WorkspaceLabels.EgressProxyRole),
+            Labels = WorkspaceLabels.For(options.InstallationId, TaskLabel(request), request.StepRunId, idempotencyKey, WorkspaceLabels.EgressProxyRole),
             HostConfig = new HostConfig
             {
                 CapDrop = ["ALL"],

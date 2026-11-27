@@ -54,6 +54,13 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
             return NotUnderstood;
         }
 
+        // The same for an Agent's credential, which `agent set-auth` reads from standard input: a token that is not understood may have been the credential, so none is echoed.
+        if (parse.CommandResult.Command == tree.AgentSetAuth && (parse.UnmatchedTokens.Count > 0 || (!help && parse.Errors.Count > 0)))
+        {
+            WriteFailure(MessageIds.CliAgentSetAuthArgumentsTitle, new Message(MessageIds.CliAgentSetAuthArgumentsDetail));
+            return NotUnderstood;
+        }
+
         // Help is answered even when a required argument is missing: `secret set --help` has no name to give.
         if (parse.UnmatchedTokens.Count > 0 || (parse.Errors.Count > 0 && !help))
         {
@@ -121,6 +128,11 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
         if (await RunConfigurationAsync(command, parse, tree, json, cancellationToken) is { } configured)
         {
             return configured;
+        }
+
+        if (await RunAgentAsync(command, parse, tree, json, cancellationToken) is { } agent)
+        {
+            return agent;
         }
 
         HelpWriter.Write(command, tree.Help, output, language);
@@ -431,7 +443,7 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
     /// <summary>
     /// Everything standard input holds, up to what a value of the longest length and its line break take, plus one character; the API
     /// refuses what is too long. One trailing line break is dropped so that <c>echo value |</c> works. The value is never echoed,
-    /// logged, or kept after the request. It is a secret's value, or the GitHub App's private key.
+    /// logged, or kept after the request. It is a secret's value, the GitHub App's private key, or an Agent's credential.
     /// </summary>
     private async Task<string> ReadValueAsync(CancellationToken cancellationToken)
     {
@@ -480,11 +492,11 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
 
     private Task<ApiAnswer?> CallAsync(string path, CancellationToken cancellationToken) => CallAsync(HttpMethod.Get, path, body: null, cancellationToken);
 
-    private async Task<ApiAnswer?> CallAsync(HttpMethod method, string path, string? body, CancellationToken cancellationToken)
+    private async Task<ApiAnswer?> CallAsync(HttpMethod method, string path, string? body, CancellationToken cancellationToken, TimeSpan? timeout = null)
     {
         try
         {
-            return await client.SendAsync(method, path, body, cancellationToken);
+            return await client.SendAsync(method, path, body, cancellationToken, timeout);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
         {

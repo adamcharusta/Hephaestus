@@ -1,8 +1,11 @@
 using Docker.DotNet.Models;
 using Hephaestus.Core.AgentBinaries;
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Localization;
 using Hephaestus.Core.Workspaces;
 using Hephaestus.Workspaces.Egress;
+using Message = Hephaestus.Core.Localization.Message;
+using SecretReference = Hephaestus.Core.Invocations.SecretReference;
 
 namespace Hephaestus.Workspaces;
 
@@ -18,7 +21,7 @@ public sealed partial class DockerWorkspaceRuntime
     /// seccomp profile (nothing is named, so the default applies), a process limit, no published port, the limits of the Task, exactly the mounts of the
     /// container layout, and no network but the internal one of its step run, whose only other member is the egress proxy. The image's entry point and working directory are replaced, so that an image cannot change what runs.
     /// </summary>
-    private CreateContainerParameters StepContainer(StepContainerRequest request, string idempotencyKey)
+    private CreateContainerParameters StepContainer(StepContainerRequest request, string idempotencyKey, bool probe = false)
     {
         if (request.Command.Count == 0 || string.IsNullOrEmpty(request.Command[0]))
         {
@@ -33,6 +36,7 @@ public sealed partial class DockerWorkspaceRuntime
 
         // The proxy variables and git's rewrite are the runtime's, and replace any of the same name an invocation or an image sets; HOME likewise (AD-7).
         ValidateHosts(request.AllowedEgressHosts);
+        ValidateSecretReferences(request.SecretReferences);
         var environment = request.Environment
             .Where(pair => pair.Key is not "HOME" && !EgressEnvironment.Variables.ContainsKey(pair.Key))
             .Select(pair => EnvironmentEntry(pair.Key, pair.Value))
@@ -41,14 +45,14 @@ public sealed partial class DockerWorkspaceRuntime
             .ToList();
         return new CreateContainerParameters
         {
-            Name = WorkspaceLabels.StepContainer(request.StepRunId),
+            Name = probe ? WorkspaceLabels.AgentProbe(request.StepRunId) : WorkspaceLabels.StepContainer(request.StepRunId),
             Image = request.Image.Reference,
             User = StepContainerLayout.User,
             Entrypoint = [request.Command[0]],
             Cmd = [.. request.Command.Skip(1)],
             Env = environment,
             WorkingDir = StepContainerLayout.Workspace,
-            Labels = WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey, WorkspaceLabels.StepRole),
+            Labels = WorkspaceLabels.For(options.InstallationId, TaskLabel(request), probe ? null : request.StepRunId, idempotencyKey, probe ? WorkspaceLabels.AgentProbeRole : WorkspaceLabels.StepRole),
             HostConfig = new HostConfig
             {
                 CapDrop = ["ALL"],
@@ -61,10 +65,65 @@ public sealed partial class DockerWorkspaceRuntime
                 NanoCPUs = request.Limits.CpuMillis * 1_000_000L,
                 NetworkMode = WorkspaceLabels.StepNetwork(request.StepRunId),
                 RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.No },
-                Mounts = StepMounts(request),
+                Mounts = probe ? [.. AgentMounts(request.Image)] : StepMounts(request),
                 Tmpfs = new Dictionary<string, string> { [StepContainerLayout.Home] = HomeOptions },
             },
         };
+    }
+
+    /// <summary>The Task a container's labels name: none for an Agent probe, which has none (<see cref="Guid.Empty"/>).</summary>
+    private static Guid? TaskLabel(StepContainerRequest request) => request.TaskId == Guid.Empty ? null : request.TaskId;
+
+    /// <summary>
+    /// A secret reaches a container as an environment variable and in no other way: a file would have to be placed in the container's file system, which no invocation needs yet. Another target, or a variable the
+    /// runtime sets itself, is a mistake of whoever made the request, found before anything is created.
+    /// </summary>
+    private static void ValidateSecretReferences(IReadOnlyList<SecretReference>? references)
+    {
+        foreach (var reference in references ?? [])
+        {
+            if (!reference.IsEnvironmentVariable || reference.Target == "HOME" || EgressEnvironment.Variables.ContainsKey(reference.Target))
+            {
+                throw new ArgumentException($"The secret {reference.Name} cannot be placed at '{reference.Target}': only an environment variable that the runtime does not set itself can hold a secret.", nameof(references));
+            }
+        }
+
+        if ((references ?? []).GroupBy(reference => reference.Target, StringComparer.Ordinal).Any(group => group.Count() > 1))
+        {
+            throw new ArgumentException("Two secrets have the same target.", nameof(references));
+        }
+    }
+
+    /// <summary>The values of the references, read from the secret store now: each is read when this runs and held only until the container is created. A secret that is not stored refuses the start.</summary>
+    private async Task<List<(string Name, string Value)>> ResolveSecretsAsync(IReadOnlyList<SecretReference>? references, CancellationToken cancellationToken)
+    {
+        var resolved = new List<(string Name, string Value)>();
+        foreach (var reference in references ?? [])
+        {
+            var value = await secrets.ReadAsync(reference.Name, cancellationToken)
+                ?? throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceSecretMissing, reference.Name));
+            resolved.Add((reference.Target, value));
+        }
+
+        return resolved;
+    }
+
+    /// <summary>Puts the resolved values in the environment of the definition, replacing a variable of the same name that the invocation set.</summary>
+    private static void AddSecrets(CreateContainerParameters definition, List<(string Name, string Value)> resolved)
+    {
+        foreach (var (name, value) in resolved)
+        {
+            var environment = definition.Env!;
+            for (var index = environment.Count - 1; index >= 0; index--)
+            {
+                if (environment[index].StartsWith(name + "=", StringComparison.Ordinal))
+                {
+                    environment.RemoveAt(index);
+                }
+            }
+
+            environment.Add(EnvironmentEntry(name, value));
+        }
     }
 
     /// <summary>A host the proxy is to allow is a host name: the proxy's list is one line of names, and a name that cannot be one could change what the line says.</summary>

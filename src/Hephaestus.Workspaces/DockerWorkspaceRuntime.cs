@@ -4,6 +4,7 @@ using Docker.DotNet.Models;
 using Message = Hephaestus.Core.Localization.Message;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Secrets;
 using Hephaestus.Core.Workspaces;
 
 namespace Hephaestus.Workspaces;
@@ -12,9 +13,10 @@ namespace Hephaestus.Workspaces;
 /// The Docker runtime (AD-6, AD-7, AD-18, Stories 3.2 and 3.3). It creates the hardened container of a step and starts it without waiting for the step to
 /// end, hands it to the <see cref="IStepWatcher"/>, which sees it to its end, creates and prepares the Task's volume, and resolves a Project's image. It is
 /// the only code that talks to the Docker socket, and it writes no journal: the loop does, and passes the idempotency key of each effect. Every step run has an internal
-/// network of its own and an egress proxy on it, which is the only way out of the network (Story 3.4).
+/// network of its own and an egress proxy on it, which is the only way out of the network (Story 3.4). It resolves the secret references of an Agent invocation through <paramref name="secrets"/>, when it creates the
+/// container and nowhere else, and masks what an Agent probe printed with <paramref name="masker"/> (Story 3.10).
 /// </summary>
-public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, WorkspaceRuntimeOptions options, IStepWatcher watcher) : IWorkspaceRuntime
+public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, WorkspaceRuntimeOptions options, IStepWatcher watcher, ISecretStore secrets, SecretMasker masker) : IWorkspaceRuntime
 {
     private const string FillContextDirectory = "/context";
     private const string FillMethodologyDirectory = "/methodology";
@@ -59,7 +61,7 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
             if (string.Equals(existing.State, "created", StringComparison.Ordinal) && !await EgressProxyRunsAsync(request.StepRunId, cancellationToken))
             {
                 await EnsureNetworkAsync(options.OutboundNetwork, isInternal: false, WorkspaceLabels.For(options.InstallationId, null, null, idempotencyKey), cancellationToken);
-                await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey), cancellationToken);
+                await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, TaskLabel(request), request.StepRunId, idempotencyKey), cancellationToken);
                 await StartEgressProxyAsync(request, idempotencyKey, cancellationToken);
             }
 
@@ -68,9 +70,13 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
             return new StartedStep(existing.ID, StepName(existing), Created: false);
         }
 
+        // The credential is read at this moment and no earlier, and before anything is created, so that a secret that is not stored leaves no network or proxy behind. It goes into the container's environment and
+        // nowhere else: no label, name, volume, or file holds it.
+        AddSecrets(definition, await ResolveSecretsAsync(request.SecretReferences, cancellationToken));
+
         // The step run's network and its egress proxy come first, and the step container is created only when the proxy listens, so that no step meets a network with no way out.
         await EnsureNetworkAsync(options.OutboundNetwork, isInternal: false, WorkspaceLabels.For(options.InstallationId, null, null, idempotencyKey), cancellationToken);
-        await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey), cancellationToken);
+        await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, TaskLabel(request), request.StepRunId, idempotencyKey), cancellationToken);
         await StartEgressProxyAsync(request, idempotencyKey, cancellationToken);
         await PlaceFilesAsync(request, idempotencyKey, cancellationToken);
 

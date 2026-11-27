@@ -21,7 +21,7 @@ public class StepContainerTests
     private readonly RecordingWatcher _watcher = new();
 
     private DockerWorkspaceRuntime Runtime(AgentArchitecture architecture = AgentArchitecture.X64) =>
-        new(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, architecture), _watcher);
+        Runtimes.Of(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, architecture), _watcher);
 
     private static ResolvedImage Image(CLibrary libc = CLibrary.Glibc, AgentArchitecture architecture = AgentArchitecture.X64) =>
         new("registry.test/app@sha256:" + new string('a', 64), "sha256:" + new string('a', 64), architecture, libc);
@@ -635,7 +635,7 @@ public class StepContainerTests
     public async Task A_proxy_that_does_not_listen_within_the_limit_stops_the_step()
     {
         _docker.ProxyLogs = (_, _) => Task.FromResult(DockerDouble.Output());
-        var runtime = new DockerWorkspaceRuntime(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, AgentArchitecture.X64) { EgressProxyReadyLimit = TimeSpan.FromMilliseconds(50), EgressProxyPollInterval = TimeSpan.FromMilliseconds(10) }, _watcher);
+        var runtime = Runtimes.Of(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, AgentArchitecture.X64) { EgressProxyReadyLimit = TimeSpan.FromMilliseconds(50), EgressProxyPollInterval = TimeSpan.FromMilliseconds(10) }, _watcher);
 
         var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => runtime.StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
 

@@ -17,13 +17,14 @@ public sealed class MessageCatalog
 
     public static MessageCatalog Instance { get; } = new();
 
+    /// <summary>An argument that is itself a <see cref="Message"/> is resolved in the same language first, so that a sentence can carry the reason another sentence gives.</summary>
     public string Resolve(Message message, Language language)
     {
         var template = Template(message.Id, language)
             ?? throw new KeyNotFoundException($"Message id '{message.Id}' has no entry in language '{language.Tag()}'.");
         return message.Arguments is not { Length: > 0 }
             ? template
-            : string.Format(CultureInfo.InvariantCulture, template, message.Arguments);
+            : string.Format(CultureInfo.InvariantCulture, template, message.Arguments.Select(argument => argument is Message inner ? Resolve(inner, language) : argument).ToArray());
     }
 
     public string Resolve(string id, Language language) => Resolve(new Message(id), language);

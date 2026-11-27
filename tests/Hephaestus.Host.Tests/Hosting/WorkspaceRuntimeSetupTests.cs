@@ -1,5 +1,6 @@
 using Hephaestus.Core.AgentBinaries;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Secrets;
 using Hephaestus.Host.Hosting;
 using Docker.DotNet;
 using Docker.DotNet.Models;
@@ -19,8 +20,9 @@ public class WorkspaceRuntimeSetupTests
         installation.PrepareAgents();
 
         using var client = WorkspaceRuntimeSetup.CreateClient();
+        var secrets = Substitute.For<ISecretStore>();
 
-        var runtime = WorkspaceRuntimeSetup.Create(client, WorkspaceRuntimeSetup.CreateOptions(installation.Settings()), new NoWatcher());
+        var runtime = WorkspaceRuntimeSetup.Create(client, WorkspaceRuntimeSetup.CreateOptions(installation.Settings()), new NoWatcher(), secrets, new SecretMasker(secrets));
 
         Assert.IsType<DockerWorkspaceRuntime>(runtime);
     }

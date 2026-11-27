@@ -61,6 +61,61 @@ namespace Hephaestus.Persistence.Migrations
                     b.ToTable("AdmittedComments", (string)null);
                 });
 
+            modelBuilder.Entity("Hephaestus.Persistence.Model.AgentCapacityEntry", b =>
+                {
+                    b.Property<string>("Agent")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mode")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExhaustedUntil")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ProbedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Readiness")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReasonArguments")
+                        .HasMaxLength(512)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReasonId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Agent", "Mode");
+
+                    b.ToTable("AgentCapacities", (string)null);
+                });
+
+            modelBuilder.Entity("Hephaestus.Persistence.Model.AgentSettingEntry", b =>
+                {
+                    b.Property<string>("Agent")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ChosenAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Agent");
+
+                    b.ToTable("AgentSettings", (string)null);
+                });
+
             modelBuilder.Entity("Hephaestus.Persistence.Model.AliasEntry", b =>
                 {
                     b.Property<string>("Name")

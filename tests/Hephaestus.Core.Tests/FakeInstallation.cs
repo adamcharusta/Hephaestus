@@ -1,7 +1,9 @@
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Tests;
@@ -80,7 +82,35 @@ internal sealed class FakeInstallation : IReadStore, IInstallationConfiguration
 
     public Task<bool> RemoveTrustedUserAsync(long userId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task<IReadOnlyList<string>> ListSecretNamesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>The names of the secrets that are stored, which the tests that need them set.</summary>
+    public List<string> SecretNames { get; } = [];
+
+    public Task<IReadOnlyList<string>> ListSecretNamesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([.. SecretNames.Order(StringComparer.Ordinal)]);
+
+    public Dictionary<Agent, AgentSetting> AgentSettings { get; } = [];
+
+    public Dictionary<(Agent, AuthenticationMode), AgentCapacity> AgentCapacities { get; } = [];
+
+    public Task SetAgentAuthenticationAsync(Agent agent, AuthenticationMode mode, DateTimeOffset chosenAt, bool credentialStored, CancellationToken cancellationToken)
+    {
+        AgentSettings[agent] = new AgentSetting(agent, mode, chosenAt);
+        if (credentialStored)
+        {
+            AgentCapacities.Remove((agent, mode));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task RecordAgentProbeAsync(Agent agent, AuthenticationMode mode, AgentReadiness readiness, string? reasonId, IReadOnlyList<string> reasonArguments, DateTimeOffset probedAt, CancellationToken cancellationToken)
+    {
+        AgentCapacities[(agent, mode)] = new AgentCapacity(agent, mode, readiness, reasonId, reasonArguments, probedAt, AgentCapacities.GetValueOrDefault((agent, mode))?.ExhaustedUntil);
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentSetting>>([.. AgentSettings.Values.OrderBy(a => a.Agent)]);
+
+    public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentCapacity>>([.. AgentCapacities.Values.OrderBy(c => c.Agent).ThenBy(c => c.Mode)]);
 
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
