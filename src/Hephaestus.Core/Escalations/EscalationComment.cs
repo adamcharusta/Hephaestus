@@ -17,9 +17,12 @@ public static class EscalationComment
     public static string Compose(Escalation escalation, Language language)
     {
         var catalog = MessageCatalog.Instance;
-        var (decision, options) = escalation.Kind == EscalationKind.EffectFailed
-            ? (FailedEffectSentence(escalation.Effect, language), FailedEffectOptions(language))
-            : (AgentText.Neutralise(escalation.Decision), escalation.Options.Select(AgentText.Neutralise).ToList());
+        var (decision, options) = escalation.Kind switch
+        {
+            EscalationKind.EffectFailed => (FailedEffectSentence(escalation.Effect, language), FailedEffectOptions(language)),
+            EscalationKind.PushBlocked => (BlockedPushSentence(escalation, language), BlockedPushOptions(escalation, language)),
+            _ => (AgentText.Neutralise(escalation.Decision), escalation.Options.Select(AgentText.Neutralise).ToList()),
+        };
 
         var text = new StringBuilder();
         text.Append(catalog.Resolve(MessageIds.CommentEscalationHeadline, language)).Append("\n\n").Append(decision).Append('\n');
@@ -28,16 +31,54 @@ public static class EscalationComment
             text.Append((char)('A' + index)).Append(". ").Append(options[index]).Append('\n');
         }
 
-        return text.Append('\n').Append(catalog.Resolve(MessageIds.CommentEscalationAnswer, language)).ToString();
+        var answer = escalation.ResumeCondition == ResumeConditions.Confirm ? MessageIds.CommentEscalationAnswerConfirm : MessageIds.CommentEscalationAnswer;
+        return text.Append('\n').Append(catalog.Resolve(answer, language)).ToString();
     }
+
+    /// <summary>
+    /// The sentence for work that was not pushed: the check by its tag, which is never translated, what it means, and what it found. What it found is facts from git, paths and commit ids, which the loop recorded; the paths are a repository's,
+    /// so they are neutralised like anything else an Agent's change can name (AD-19).
+    /// </summary>
+    private static string BlockedPushSentence(Escalation escalation, Language language)
+    {
+        var catalog = MessageCatalog.Instance;
+        var found = AgentText.Neutralise(escalation.Decision);
+        if (escalation.Check is not { } check || check == PushCheck.RemoteMoved)
+        {
+            return found.Length == 0
+                ? catalog.Resolve(MessageIds.CommentEscalationPushHeldBare, language)
+                : catalog.Resolve(new Message(MessageIds.CommentEscalationPushHeld, found), language);
+        }
+
+        var sentence = catalog.Resolve(new Message(MessageIds.CommentEscalationPushBlocked, check.Tag(), catalog.Resolve(CheckId(check), language)), language);
+        return found.Length == 0 ? sentence : sentence + " " + catalog.Resolve(new Message(MessageIds.CommentEscalationPushFound, found), language);
+    }
+
+    private static List<string> BlockedPushOptions(Escalation escalation, Language language) =>
+    [
+        MessageCatalog.Instance.Resolve(escalation.ResumeCondition == ResumeConditions.Confirm ? MessageIds.CommentEscalationOptionConfirm : MessageIds.CommentEscalationOptionPushFix, language),
+        MessageCatalog.Instance.Resolve(new Message(MessageIds.CommentEscalationOptionCancel, Labels.Marker), language),
+    ];
+
+    private static string CheckId(PushCheck check) => check switch
+    {
+        PushCheck.Import => MessageIds.CommentEscalationCheckImport,
+        PushCheck.Branch => MessageIds.CommentEscalationCheckBranch,
+        PushCheck.FastForward => MessageIds.CommentEscalationCheckFastForward,
+        PushCheck.Secret => MessageIds.CommentEscalationCheckSecret,
+        _ => MessageIds.CommentEscalationCheckProtectedPath,
+    };
 
     private static string FailedEffectSentence(FailedEffect? effect, Language language)
     {
         var catalog = MessageCatalog.Instance;
         var reason = catalog.Resolve(ReasonId(effect?.Reason), language);
-        return effect is { Kind: EffectKind.Label }
-            ? catalog.Resolve(new Message(MessageIds.CommentEscalationEffectLabel, Labels.StatePrefix + effect.Detail, reason), language)
-            : catalog.Resolve(new Message(MessageIds.CommentEscalationEffectOther, reason), language);
+        return effect switch
+        {
+            { Kind: EffectKind.Label } => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectLabel, Labels.StatePrefix + effect.Detail, reason), language),
+            { Kind: EffectKind.Push } => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectPush, reason), language),
+            _ => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectOther, reason), language),
+        };
     }
 
     private static List<string> FailedEffectOptions(Language language) =>

@@ -54,6 +54,9 @@ public sealed class SecretMasker
         return output.ToString();
     }
 
+    /// <summary>A scan for one text delivered in chunks, for what is checked and not written: the masker's forms at the moment it is made.</summary>
+    public SecretScan CreateScan() => new(_matcher);
+
     /// <summary>A masker for one stream of text delivered in chunks.</summary>
     public SecretMaskingStream CreateStream() => new(this);
 }

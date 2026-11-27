@@ -15,6 +15,9 @@ public enum EffectKind
 
     /// <summary>Calls <c>INotifier</c> to tell the Owner that an Escalation was raised; made once, and never again after a restart.</summary>
     Notification,
+
+    /// <summary>Pushes the bundle of a checkpoint to the Task's branch through the gateway's checks (AD-9); resolved after a crash by reading the branch, so that it is never pushed twice.</summary>
+    Push,
 }
 
 public static class EffectKinds
@@ -25,6 +28,7 @@ public static class EffectKinds
         EffectKind.Label => "label",
         EffectKind.Comment => "comment",
         EffectKind.Notification => "notification",
+        EffectKind.Push => "push",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -139,6 +143,9 @@ public static class EffectKeys
 
     /// <summary>The cause of what a Signal makes happen: <c>g&lt;signal-sequence&gt;</c>.</summary>
     public static string SignalCause(long sequence) => "g" + sequence.ToString(CultureInfo.InvariantCulture);
+
+    /// <summary>The cause of what the end of a step run makes happen: <c>s</c> and the first 31 digits of the step run's id, so that it fits the 32 characters a cause has and is no Signal's.</summary>
+    public static string StepCause(Guid stepRunId) => "s" + stepRunId.ToString("N", CultureInfo.InvariantCulture)[..31];
 }
 
 /// <summary>An effect to be journaled together with the state change that causes it.</summary>

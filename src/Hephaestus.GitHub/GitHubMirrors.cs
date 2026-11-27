@@ -15,7 +15,7 @@ namespace Hephaestus.GitHub;
 /// installation token is put in the environment of the one git process that fetches, as a header for GitHub's own address, and is never an argument, a file, or a remote of the
 /// mirror, so that nothing on the data volume holds it. A mirror is a cache: it can be removed and fetched again at any time.
 /// </summary>
-public sealed class GitHubMirrors : IRepositoryMirrors
+public sealed partial class GitHubMirrors : IRepositoryMirrors, ITaskBranches
 {
     private const int DetailLimit = 500;
     private static readonly string[] Unreachable = ["Could not resolve host", "Failed to connect", "timed out", "early EOF", "RPC failed", "returned error: 5", "Connection reset", "unable to access", "Could not read from remote"];
@@ -137,18 +137,11 @@ public sealed class GitHubMirrors : IRepositoryMirrors
 
         // The header is scoped to GitHub's address, so a redirect to another host does not carry it; it is in the environment of this one process and nowhere else.
         var url = _options.RemoteUrl(project.FullName);
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var address))
+        if (TokenEnvironment(url, token.Token!) is not { } environment)
         {
             return MirrorResult.Failed(MirrorFailure.GitFailed, "The address of the repository is not an absolute address.");
         }
 
-        var scope = address.GetLeftPart(UriPartial.Authority);
-        var environment = new Dictionary<string, string>
-        {
-            ["GIT_CONFIG_COUNT"] = "1",
-            ["GIT_CONFIG_KEY_0"] = $"http.{scope}/.extraHeader",
-            ["GIT_CONFIG_VALUE_0"] = "Authorization: Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("x-access-token:" + token.Token)),
-        };
         var fetched = await _git.InMirrorAsync(
             repositoryId,
             ["fetch", "--quiet", "--prune", "--no-tags", "--no-write-fetch-head", "--force", url, "+refs/heads/*:refs/heads/*"],
@@ -156,6 +149,23 @@ public sealed class GitHubMirrors : IRepositoryMirrors
             _options.FetchTimeout,
             cancellationToken);
         return fetched.Succeeded ? MirrorResult.Fetched : MirrorResult.Failed(Classify(fetched), Describe(fetched, token.Token));
+    }
+
+    /// <summary>The environment of the one git process that talks to GitHub: the token as a header for GitHub's own address. Null when the address is not an absolute one.</summary>
+    private static Dictionary<string, string>? TokenEnvironment(string url, string token)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var address))
+        {
+            return null;
+        }
+
+        var scope = address.GetLeftPart(UriPartial.Authority);
+        return new Dictionary<string, string>
+        {
+            ["GIT_CONFIG_COUNT"] = "1",
+            ["GIT_CONFIG_KEY_0"] = $"http.{scope}/.extraHeader",
+            ["GIT_CONFIG_VALUE_0"] = "Authorization: Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("x-access-token:" + token)),
+        };
     }
 
     private async Task<Project?> FindProjectAsync(long repositoryId, CancellationToken cancellationToken) =>

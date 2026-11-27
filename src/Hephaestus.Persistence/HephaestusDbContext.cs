@@ -184,7 +184,7 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             entry.Property(e => e.Entry).IsRequired().HasMaxLength(8);
             entry.Property(e => e.Cause).IsRequired().HasMaxLength(32);
             entry.Property(e => e.Kind).IsRequired().HasMaxLength(16);
-            entry.Property(e => e.Detail).IsRequired().HasMaxLength(128);
+            entry.Property(e => e.Detail).IsRequired().HasMaxLength(256);
             entry.Property(e => e.NoticeKey).HasMaxLength(64);
             entry.Property(e => e.Result).HasMaxLength(16);
             entry.Property(e => e.Reason).HasMaxLength(32);
@@ -211,7 +211,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             escalation.Property(e => e.Cause).IsRequired().HasMaxLength(32);
             escalation.Property(e => e.EffectKey).HasMaxLength(128);
             escalation.Property(e => e.EffectKind).HasMaxLength(16);
-            escalation.Property(e => e.EffectDetail).HasMaxLength(128);
+            escalation.Property(e => e.EffectDetail).HasMaxLength(256);
+            escalation.Property(e => e.Check).HasMaxLength(16);
             escalation.Property(e => e.EffectReason).HasMaxLength(32);
             escalation.Property(e => e.Outcome).HasMaxLength(16);
             escalation.HasIndex(e => new { e.TaskId, e.RaisedAt });

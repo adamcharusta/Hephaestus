@@ -43,6 +43,33 @@ internal sealed class SecretMatcher
 
     public bool IsEmpty => _forms.Length == 0;
 
+    /// <summary>The length of the longest form, 0 when there is none.</summary>
+    public int LongestForm => _forms.Length == 0 ? 0 : _forms[0].Length;
+
+    /// <summary>Whether the text holds any form.</summary>
+    public bool Contains(ReadOnlySpan<char> text)
+    {
+        var position = 0;
+        while (position < text.Length)
+        {
+            var next = text[position..].IndexOfAny(_firstCharacters);
+            if (next < 0)
+            {
+                return false;
+            }
+
+            position += next;
+            if (LongestMatch(text[position..]) > 0)
+            {
+                return true;
+            }
+
+            position++;
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// What to look for in one stored value: the value, the value without its trailing line break, and, when it spans lines (a PEM
     /// private key), each line on its own, because a tool may log it one line at a time. The lines of a PEM block that frame the

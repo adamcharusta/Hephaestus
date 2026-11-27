@@ -1,4 +1,5 @@
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Tasks;
 
 namespace Hephaestus.Core.Escalations;
@@ -11,6 +12,9 @@ public enum EscalationKind
 
     /// <summary>An effect on GitHub reached its retry bound or was refused for good (AD-5); the effect and why are the facts, and the options are fixed.</summary>
     EffectFailed,
+
+    /// <summary>The gateway did not push the work of a Task because a check failed, or because the Task branch on GitHub is not at the tip Hephaestus last pushed (AD-9, AD-19); the check and what it found are the facts, and the options are fixed.</summary>
+    PushBlocked,
 }
 
 public static class EscalationKinds
@@ -20,6 +24,7 @@ public static class EscalationKinds
     {
         EscalationKind.Decision => "decision",
         EscalationKind.EffectFailed => "effect-failed",
+        EscalationKind.PushBlocked => "push-blocked",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -86,11 +91,12 @@ public sealed record FailedEffect(string Key, EffectKind Kind, string Detail, st
 /// A question Hephaestus asked the Owner about a Task, recorded on the Task (FR-48, AD-1). Its text is kept as it came, and is neutralised
 /// when the comment is made (AD-19).
 /// </summary>
-/// <param name="Decision">The decision needed, in one sentence; empty for an effect that could not be completed, whose sentence is fixed.</param>
+/// <param name="Decision">The decision needed, in one sentence; empty for an effect that could not be completed, whose sentence is fixed; what the check found, as facts, for a push that was blocked.</param>
 /// <param name="Options">The options Hephaestus sees, in order; empty for an effect that could not be completed, whose options are fixed.</param>
 /// <param name="ResumeCondition">What ends the wait, one of <see cref="ResumeConditions"/> (AD-1: every wait has one).</param>
 /// <param name="Cause">What caused it, as the journal names causes.</param>
 /// <param name="Effect">The effect that could not be completed, when that is the reason.</param>
+/// <param name="Check">The check that failed, for <see cref="EscalationKind.PushBlocked"/>.</param>
 /// <param name="ClosedAt">When the Task left <c>WaitingForOwner</c>, answered or not; null while the Escalation is open.</param>
 public sealed record Escalation(
     Guid Id,
@@ -103,13 +109,17 @@ public sealed record Escalation(
     DateTimeOffset RaisedAt,
     FailedEffect? Effect = null,
     DateTimeOffset? ClosedAt = null,
-    EscalationOutcome? Outcome = null);
+    EscalationOutcome? Outcome = null,
+    PushCheck? Check = null);
 
 /// <summary>What ends a wait; machine values, never translated.</summary>
 public static class ResumeConditions
 {
     /// <summary>A reply on the issue from a Trusted User, which returns the Task to the Queue with the answer (Story 2.10).</summary>
     public const string TrustedReply = "trusted-reply";
+
+    /// <summary>A Trusted User's <c>confirm</c> command, which adopts the commits on the Task branch that Hephaestus did not push (AD-9, Story 3.18); a reply does not end this wait, because a step would then run on a tip nobody has accepted.</summary>
+    public const string Confirm = "confirm";
 }
 
 /// <summary>

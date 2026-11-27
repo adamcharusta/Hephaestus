@@ -62,6 +62,131 @@ internal sealed class GitProcess(GitMirrorOptions options)
 
     private async Task<GitOutput> RunAsync(IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment, TimeSpan timeout, CancellationToken cancellationToken)
     {
+        using var process = new Process { StartInfo = Prepare(arguments, environment) };
+        if (!TryStart(process, out var failed))
+        {
+            return failed;
+        }
+
+        // Nothing is written to git's input; closing it means a command that asks for a line gets the end of the file, not a wait.
+        process.StandardInput.Close();
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(timeout);
+        var output = ReadBoundedAsync(process.StandardOutput);
+        var error = ReadBoundedAsync(process.StandardError);
+        try
+        {
+            await process.WaitForExitAsync(limit.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            Kill(process);
+            await Task.WhenAll(output, error);
+            return new GitOutput(-1, await output, await error, TimedOut: true);
+        }
+        catch (OperationCanceledException)
+        {
+            Kill(process);
+            throw;
+        }
+
+        return new GitOutput(process.ExitCode, await output, await error, TimedOut: false);
+    }
+
+    /// <summary>
+    /// Runs git in a mirror and hands its whole output, however long, to <paramref name="consume"/> as a stream, for what has to be read to the end and is too long to keep: the objects of a push, which are scanned as they come.
+    /// <paramref name="input"/> is written to git's input, one line each, for a command that reads names from it. The consumer says whether it wants more; when it does not, git is stopped and that is no failure.
+    /// </summary>
+    public async Task<GitOutput> StreamInMirrorAsync(
+        long repositoryId,
+        IReadOnlyList<string> arguments,
+        IEnumerable<string>? input,
+        TimeSpan timeout,
+        Func<Stream, CancellationToken, Task<bool>> consume,
+        CancellationToken cancellationToken)
+    {
+        var gitDirectory = $"--git-dir={MirrorOf(repositoryId)}";
+        if (!IsInside(gitDirectory["--git-dir=".Length..]))
+        {
+            throw new InvalidOperationException("Git is run only in a mirror.");
+        }
+
+        using var process = new Process { StartInfo = Prepare([gitDirectory, .. arguments], null) };
+        if (!TryStart(process, out var failed))
+        {
+            return failed;
+        }
+
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        limit.CancelAfter(timeout);
+        var error = ReadBoundedAsync(process.StandardError);
+        var writing = WriteInputAsync(process, input, limit.Token);
+        var stopped = false;
+        try
+        {
+            stopped = !await consume(process.StandardOutput.BaseStream, limit.Token);
+            if (stopped)
+            {
+                Kill(process);
+            }
+
+            await process.WaitForExitAsync(limit.Token);
+            await writing;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            Kill(process);
+            await error;
+            return new GitOutput(-1, string.Empty, await error, TimedOut: true);
+        }
+        catch (Exception)
+        {
+            // A consumer that failed, or a caller that gave up: git is not left running against the mirror, and nothing is left unobserved.
+            Kill(process);
+            await Task.WhenAll(error, writing).ContinueWith(_ => { }, TaskScheduler.Default);
+            throw;
+        }
+
+        return new GitOutput(stopped ? 0 : process.ExitCode, string.Empty, await error, TimedOut: false);
+    }
+
+    private static async Task WriteInputAsync(Process process, IEnumerable<string>? input, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (input is not null)
+            {
+                foreach (var line in input)
+                {
+                    await process.StandardInput.WriteLineAsync(line.AsMemory(), cancellationToken);
+                }
+            }
+
+            process.StandardInput.Close();
+        }
+        catch (IOException)
+        {
+            // Git stopped reading, which is the consumer's doing or git's own failure, and the exit code says which.
+        }
+    }
+
+    private static bool TryStart(Process process, out GitOutput failed)
+    {
+        try
+        {
+            process.Start();
+            failed = null!;
+            return true;
+        }
+        catch (Exception exception) when (exception is Win32Exception or IOException or InvalidOperationException)
+        {
+            failed = new GitOutput(-1, string.Empty, exception.Message, TimedOut: false);
+            return false;
+        }
+    }
+
+    private ProcessStartInfo Prepare(IReadOnlyList<string> arguments, IReadOnlyDictionary<string, string>? environment)
+    {
         foreach (var argument in arguments)
         {
             // A path the gateway built from a repository id is inside the mirrors directory; anything that names another place is a bug, and nothing is started for it.
@@ -116,39 +241,7 @@ internal sealed class GitProcess(GitMirrorOptions options)
             start.ArgumentList.Add(argument);
         }
 
-        using var process = new Process { StartInfo = start };
-        try
-        {
-            process.Start();
-        }
-        catch (Exception exception) when (exception is Win32Exception or IOException or InvalidOperationException)
-        {
-            return new GitOutput(-1, string.Empty, exception.Message, TimedOut: false);
-        }
-
-        // Nothing is written to git's input; closing it means a command that asks for a line gets the end of the file, not a wait.
-        process.StandardInput.Close();
-        using var limit = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        limit.CancelAfter(timeout);
-        var output = ReadBoundedAsync(process.StandardOutput);
-        var error = ReadBoundedAsync(process.StandardError);
-        try
-        {
-            await process.WaitForExitAsync(limit.Token);
-        }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-        {
-            Kill(process);
-            await Task.WhenAll(output, error);
-            return new GitOutput(-1, await output, await error, TimedOut: true);
-        }
-        catch (OperationCanceledException)
-        {
-            Kill(process);
-            throw;
-        }
-
-        return new GitOutput(process.ExitCode, await output, await error, TimedOut: false);
+        return start;
     }
 
     private bool IsInside(string path)

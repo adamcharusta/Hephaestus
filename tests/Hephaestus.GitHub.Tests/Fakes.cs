@@ -50,7 +50,10 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
 
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>The protected paths: the entries a new installation starts with.</summary>
+    public List<string> ProtectedPaths { get; } = [.. Hephaestus.Core.Protection.ProtectedPath.Defaults];
+
+    public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<string>>([.. ProtectedPaths]);
 
     public Dictionary<string, string> Settings { get; } = [];
 

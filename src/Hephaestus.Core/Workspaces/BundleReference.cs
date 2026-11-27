@@ -54,6 +54,9 @@ public sealed partial record BundleReference
 
     public string? Prerequisite { get; }
 
+    /// <summary>Where the bundle of a step run's checkpoint is, under the bundles directory: the one name that the runtime writes it under and the loop reads it by.</summary>
+    public static string CheckpointPath(Guid taskId, Guid stepRunId) => $"{taskId:D}/{stepRunId:D}-checkpoint{Extension}";
+
     /// <summary>Whether the text is a commit id: 40 lower-case hexadecimal digits.</summary>
     public static bool IsCommitId(string? text) => text is not null && TipPattern().IsMatch(text);
 

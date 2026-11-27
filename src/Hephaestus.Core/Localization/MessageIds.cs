@@ -284,6 +284,19 @@ public static class MessageIds
     public const string CommentEscalationReasonIssueNotFound = "comment.escalation.reason.issue-not-found";
     public const string CommentEscalationReasonAppNotInstalled = "comment.escalation.reason.app-not-installed";
     public const string CommentEscalationReasonRejected = "comment.escalation.reason.rejected";
+    public const string CommentEscalationPushBlocked = "comment.escalation.push-blocked";
+    public const string CommentEscalationPushFound = "comment.escalation.push-found";
+    public const string CommentEscalationCheckImport = "comment.escalation.check.import";
+    public const string CommentEscalationCheckBranch = "comment.escalation.check.branch";
+    public const string CommentEscalationCheckFastForward = "comment.escalation.check.fast-forward";
+    public const string CommentEscalationCheckSecret = "comment.escalation.check.secret";
+    public const string CommentEscalationCheckProtectedPath = "comment.escalation.check.protected-path";
+    public const string CommentEscalationPushHeld = "comment.escalation.push-held";
+    public const string CommentEscalationPushHeldBare = "comment.escalation.push-held-bare";
+    public const string CommentEscalationOptionPushFix = "comment.escalation.option-push-fix";
+    public const string CommentEscalationOptionConfirm = "comment.escalation.option-confirm";
+    public const string CommentEscalationAnswerConfirm = "comment.escalation.answer-confirm";
+    public const string CommentEscalationEffectPush = "comment.escalation.effect-push";
 
     public const string AgentsLockColumns = "agents.lock.columns";
     public const string AgentsLockValue = "agents.lock.value";

@@ -57,7 +57,8 @@ public sealed partial class OrchestratorLoop(
     TimeProvider time,
     LoopHeartbeat heartbeat,
     Func<TimeSpan, CancellationToken, Task>? delay = null,
-    Language fallbackLanguage = Language.English)
+    Language fallbackLanguage = Language.English,
+    ITaskBranches? branches = null)
 {
     /// <summary>How long the loop waits when no Signal is pending.</summary>
     public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
