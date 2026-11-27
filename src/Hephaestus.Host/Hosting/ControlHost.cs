@@ -54,6 +54,7 @@ internal static class ControlHost
             provider.GetRequiredService<GitHubRateLimit>()));
         builder.Services.AddHostedService<PollerService>();
         builder.Services.TryAddSingleton<LoopHeartbeat>();
+        builder.Services.TryAddSingleton<INotifier, NoOpNotifier>();
         // The loop takes the language the environment names, for the installation that has stored none.
         builder.Services.TryAddSingleton(provider => ActivatorUtilities.CreateInstance<OrchestratorLoop>(provider, settings.Language));
         builder.Services.AddHostedService<OrchestratorService>();

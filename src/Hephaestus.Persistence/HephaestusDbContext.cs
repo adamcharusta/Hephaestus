@@ -32,6 +32,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<EffectJournalEntryEntity> EffectJournal => Set<EffectJournalEntryEntity>();
 
+    public DbSet<EscalationEntry> Escalations => Set<EscalationEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -167,6 +169,27 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
             // What is said on an issue to one user about one kind of action is said once; the database refuses a second intent that would.
             entry.HasIndex(e => new { e.RepositoryId, e.IssueNumber, e.NoticeKey }).IsUnique().HasFilter("\"Entry\" = 'intent' AND \"NoticeKey\" IS NOT NULL").HasDatabaseName("IX_EffectJournal_Notice");
+        });
+
+        model.Entity<EscalationEntry>(escalation =>
+        {
+            escalation.ToTable("Escalations");
+            escalation.HasKey(e => e.Id);
+            escalation.Property(e => e.Id).ValueGeneratedNever();
+            escalation.Property(e => e.Kind).IsRequired().HasMaxLength(16);
+            escalation.Property(e => e.Decision).IsRequired();
+            escalation.Property(e => e.Options).IsRequired();
+            escalation.Property(e => e.ResumeCondition).IsRequired().HasMaxLength(32);
+            escalation.Property(e => e.Cause).IsRequired().HasMaxLength(32);
+            escalation.Property(e => e.EffectKey).HasMaxLength(128);
+            escalation.Property(e => e.EffectKind).HasMaxLength(16);
+            escalation.Property(e => e.EffectDetail).HasMaxLength(128);
+            escalation.Property(e => e.EffectReason).HasMaxLength(32);
+            escalation.Property(e => e.Outcome).HasMaxLength(16);
+            escalation.HasIndex(e => new { e.TaskId, e.RaisedAt });
+
+            // One Escalation asks for one decision: a Task has at most one that is open, and the database refuses a second.
+            escalation.HasIndex(e => e.TaskId).IsUnique().HasFilter("\"ClosedAt\" IS NULL").HasDatabaseName("IX_Escalations_Open");
         });
 
         model.Entity<PollCursorEntry>(cursor =>

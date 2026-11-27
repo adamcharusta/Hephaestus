@@ -1,4 +1,5 @@
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Signals;
 using Hephaestus.Core.Tasks;
 
@@ -17,7 +18,17 @@ public sealed record NewTask(TaskRecord Task, IssueSnapshot Snapshot);
 /// <param name="TaskId">The Task the Signal concerned, when it concerned one that exists; a new Task's id is taken from <paramref name="NewTask"/>.</param>
 /// <param name="NewTask">The Task this Signal creates, if it does.</param>
 /// <param name="NewEffects">The effects this Signal causes, whose intents commit in the same transaction (AD-5); each is for the Task of <paramref name="NewTask"/> or <paramref name="TaskId"/>.</param>
-public sealed record SignalApplication(long Sequence, SignalStatus Status, string? Reason = null, Guid? TaskId = null, NewTask? NewTask = null, IReadOnlyList<NewEffect>? NewEffects = null);
+/// <param name="MoveTaskTo">The state the Task of <paramref name="TaskId"/> moves to in the same transaction, when the Signal takes it out of the state it is in.</param>
+/// <param name="EndEscalation">How the Task's open Escalation ends, when the move takes the Task out of <c>waiting-for-owner</c> without an answer.</param>
+public sealed record SignalApplication(
+    long Sequence,
+    SignalStatus Status,
+    string? Reason = null,
+    Guid? TaskId = null,
+    NewTask? NewTask = null,
+    IReadOnlyList<NewEffect>? NewEffects = null,
+    TaskState? MoveTaskTo = null,
+    EscalationOutcome? EndEscalation = null);
 
 /// <summary>
 /// The write side of Task state (AD-1). Task and step-run records are written only by the orchestrator loop through this port, and
@@ -38,4 +49,11 @@ public interface IUnitOfWork
     /// completed. An effect that has a result already is left as it is and nothing is written. Returns whether this was recorded now.
     /// </summary>
     Task<bool> RecordEffectAsync(EffectRecording recording, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Raises an Escalation (FR-48) in one transaction: records it, moves the Task to <c>waiting-for-owner</c>, and journals the intents of the
+    /// state label, the comment, and the notification (AD-5). Nothing is written, and false is returned, when the Task is no longer in the state
+    /// the plan was made for, so that one Escalation asks for one decision.
+    /// </summary>
+    Task<bool> EscalateAsync(EscalationPlan plan, CancellationToken cancellationToken);
 }

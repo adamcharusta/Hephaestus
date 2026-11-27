@@ -34,10 +34,11 @@ public static class TaskStates
     };
 
     /// <summary>
-    /// Whether a Task in this state moves to <see cref="TaskState.WaitingForOwner"/> when an effect on its issue cannot be completed (AD-5): a
-    /// Task that is queued or in progress does; one that has ended, or is withdrawn or already waiting for the Owner, stays as it is.
+    /// Whether a Task in this state moves to <see cref="TaskState.WaitingForOwner"/> when it cannot go on: when an effect on its issue cannot be
+    /// completed (AD-5), or when Hephaestus raises an Escalation. A Task that is queued or in progress does; one that has ended, or is
+    /// withdrawn or already waiting for the Owner, stays as it is.
     /// </summary>
-    public static bool MovesToWaitingForOwnerWhenAnEffectFails(this TaskState state) =>
+    public static bool MovesToWaitingForOwnerWhenItCannotGoOn(this TaskState state) =>
         state is TaskState.Queued or TaskState.Running or TaskState.WaitingForCapacity or TaskState.PullRequestOpen;
 
     public static bool TryParse(string? tag, out TaskState state)
@@ -54,4 +55,17 @@ public static class TaskStates
         state = default;
         return false;
     }
+}
+
+/// <summary>
+/// The rows of the lifecycle table (AR-31) that a Trusted User's removal of the Marker Label or close of the issue takes. Only the rows of a
+/// Task that waits for the Owner are here; Story 2.3 adds those of the other states.
+/// </summary>
+public static class TaskLifecycle
+{
+    /// <summary>The state a Trusted User's removal of the Marker Label takes a Task in <paramref name="state"/> to, or null when it takes it nowhere.</summary>
+    public static TaskState? AfterMarkerRemoved(TaskState state) => state == TaskState.WaitingForOwner ? TaskState.Cancelled : null;
+
+    /// <summary>The state a Trusted User's close of the issue takes a Task in <paramref name="state"/> to, or null when it takes it nowhere.</summary>
+    public static TaskState? AfterIssueClosed(TaskState state) => state == TaskState.WaitingForOwner ? TaskState.Closed : null;
 }

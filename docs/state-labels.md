@@ -69,7 +69,9 @@ A credential that is missing or unreadable (`not-connected`, `key-unreadable`) c
 the label be made. With the default, the waits add up to a little under 15 minutes.
 
 At the bound, the effect is not tried again, the journal records `gave-up`, and the Task moves to **`waiting-for-owner`, not `failed`**,
-in the same transaction, and its new label is journaled as an intent of its own.
+in the same transaction. This raises an Escalation like any other ([`escalation.md`](escalation.md)): the intents of the new label, of a
+comment that says which effect could not be completed and why, and of the notification are journaled with the move. The comment is made once
+GitHub accepts writes again.
 
 ## When GitHub refuses for good
 
@@ -89,4 +91,4 @@ issue, and says that no Task is affected; on a Task's issue it says that the Tas
 
 Read the log with `docker compose logs hephaestus`. Attempts that will be tried again are one warning line per tick. A Task in
 `waiting-for-owner` is resumed by an answer on the issue, which a later story adds; until then, look at the Task's issue and the App's
-permissions, and fix the cause.
+permissions, and fix the cause, or remove the Marker Label to cancel the Task ([`escalation.md`](escalation.md)).

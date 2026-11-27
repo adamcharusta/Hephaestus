@@ -118,5 +118,6 @@ only asks that the API answers (`version`).
 The Marker Label opts in an issue that is already closed, too: the loop does not look at whether an issue is open. How a close and a
 Task relate is for the story that handles closes. A Task you create is `queued`, and its state is shown on its issue as the label
 `hephaestus:queued` ([`state-labels.md`](state-labels.md)); nothing more happens to it: nothing dispatches it or withdraws it when you
-remove the label. Those are the next stories of the epic. Until the Dashboard shows
+remove the label. Those are the next stories of the epic. The one exception is a Task that waits for the Owner after an Escalation
+([`escalation.md`](escalation.md)): a Trusted User who removes the Marker Label cancels it, and one who closes the issue closes it. Until the Dashboard shows
 Tasks, the label on the issue and the database on the `hephaestus-data` volume are where you see them.

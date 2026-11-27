@@ -165,6 +165,14 @@ docker exec hephaestus hephaestus health          # Loop: alive, last tick 2026-
 [`docs/state-labels.md`](docs/state-labels.md) lists the state labels and says what happens when GitHub cannot be reached or refuses a change:
 the Task moves to `waiting-for-owner`, and in v0.1 a Task whose issue can no longer be written to is visible only in the log.
 
+### When Hephaestus needs a decision
+
+When it cannot go on with a Task, Hephaestus posts one specific question on the Task's issue, **Hephaestus needs a decision.**, with the options
+lettered one per line, and the Task waits in `waiting-for-owner` while other Tasks go on. The same happens when a change to the issue could not
+be made within the retries, and the comment then says which one. Answering is a later story; until then, fix the cause, or remove the label
+`hephaestus` from the issue to cancel the Task (closing the issue closes it). The notification channels are a later release: in v0.1 the comment
+is how you are told. [`docs/escalation.md`](docs/escalation.md) has the shape of the comment and what is done to text an Agent wrote.
+
 ### The Project's configuration file
 
 A Project is configured by `hephaestus.yml` at the root of its Base Branch: the image its Tasks run in, the Validation commands,

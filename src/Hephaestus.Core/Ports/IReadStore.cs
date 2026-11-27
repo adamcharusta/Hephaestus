@@ -1,5 +1,6 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Tasks;
@@ -45,6 +46,12 @@ public interface IReadStore
 
     /// <summary>The newest snapshot of the Task's issue, or null when it has none.</summary>
     Task<IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken);
+
+    /// <summary>The Escalation with the id, or null when there is none.</summary>
+    Task<Escalation?> FindEscalationAsync(Guid escalationId, CancellationToken cancellationToken);
+
+    /// <summary>The Escalations of a Task in the order they were raised; the open one, if there is one, is the last.</summary>
+    Task<IReadOnlyList<Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken);
 
     /// <summary>The effects that have an intent and no result (AD-5), in the order they were journaled, with the Task each is for and how its attempts went.</summary>
     Task<IReadOnlyList<PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken);

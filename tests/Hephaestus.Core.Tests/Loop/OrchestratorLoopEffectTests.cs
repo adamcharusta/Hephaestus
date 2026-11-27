@@ -26,7 +26,7 @@ public class OrchestratorLoopEffectTests
         _stores.AppSlug = "hephaestus-test";
     }
 
-    private OrchestratorLoop NewLoop() => new(_stores, _stores, _stores, _stores.Github, _time, new LoopHeartbeat(_time));
+    private OrchestratorLoop NewLoop() => new(_stores, _stores, _stores, _stores.Github, _stores.Notifier, _time, new LoopHeartbeat(_time));
 
     private async Task<TickReport> TickWithAsync(OrchestratorLoop loop, params Signal[] signals)
     {
@@ -369,7 +369,7 @@ public class OrchestratorLoopEffectTests
         Assert.Equal((EffectResult.GaveUp, "unreachable", 6), (ended.Result, ended.Reason, ended.Failures));
         var problem = Assert.Single(last.Problems!);
         Assert.Equal((task.Id, EffectResult.GaveUp, "unreachable", true), (problem.TaskId, problem.Result, problem.Reason, problem.MovedToWaitingForOwner));
-        var next = Journal().Last(e => e.Entry == JournalEntryKind.Intent);
+        var next = Journal().Last(e => e.Entry == JournalEntryKind.Intent && e.Effect.Kind == EffectKind.Label);
         Assert.Equal(($"{task.Id}:g1:label:1", "waiting-for-owner"), (next.Effect.Key, next.Effect.Detail));
 
         _stores.Github.Answer = null;
@@ -422,7 +422,7 @@ public class OrchestratorLoopEffectTests
         Assert.Equal(TaskState.WaitingForOwner, task.State);
         var refusal = Journal().First(e => e.Result is not null);
         Assert.Equal((EffectResult.Refused, "issue-not-found", 0), (refusal.Result, refusal.Reason, refusal.Failures));
-        Assert.DoesNotContain(Journal(), e => e.Entry == JournalEntryKind.Retry);
+        Assert.DoesNotContain(Journal(), e => e.Entry == JournalEntryKind.Retry && e.Effect.Kind != EffectKind.Notification);
         var problem = Assert.Single(report.Problems!);
         Assert.Equal((task.Id, "issue-not-found"), (problem.TaskId, problem.Reason));
         Assert.Empty(_stores.Github.Changes);
@@ -457,7 +457,9 @@ public class OrchestratorLoopEffectTests
         var problem = Assert.Single(report.Problems!);
         Assert.False(problem.MovedToWaitingForOwner);
         Assert.Empty(_stores.Github.Changes);
-        Assert.Equal(2, Journal().Count(e => e.Entry == JournalEntryKind.Intent));
+
+        // The state label, the label that shows the move, and the comment and the notification of the Escalation the first refusal raised.
+        Assert.Equal(4, Journal().Count(e => e.Entry == JournalEntryKind.Intent));
     }
 
     [Theory]

@@ -94,7 +94,7 @@ public class LabelsTests
     [InlineData(TaskState.Closed, false)]
     public void Only_a_Task_that_is_queued_or_in_progress_moves_to_waiting_for_the_Owner_when_an_effect_cannot_be_made(TaskState state, bool moves)
     {
-        Assert.Equal(moves, state.MovesToWaitingForOwnerWhenAnEffectFails());
+        Assert.Equal(moves, state.MovesToWaitingForOwnerWhenItCannotGoOn());
     }
 
     [Theory]

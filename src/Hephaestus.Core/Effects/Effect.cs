@@ -1,4 +1,5 @@
 using System.Globalization;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Tasks;
 
 namespace Hephaestus.Core.Effects;
@@ -11,6 +12,9 @@ public enum EffectKind
 
     /// <summary>Posts one comment on an issue, whose last line is the hidden marker of the effect's key, unless a comment with that marker is there already.</summary>
     Comment,
+
+    /// <summary>Calls <c>INotifier</c> to tell the Owner that an Escalation was raised; made once, and never again after a restart.</summary>
+    Notification,
 }
 
 public static class EffectKinds
@@ -20,6 +24,7 @@ public static class EffectKinds
     {
         EffectKind.Label => "label",
         EffectKind.Comment => "comment",
+        EffectKind.Notification => "notification",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -105,6 +110,15 @@ public static class EffectReasons
 
     /// <summary>The journal holds an intent that this version does not know how to make.</summary>
     public const string UnknownEffect = "unknown-effect";
+
+    /// <summary>The notifier failed; the Owner is told by the comment, and no Task changes (FR-51).</summary>
+    public const string NotifierFailed = "notifier-failed";
+
+    /// <summary>The reason of the entry that journals, before the call, that a notification is being made.</summary>
+    public const string Notifying = "notifying";
+
+    /// <summary>A notification was started and the host stopped before its result was recorded; it is not sent again (AD-5).</summary>
+    public const string Interrupted = "interrupted";
 }
 
 /// <summary>The idempotency key of an effect (AD-5): <c>&lt;scope&gt;:&lt;cause&gt;:&lt;effect-kind&gt;:&lt;ordinal&gt;</c>.</summary>
@@ -155,16 +169,14 @@ public sealed record PendingEffect(Effect Effect, TaskRecord? Task, int Failures
 /// <summary>What the loop records after it has asked the far side: a result that ends the effect, or a retry that schedules the next attempt.</summary>
 /// <param name="Result">How the effect ended; null for a retry.</param>
 /// <param name="Reason">Why, for a refusal, a give-up, or a retry.</param>
-/// <param name="MoveTaskTo">The state the Task moves to in the same transaction, when the effect could not be completed.</param>
-/// <param name="NewEffects">The effects that the move causes, journaled with it.</param>
+/// <param name="Escalation">The Escalation the Task raises in the same transaction, when the effect could not be completed: the Task moves to <c>waiting-for-owner</c> and the intents of what shows it are journaled (AD-5).</param>
 public sealed record EffectRecording(
     Effect Effect,
     EffectResult? Result,
     string? Reason,
     int Failures,
     DateTimeOffset? NextAttemptAt,
-    TaskState? MoveTaskTo = null,
-    IReadOnlyList<NewEffect>? NewEffects = null);
+    EscalationPlan? Escalation = null);
 
 /// <summary>The kinds of entry the journal holds; it is append-only, and an effect has one intent, any retries, and at most one result.</summary>
 public enum JournalEntryKind

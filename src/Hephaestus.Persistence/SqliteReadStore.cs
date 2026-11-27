@@ -1,5 +1,7 @@
 using Hephaestus.Core.Aliases;
+using System.Text.Json;
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
@@ -93,6 +95,20 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         return entry is null ? null : new IssueSnapshot(entry.Title, entry.Body, entry.Hash, entry.SignalSequence, entry.TakenAt);
     }
 
+    public async Task<Escalation?> FindEscalationAsync(Guid escalationId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entry = await context.Escalations.FirstOrDefaultAsync(e => e.Id == escalationId, cancellationToken);
+        return entry is null ? null : ToEscalation(entry);
+    }
+
+    public async Task<IReadOnlyList<Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.Escalations.Where(e => e.TaskId == taskId).ToListAsync(cancellationToken);
+        return [.. entries.OrderBy(e => e.RaisedAt).ThenBy(e => e.Id).Select(ToEscalation)];
+    }
+
     public async Task<IReadOnlyList<PendingEffect>> ListUnfinishedEffectsAsync(CancellationToken cancellationToken)
     {
         await using var context = database.OpenReader();
@@ -148,6 +164,19 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         entry.Ordinal,
         entry.RepositoryId,
         entry.IssueNumber);
+
+    private static Escalation ToEscalation(EscalationEntry entry) => new(
+        entry.Id,
+        entry.TaskId,
+        EscalationKinds.TryParse(entry.Kind, out var kind) ? kind : throw new InvalidOperationException($"The stored Escalation {entry.Id} has the unknown kind '{entry.Kind}'."),
+        entry.Decision,
+        JsonSerializer.Deserialize<string[]>(entry.Options) ?? [],
+        entry.ResumeCondition,
+        entry.Cause,
+        entry.RaisedAt,
+        entry.EffectKey is { } key && EffectKinds.TryParse(entry.EffectKind, out var effectKind) ? new FailedEffect(key, effectKind, entry.EffectDetail ?? string.Empty, entry.EffectReason ?? string.Empty) : null,
+        entry.ClosedAt,
+        EscalationOutcomes.TryParse(entry.Outcome, out var outcome) ? outcome : null);
 
     internal static TaskRecord ToTask(TaskEntry entry) => new(
         entry.Id,

@@ -271,4 +271,17 @@ public static class MessageIds
     public const string ConfigIssueMethodologyNoneShipped = "config.issue.methodology-none-shipped";
 
     public const string CommentIgnoredLabel = "comment.ignored-label";
+    public const string CommentEscalationHeadline = "comment.escalation.headline";
+    public const string CommentEscalationAnswer = "comment.escalation.answer";
+    public const string CommentEscalationEffectLabel = "comment.escalation.effect-label";
+    public const string CommentEscalationEffectOther = "comment.escalation.effect-other";
+    public const string CommentEscalationOptionFix = "comment.escalation.option-fix";
+    public const string CommentEscalationOptionCancel = "comment.escalation.option-cancel";
+    public const string CommentEscalationReasonUnreachable = "comment.escalation.reason.unreachable";
+    public const string CommentEscalationReasonRateLimited = "comment.escalation.reason.rate-limited";
+    public const string CommentEscalationReasonNotConnected = "comment.escalation.reason.not-connected";
+    public const string CommentEscalationReasonKeyUnreadable = "comment.escalation.reason.key-unreadable";
+    public const string CommentEscalationReasonIssueNotFound = "comment.escalation.reason.issue-not-found";
+    public const string CommentEscalationReasonAppNotInstalled = "comment.escalation.reason.app-not-installed";
+    public const string CommentEscalationReasonRejected = "comment.escalation.reason.rejected";
 }
