@@ -504,7 +504,7 @@ public sealed class CheckpointContainerTests : IDisposable
         var failure = await RefusedAsync();
 
         Assert.Equal(MessageIds.WorkspaceCheckpointResultArchive, failure.Info.Id);
-        Assert.StartsWith("EndOfStreamException in the file", (string)failure.Info.Arguments[1], StringComparison.Ordinal);
+        Assert.StartsWith("the file is cut short: ", (string)failure.Info.Arguments[1], StringComparison.Ordinal);
     }
 
     /// <summary>A stream that gives its bytes as far as <paramref name="breaksAt"/> and then fails as the Engine's chunked response does when the connection closes: it supports only asynchronous reads.</summary>

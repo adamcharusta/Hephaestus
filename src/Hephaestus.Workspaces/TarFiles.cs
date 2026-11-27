@@ -108,13 +108,42 @@ internal static class TarFiles
     /// <summary>
     /// Reads the one file a container returns from a stopped container's archive (Docker's copy-from-container): the first entry must be a regular file called exactly <paramref name="name"/>, no larger than
     /// <paramref name="maximumBytes"/>, and there must be no second entry. A link entry, a name with a parent or a directory in it, or anything else makes it <see cref="ReadOutcome.NotOneRegularFile"/>, and a file that
-    /// was started is deleted: nothing from such an archive is used. It is read asynchronously, because the stream of a copy out of a container does not support a synchronous read, and the copy stops at <paramref name="cancellationToken"/>. The size is the header's and the copy is bounded by it, so a stream that is longer than it says is never read past it.
+    /// was started is deleted: nothing from such an archive is used. The response is first copied to a file of its own, no larger than the bound and the archive's own overhead, and read from there: the stream of a copy out of
+    /// a container supports only asynchronous reads, and is closed by the Engine without the blocks that end an archive, so it is not parsed as it arrives. What the Engine closed early holds no second entry that anyone uses, but
+    /// a file that is cut short is refused, because the entry's data runs out. Both files are deleted when this returns.
     /// </summary>
-    public static async Task<(ReadOutcome Outcome, string? Sha256, string? Detail)> ReadOneFileAsync(Stream archive, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
+    public static async Task<(ReadOutcome Outcome, string? Sha256, string? Detail)> ReadOneFileAsync(Stream response, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
     {
-        var phase = "the first entry";
+        var staged = destination + ".tar";
+        var phase = "the response";
+        long received = 0;
         try
         {
+            await using (var staging = new FileStream(staged, System.IO.FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous))
+            {
+                var buffer = new byte[81920];
+                try
+                {
+                    int read;
+                    while ((read = await response.ReadAsync(buffer, cancellationToken)) > 0)
+                    {
+                        received += read;
+                        if (received > maximumBytes + ArchiveOverheadBytes)
+                        {
+                            return (ReadOutcome.TooLarge, null, null);
+                        }
+
+                        await staging.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    }
+                }
+                catch (EndOfStreamException)
+                {
+                    // The Engine closed the stream early; what arrived is read, and a file that is not whole is refused below.
+                }
+            }
+
+            phase = "the first entry";
+            await using var archive = new FileStream(staged, System.IO.FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous);
             await using var reader = new TarReader(archive, leaveOpen: true);
             var entry = await reader.GetNextEntryAsync(copyData: false, cancellationToken);
             if (entry is null)
@@ -133,6 +162,7 @@ internal static class TarFiles
             }
 
             string checksum;
+            long copied = 0;
             try
             {
                 phase = "the file";
@@ -143,12 +173,19 @@ internal static class TarFiles
                     int read;
                     while ((read = await data.ReadAsync(buffer, cancellationToken)) > 0)
                     {
+                        copied += read;
                         hash.AppendData(buffer, 0, read);
                         await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     }
                 }
 
-                // Whatever follows the file is an extra entry, unless it is the end of the archive. A stream that ends there, before the blocks that end an archive, holds no second entry: only the first is ever used.
+                if (copied != entry.Length)
+                {
+                    File.Delete(destination);
+                    return (ReadOutcome.NotOneRegularFile, null, $"the file is cut short: {copied} of {entry.Length} bytes");
+                }
+
+                // Whatever follows the file is an extra entry, unless it is the end of the archive or the end of what arrived.
                 phase = "the end of the archive";
                 try
                 {
@@ -175,9 +212,16 @@ internal static class TarFiles
         }
         catch (Exception exception) when (exception is InvalidDataException or EndOfStreamException or FormatException)
         {
-            return (ReadOutcome.NotOneRegularFile, null, $"{exception.GetType().Name} in {phase}: {Printable(exception.Message)}");
+            return (ReadOutcome.NotOneRegularFile, null, $"{exception.GetType().Name} in {phase} after {received} bytes: {Printable(exception.Message)}");
+        }
+        finally
+        {
+            File.Delete(staged);
         }
     }
+
+    /// <summary>What a tar archive of one file adds to the file: headers, extended headers, padding, and the blocks that end it.</summary>
+    private const long ArchiveOverheadBytes = 64 * 1024;
 
     /// <summary>What a container named, as text that is safe to print: no control character, at most 80 characters. The name is the container's to choose, and it is shown to the Owner.</summary>
     private static string Printable(string text) => string.Concat(text.Take(80).Select(character => char.IsControl(character) ? '?' : character));
