@@ -34,8 +34,18 @@ public sealed class CheckpointEngineTests(EngineFixture engine) : IClassFixture<
         return new BundleReference(name, Convert.ToHexStringLower(await SHA256.HashDataAsync(file, Cancel)), made.Tip);
     }
 
-    private async Task<CheckpointResult> CheckpointAsync(EngineWorkspaces.Made made, Guid step) =>
-        await engine.Runtime.CheckpointAsync(new CheckpointRequest(made.TaskId, step, StepKind.Implementation, Branch, await ParentBundleAsync(made, step), CommitOf(made.TaskId, step)), $"task:c1:checkpoint:{step:D}", Cancel);
+    private async Task<CheckpointResult> CheckpointAsync(EngineWorkspaces.Made made, Guid step)
+    {
+        try
+        {
+            return await engine.Runtime.CheckpointAsync(new CheckpointRequest(made.TaskId, step, StepKind.Implementation, Branch, await ParentBundleAsync(made, step), CommitOf(made.TaskId, step)), $"task:c1:checkpoint:{step:D}", Cancel);
+        }
+        catch (WorkspaceRuntimeException exception)
+        {
+            // The exception's message is the message id; what it was about is in its arguments, which the log of a failed run must show.
+            throw new InvalidOperationException($"{exception.Info.Id}: {string.Join(" | ", exception.Info.Arguments)}", exception);
+        }
+    }
 
     private const string Agent_ = "cd /workspace && echo edited >> README.md && echo added > added.txt && rm src/app.txt && mkdir -p node_modules && echo x > node_modules/ignored";
 
