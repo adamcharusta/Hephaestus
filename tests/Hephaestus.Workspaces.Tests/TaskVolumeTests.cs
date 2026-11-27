@@ -15,7 +15,7 @@ public class TaskVolumeTests
     private static readonly ResolvedImage Image = new("registry.test/app@sha256:" + new string('b', 64), "sha256:" + new string('b', 64), AgentArchitecture.X64, CLibrary.Musl);
 
     private Task EnsureAsync() =>
-        new DockerWorkspaceRuntime(_docker.Client, new WorkspaceRuntimeOptions("test-installation", new FakeVendor().Lock, AgentArchitecture.X64))
+        new DockerWorkspaceRuntime(_docker.Client, new WorkspaceRuntimeOptions("test-installation", new FakeVendor().Lock, AgentArchitecture.X64), new RecordingWatcher())
             .EnsureTaskVolumeAsync(TaskId, Image, Key, TestContext.Current.CancellationToken);
 
     [Fact]

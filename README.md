@@ -46,8 +46,12 @@ state, and `docker compose down --volumes` deletes it with the rest. [`docs/agen
 Every step of a Task will run in a container that cannot touch your files, your other Projects, or Docker itself: it runs as user `10001:10001` with every capability dropped, `no-new-privileges`,
 Docker's default seccomp profile, a process limit, the Task's processor and memory limits (never above `hephaestus limit show`), no published port, and no route to the host. Its only mounts are the Task's volume,
 the context and Methodology read-only, the Agent CLIs read-only, and a temporary `HOME`. Only the `hephaestus` container holds the Docker socket, so the orchestrator is equivalent to root on the host,
-and no Task volume is ever mounted into it. The runtime that creates these containers is in place and tested against a real Docker Engine; nothing starts a step yet. [`docs/step-containers.md`](docs/step-containers.md)
-has the definition, how the C library of a Project's image is established, and the checks.
+and no Task volume is ever mounted into it. The runtime that creates these containers is in place and tested against a real Docker Engine; nothing starts a step yet.
+
+The runtime also sees each step to its end. What a step prints, on standard output and standard error, is read from Docker's log of the container, so the Docker daemon must keep a log it can read back (its default
+`json-file` driver, or `local`; with a driver `docker logs` cannot read, no output is kept). The output is masked, so that no secret value is stored, and kept in the `hephaestus-data` volume under `output/`, one file for each container run, indexed in the database. A step
+has a deadline: the runtime stops its container when the deadline passes, and nothing else does. When the container ends, for whatever reason, the runtime reports it once, with the exit code and why it ended (`exited`, `timeout`,
+`out-of-memory`, or `lost`), and removes the container. [`docs/step-containers.md`](docs/step-containers.md) has the definition, how the C library of a Project's image is established, how a step ends, and the checks.
 
 ## Secrets
 

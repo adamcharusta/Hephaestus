@@ -9,11 +9,11 @@ using Hephaestus.Core.Workspaces;
 namespace Hephaestus.Workspaces;
 
 /// <summary>
-/// The Docker runtime (AD-6, AD-7, AD-18, Story 3.2). It creates the hardened container of a step and starts it without waiting for the step to
-/// end, creates and prepares the Task's volume, and resolves a Project's image. It is the only code that talks to the Docker socket, and it
-/// writes no journal: the loop does, and passes the idempotency key of each effect.
+/// The Docker runtime (AD-6, AD-7, AD-18, Stories 3.2 and 3.3). It creates the hardened container of a step and starts it without waiting for the step to
+/// end, hands it to the <see cref="IStepWatcher"/>, which sees it to its end, creates and prepares the Task's volume, and resolves a Project's image. It is
+/// the only code that talks to the Docker socket, and it writes no journal: the loop does, and passes the idempotency key of each effect.
 /// </summary>
-public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, WorkspaceRuntimeOptions options) : IWorkspaceRuntime
+public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, WorkspaceRuntimeOptions options, IStepWatcher watcher) : IWorkspaceRuntime
 {
     private const string FillContextDirectory = "/context";
     private const string FillMethodologyDirectory = "/methodology";
@@ -55,6 +55,7 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
         if (await FindStepContainerAsync(request.StepRunId, cancellationToken) is { } existing)
         {
             await StartIfCreatedAsync(existing, cancellationToken);
+            watcher.Watch(Watched(request, existing.ID));
             return new StartedStep(existing.ID, StepName(existing), Created: false);
         }
 
@@ -71,6 +72,7 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
             // Two calls for one step run reached Docker together; the container that won is the step run's.
             var raced = await FindStepContainerAsync(request.StepRunId, cancellationToken) ?? throw new InvalidOperationException($"The name of the container of step run {request.StepRunId} is taken by something that is not it.", exception);
             await StartIfCreatedAsync(raced, cancellationToken);
+            watcher.Watch(Watched(request, raced.ID));
             return new StartedStep(raced.ID, StepName(raced), Created: false);
         }
 
@@ -85,8 +87,12 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
             throw;
         }
 
+        watcher.Watch(Watched(request, id));
         return new StartedStep(id, WorkspaceLabels.StepContainer(request.StepRunId), Created: true);
     }
+
+    /// <summary>From here the runtime, and nothing else, sees the container to its end: its output, its deadline, the Signal that reports it, and its removal (AD-18).</summary>
+    private static WatchedStep Watched(StepContainerRequest request, string containerId) => new(request.TaskId, request.StepRunId, containerId, request.Deadline);
 
     private async Task<ContainerListResponse?> FindStepContainerAsync(Guid stepRunId, CancellationToken cancellationToken)
     {

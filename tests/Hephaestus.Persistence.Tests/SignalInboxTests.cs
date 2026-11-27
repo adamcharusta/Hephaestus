@@ -52,6 +52,49 @@ public class SignalInboxTests
     }
 
     [Fact]
+    public async Task A_step_exited_Signal_is_read_back_with_its_step_run_exit_code_and_cause_and_a_second_one_for_the_step_run_is_a_no_op()
+    {
+        using var installation = await StartAsync();
+        var inbox = installation.Provider.GetRequiredService<ISignalInbox>();
+        var stepRun = Guid.Parse("018f4b6e-0000-7000-8000-000000000002");
+        var exited = Signal.StepExited(stepRun, 137, Hephaestus.Core.Workspaces.StepExitCause.Timeout, Noon);
+
+        Assert.Equal(1, await inbox.AppendAsync([exited], Token));
+        Assert.Equal(0, await inbox.AppendAsync([Signal.StepExited(stepRun, 0, Hephaestus.Core.Workspaces.StepExitCause.Exited, Noon.AddMinutes(1))], Token));
+        var stored = Assert.Single(await inbox.ReadPendingAsync(10, Token));
+
+        Assert.Equal(exited, stored.Signal);
+        Assert.Equal((Signal.RuntimeSource, stepRun.ToString("D"), SignalKind.StepExited), (stored.Signal.Source, stored.Signal.SourceEventId, stored.Signal.Kind));
+        Assert.Equal((stepRun, 137, Hephaestus.Core.Workspaces.StepExitCause.Timeout), (stored.Signal.StepRunId, stored.Signal.ExitCode, stored.Signal.Cause));
+    }
+
+    [Fact]
+    public async Task A_step_exited_Signal_of_a_container_that_was_lost_holds_no_exit_code()
+    {
+        using var installation = await StartAsync();
+        var inbox = installation.Provider.GetRequiredService<ISignalInbox>();
+        var lost = Signal.StepExited(Guid.Parse("018f4b6e-0000-7000-8000-000000000002"), null, Hephaestus.Core.Workspaces.StepExitCause.Lost, Noon);
+
+        await inbox.AppendAsync([lost], Token);
+
+        Assert.Equal(lost, Assert.Single(await inbox.ReadAsync(0, 10, Token)).Signal);
+    }
+
+    [Fact]
+    public async Task A_stored_cause_that_is_not_one_the_runtime_knows_is_refused_when_it_is_read()
+    {
+        using var installation = await StartAsync();
+        var inbox = installation.Provider.GetRequiredService<ISignalInbox>();
+        await inbox.AppendAsync([Signal.StepExited(Guid.Parse("018f4b6e-0000-7000-8000-000000000002"), 1, Hephaestus.Core.Workspaces.StepExitCause.Exited, Noon)], Token);
+        await using (var context = installation.Database.OpenWriter())
+        {
+            await context.Database.ExecuteSqlRawAsync("UPDATE \"Signals\" SET \"Cause\" = 'vanished'", Token);
+        }
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => inbox.ReadAsync(0, 10, Token));
+    }
+
+    [Fact]
     public async Task A_second_append_of_the_same_source_and_event_id_is_a_no_op_and_no_error()
     {
         using var installation = await StartAsync();

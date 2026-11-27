@@ -12,6 +12,7 @@ using Hephaestus.Core.Trust;
 using Hephaestus.GitHub;
 using Hephaestus.Host.Api;
 using Hephaestus.Persistence;
+using Hephaestus.Workspaces;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 
@@ -56,7 +57,14 @@ internal static class ControlHost
         builder.Services.AddHostedService<PollerService>();
         // The client is its own service, so that the host disposes it when it stops.
         builder.Services.TryAddSingleton(_ => WorkspaceRuntimeSetup.CreateClient());
-        builder.Services.TryAddSingleton(provider => WorkspaceRuntimeSetup.Create(settings, provider.GetRequiredService<IDockerClient>()));
+        builder.Services.TryAddSingleton(_ => WorkspaceRuntimeSetup.CreateOptions(settings));
+        // The watcher stops watching when the host stops, and leaves the containers as they are for recovery.
+        builder.Services.TryAddSingleton(provider => WorkspaceRuntimeSetup.CreateWatcher(provider));
+        builder.Services.TryAddSingleton<IStepWatcher>(provider => provider.GetRequiredService<StepWatcher>());
+        builder.Services.TryAddSingleton(provider => WorkspaceRuntimeSetup.Create(
+            provider.GetRequiredService<IDockerClient>(),
+            provider.GetRequiredService<WorkspaceRuntimeOptions>(),
+            provider.GetRequiredService<IStepWatcher>()));
         builder.Services.TryAddSingleton<LoopHeartbeat>();
         builder.Services.TryAddSingleton<INotifier, NoOpNotifier>();
         // The loop takes the language the environment names, for the installation that has stored none.

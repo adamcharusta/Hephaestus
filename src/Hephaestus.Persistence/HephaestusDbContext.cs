@@ -36,6 +36,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<AdmittedCommentEntry> AdmittedComments => Set<AdmittedCommentEntry>();
 
+    public DbSet<OutputFileEntry> OutputFiles => Set<OutputFileEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -124,6 +126,7 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             signal.Property(s => s.Label).HasMaxLength(100);
             signal.Property(s => s.Status).IsRequired().HasMaxLength(16).HasDefaultValue("pending");
             signal.Property(s => s.Reason).HasMaxLength(32);
+            signal.Property(s => s.Cause).HasMaxLength(16);
             signal.HasIndex(s => new { s.Source, s.SourceEventId }).IsUnique();
             signal.HasIndex(s => new { s.Status, s.Sequence });
         });
@@ -160,6 +163,16 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
             // A comment is admitted once for a Task; the database refuses a second.
             comment.HasIndex(c => new { c.TaskId, c.CommentId }).IsUnique();
+        });
+
+        model.Entity<OutputFileEntry>(output =>
+        {
+            output.ToTable("OutputFiles");
+            output.HasKey(o => o.StepRunId);
+            output.Property(o => o.StepRunId).ValueGeneratedNever();
+            output.Property(o => o.ContainerId).IsRequired().HasMaxLength(128);
+            output.Property(o => o.Path).IsRequired().HasMaxLength(200);
+            output.HasIndex(o => o.TaskId);
         });
 
         model.Entity<EffectJournalEntryEntity>(entry =>

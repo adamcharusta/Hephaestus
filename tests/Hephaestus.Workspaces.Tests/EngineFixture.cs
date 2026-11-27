@@ -63,7 +63,7 @@ public sealed class EngineFixture : IAsyncLifetime
         }
 
         Docker = new DockerClientBuilder().WithTimeout(TimeSpan.FromMinutes(10)).Build();
-        Runtime = new DockerWorkspaceRuntime(Docker, new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, WorkspaceNetwork = WorkspaceNetwork });
+        Runtime = new DockerWorkspaceRuntime(Docker, new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, WorkspaceNetwork = WorkspaceNetwork }, new RecordingWatcher());
         var image = await Runtime.ResolveImageAsync(Musl, TestContext.Current.CancellationToken);
         await FillAgentsVolumeAsync(image.Reference, TestContext.Current.CancellationToken);
     }

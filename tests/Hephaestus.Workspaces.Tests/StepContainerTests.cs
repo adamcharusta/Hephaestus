@@ -14,12 +14,14 @@ public class StepContainerTests
     private static readonly Guid StepRunId = Guid.Parse("018f4b6e-0000-7000-8000-000000000002");
     private const string Installation = "test-installation";
     private const string Key = "task:s1:container:0";
+    private static readonly DateTimeOffset Deadline = new(2026, 11, 27, 13, 0, 0, TimeSpan.Zero);
 
     private readonly DockerDouble _docker = new();
     private readonly FakeVendor _vendor = new();
+    private readonly RecordingWatcher _watcher = new();
 
     private DockerWorkspaceRuntime Runtime(AgentArchitecture architecture = AgentArchitecture.X64) =>
-        new(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, architecture));
+        new(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, architecture), _watcher);
 
     private static ResolvedImage Image(CLibrary libc = CLibrary.Glibc, AgentArchitecture architecture = AgentArchitecture.X64) =>
         new("registry.test/app@sha256:" + new string('a', 64), "sha256:" + new string('a', 64), architecture, libc);
@@ -30,7 +32,8 @@ public class StepContainerTests
         IReadOnlyList<string>? command = null,
         IReadOnlyDictionary<string, string>? environment = null,
         IReadOnlyList<WorkspaceFile>? context = null,
-        IReadOnlyList<WorkspaceFile>? methodology = null) =>
+        IReadOnlyList<WorkspaceFile>? methodology = null,
+        DateTimeOffset? deadline = null) =>
         new(
             TaskId,
             StepRunId,
@@ -39,7 +42,8 @@ public class StepContainerTests
             environment ?? new Dictionary<string, string> { ["ANTHROPIC_MODEL"] = "model" },
             limits ?? new StepLimits(2500, 3L * 1024 * 1024 * 1024),
             context ?? [new WorkspaceFile("instruction.md", [1])],
-            methodology ?? [new WorkspaceFile("manifest.yml", [2])]);
+            methodology ?? [new WorkspaceFile("manifest.yml", [2])],
+            deadline ?? Deadline);
 
     private async Task<CreateContainerParameters> StartedAsync(StepContainerRequest? request = null)
     {
@@ -362,6 +366,7 @@ public class StepContainerTests
         Assert.False(started.Created);
         Assert.Equal("winner", started.ContainerId);
         Assert.Equal(["winner"], _docker.Started);
+        Assert.Equal("winner", Assert.Single(_watcher.Watched).ContainerId);
     }
 
     [Fact]
@@ -578,5 +583,37 @@ public class StepContainerTests
         }
 
         return [.. names];
+    }
+
+    [Fact]
+    public async Task A_container_that_is_started_is_handed_to_the_watcher_with_the_deadline_of_the_request_and_the_call_does_not_wait_for_it()
+    {
+        var deadline = Deadline.AddMinutes(17);
+
+        var started = await Runtime().StartStepAsync(Request(deadline: deadline), Key, TestContext.Current.CancellationToken);
+
+        var watched = Assert.Single(_watcher.Watched);
+        Assert.Equal(new WatchedStep(TaskId, StepRunId, started.ContainerId, deadline), watched);
+        Assert.DoesNotContain(_docker.Calls, call => call.StartsWith("inspect", StringComparison.Ordinal) || call.StartsWith("logs", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_container_that_a_crash_left_is_handed_to_the_watcher_too_so_that_its_end_is_reported_after_a_restart_of_the_call()
+    {
+        _docker.Existing.Add(new ContainerListResponse { ID = "existing", Names = [$"/hephaestus-step-{StepRunId}"], State = "running" });
+
+        await Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken);
+
+        Assert.Equal("existing", Assert.Single(_watcher.Watched).ContainerId);
+    }
+
+    [Fact]
+    public async Task A_container_that_cannot_be_started_is_not_watched()
+    {
+        _docker.StartFails = DockerDouble.NotFound();
+
+        await Assert.ThrowsAsync<DockerApiException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
+
+        Assert.Empty(_watcher.Watched);
     }
 }

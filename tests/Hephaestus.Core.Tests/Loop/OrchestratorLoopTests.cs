@@ -56,6 +56,28 @@ public class OrchestratorLoopTests
     private static bool EntityIdIsVersion7(Guid id) => Hephaestus.Core.Identity.EntityId.IsValid(id);
 
     [Fact]
+    public async Task The_end_of_a_step_is_applied_by_the_next_tick_with_no_change_to_any_Task_and_does_not_wait_for_anything()
+    {
+        var stepExited = Signal.StepExited(Guid.Parse("018f4b6e-0000-7000-8000-000000000002"), 0, Hephaestus.Core.Workspaces.StepExitCause.Exited, _time.Now);
+
+        var report = await AppendAndTickAsync(stepExited);
+
+        AssertTick(report, 1, 0, 0);
+        Assert.Empty(_stores.Tasks);
+        Assert.Equal(SignalStatus.Applied, Assert.Single(_stores.Signals).Status);
+    }
+
+    [Fact]
+    public async Task A_Signal_appended_while_a_step_runs_is_applied_within_one_tick_because_the_loop_never_waits_for_the_step()
+    {
+        // The step has ended in nobody's view yet: no step-exited Signal is in the inbox, and the loop applies what is.
+        var report = await AppendAndTickAsync(LoopStores.Labeled("issue-event:1", issue: 7));
+
+        AssertTick(report, 1, 0, 1);
+        Assert.Equal(TaskState.Queued, Assert.Single(_stores.Tasks).State);
+    }
+
+    [Fact]
     public async Task The_signal_is_applied_in_one_commit_that_names_the_Task_it_made()
     {
         await AppendAndTickAsync(LoopStores.Labeled("issue-event:1"));

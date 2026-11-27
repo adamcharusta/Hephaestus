@@ -80,3 +80,14 @@
   summary: Report at startup, and in `hephaestus health`, that the Docker socket cannot be used, naming `HEPHAESTUS_DOCKER_GID`.
   evidence: The runtime connects to Docker only when the loop first asks, so a host whose socket group differs from the default 999 starts healthy and fails at its first Task; Story 3.15 (refuse to start what is not ready) is where readiness checks belong.
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-keep-what-a-step-printed-and-bound-how-long-it-runs.md`
+  summary: Cap the size of the output file of a container run, and set how long output is kept and who deletes it.
+  evidence: Story 3.3 writes everything a step prints to the data volume, so a step that loops printing fills it before its deadline, and nothing prunes `output/`. Retention is a loop phase in AD-1 and a size limit is AR-70, and no story sets either yet (review of Story 3.3).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-keep-what-a-step-printed-and-bound-how-long-it-runs.md`
+  summary: Follow the log of a container again, from where it stopped, when the stream breaks while the container still runs, and say on the output file that it is cut short.
+  evidence: The watcher reports a log stream that ends with an error and completes the file with what came, so the rest of a long step's output is lost and the file is indexed complete. The Engine restarting under a running step is the case (review of Story 3.3).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-3-keep-what-a-step-printed-and-bound-how-long-it-runs.md`
+  summary: Report a timeout, not an exit, for a step found after a restart whose container the earlier watcher stopped at its deadline before the Signal was appended.
+  evidence: The cause `timeout` is decided by the watcher that stopped the container; a watcher that starts on the exited container reports `exited` with exit code 137. Story 3.17 reconstructs the step from the container's state and the recorded deadline (review of Story 3.3).

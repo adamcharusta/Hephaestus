@@ -60,6 +60,30 @@ internal sealed class DockerDouble
                 ? Task.FromResult(new ContainerArchiveResponse { Stat = new ContainerPathStatResponse(), Stream = new MemoryStream() })
                 : Task.FromException<ContainerArchiveResponse>(NotFound());
         });
+        Client.Containers.InspectContainerAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            var id = call.Arg<string>();
+            Calls.Add($"inspect {id}");
+            return Inspector(id, ++InspectCalls);
+        });
+        Client.Containers.GetContainerLogsAsync(Arg.Any<string>(), Arg.Any<ContainerLogsParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            Calls.Add($"logs {call.Arg<string>()}");
+            LogRequests.Add(call.Arg<ContainerLogsParameters>());
+            return Logs(call.Arg<string>(), call.Arg<CancellationToken>());
+        });
+        Client.Containers.StopContainerAsync(Arg.Any<string>(), Arg.Any<ContainerStopParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            Calls.Add($"stop {call.Arg<string>()}");
+            Stops.Add(call.Arg<ContainerStopParameters>());
+            return StopFails?.Invoke(call.Arg<string>()) is { } failure ? Task.FromException<bool>(failure) : Task.FromResult(true);
+        });
+        Client.Volumes.RemoveAsync(Arg.Any<string>(), Arg.Any<bool?>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            Calls.Add($"remove volume {call.Arg<string>()}");
+            RemovedVolumes.Add(call.Arg<string>());
+            return VolumeRemoveFails?.Invoke(call.Arg<string>()) is { } failure ? Task.FromException(failure) : Task.CompletedTask;
+        });
         Client.Volumes.CreateAsync(Arg.Any<VolumesCreateParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             var parameters = call.Arg<VolumesCreateParameters>();
@@ -100,6 +124,46 @@ internal sealed class DockerDouble
     }
 
     public IDockerClient Client { get; }
+
+    /// <summary>What the Engine says of a container when asked, given the container and how many times it has been asked: running, until a test says otherwise.</summary>
+    public Func<string, int, Task<ContainerInspectResponse>> Inspector { get; set; } = (_, _) => Task.FromResult(Inspected("running"));
+
+    /// <summary>The output of a container: nothing, which ends at once.</summary>
+    public Func<string, CancellationToken, Task<MultiplexedStream>> Logs { get; set; } = (_, _) => Task.FromResult(Output());
+
+    public int InspectCalls { get; private set; }
+
+    public List<ContainerLogsParameters> LogRequests { get; } = [];
+
+    public List<ContainerStopParameters> Stops { get; } = [];
+
+    public List<string> RemovedVolumes { get; } = [];
+
+    public Func<string, Exception?>? StopFails { get; set; }
+
+    public Func<string, Exception?>? VolumeRemoveFails { get; set; }
+
+    public static ContainerInspectResponse Inspected(string status, long exitCode = 0, bool oomKilled = false) =>
+        new() { State = new() { Status = status, Running = status == "running", ExitCode = exitCode, OOMKilled = oomKilled } };
+
+    /// <summary>Output as the Engine frames it for a container with no terminal: a header of the stream and the size, then the bytes. Stream 1 is standard output, 2 is standard error.</summary>
+    public static byte[] Frames(params (int Stream, string Text)[] frames)
+    {
+        var buffer = new MemoryStream();
+        foreach (var (stream, text) in frames)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(text);
+            var header = new byte[8];
+            header[0] = (byte)stream;
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32BigEndian(header.AsSpan(4), (uint)bytes.Length);
+            buffer.Write(header);
+            buffer.Write(bytes);
+        }
+
+        return buffer.ToArray();
+    }
+
+    public static MultiplexedStream Output(params (int Stream, string Text)[] frames) => new(new MemoryStream(Frames(frames)), multiplexed: true);
 
     /// <summary>Everything the runtime did, in order, one short line each.</summary>
     public List<string> Calls { get; } = [];

@@ -1,5 +1,6 @@
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Signals;
+using Hephaestus.Core.Workspaces;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,10 +23,12 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
         {
             var kind = signal.Kind.Tag();
             var occurredAt = UtcInstantConverter.ToText(signal.OccurredAt);
+            var stepRun = signal.StepRunId is { } stepRunId ? EntityIdConverter.ToText(stepRunId) : null;
+            var cause = signal.Cause?.Tag();
             appended += await context.Database.ExecuteSqlInterpolatedAsync(
                 $"""
-                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody", "CommentBody")
-                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody}, {signal.CommentBody})
+                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody", "CommentBody", "StepRunId", "ExitCode", "Cause")
+                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody}, {signal.CommentBody}, {stepRun}, {signal.ExitCode}, {cause})
                 ON CONFLICT ("Source", "SourceEventId") DO NOTHING
                 """,
                 cancellationToken);
@@ -66,7 +69,10 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             entry.OccurredAt,
             entry.IssueTitle,
             entry.IssueBody,
-            entry.CommentBody),
+            entry.CommentBody,
+            entry.StepRunId,
+            entry.ExitCode,
+            entry.Cause is null ? null : StepExitCauses.TryParse(entry.Cause, out var cause) ? cause : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown cause '{entry.Cause}'.")),
         SignalStatuses.TryParse(entry.Status, out var status) ? status : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown status '{entry.Status}'."),
         entry.Reason,
         entry.TaskId);
