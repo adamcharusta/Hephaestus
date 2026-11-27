@@ -28,19 +28,22 @@ public sealed partial class GitHubGateway : ICodeHost
     private readonly TimeProvider _time;
     private readonly Func<HttpMessageHandler> _handler;
     private readonly TimeSpan _deadline;
+    private readonly GitHubRateLimit _limit;
 
     // The key and the App id are two stores; one gate keeps a second connect, or a check, from seeing half of a change.
     private readonly SemaphoreSlim _credential = new(1, 1);
 
     /// <param name="handler">The transport; a test gives its own. The default is Octokit's, which honours the proxy settings.</param>
     /// <param name="deadline">How long one read of the identity may take altogether; a test shortens it.</param>
+    /// <param name="rateLimit">The gate a rate-limit answer closes; the poller shares it, so that nothing is sent while GitHub asks to wait.</param>
     public GitHubGateway(
         ISecretStore secrets,
         IReadStore reads,
         IInstallationConfiguration configuration,
         TimeProvider time,
         Func<HttpMessageHandler>? handler = null,
-        TimeSpan? deadline = null)
+        TimeSpan? deadline = null,
+        GitHubRateLimit? rateLimit = null)
     {
         _secrets = secrets;
         _reads = reads;
@@ -48,6 +51,7 @@ public sealed partial class GitHubGateway : ICodeHost
         _time = time;
         _handler = handler ?? (() => HttpMessageHandlerFactory.CreateDefault());
         _deadline = deadline ?? DefaultDeadline;
+        _limit = rateLimit ?? new GitHubRateLimit(time);
     }
 
     public async Task<GitHubIdentityResult> ConnectIdentityAsync(long appId, string privateKey, CancellationToken cancellationToken)
@@ -93,6 +97,11 @@ public sealed partial class GitHubGateway : ICodeHost
 
     public async Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken)
     {
+        if (_limit.ClosedUntil is not null)
+        {
+            return GitHubUserResult.Failed(GitHubUserFailure.Unreachable);
+        }
+
         var (appId, privateKey) = await ReadCredentialAsync(cancellationToken);
         if (appId is null || privateKey is null)
         {
@@ -132,6 +141,7 @@ public sealed partial class GitHubGateway : ICodeHost
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested && IsOutage(exception))
         {
+            NoteRateLimit(exception);
             return GitHubUserResult.Failed(GitHubUserFailure.Unreachable);
         }
         catch (ApiException)
@@ -192,6 +202,11 @@ public sealed partial class GitHubGateway : ICodeHost
 
     private async Task<GitHubIdentityResult> ReadIdentityAsync(long appId, string privateKey, CancellationToken cancellationToken)
     {
+        if (_limit.ClosedUntil is not null)
+        {
+            return GitHubIdentityResult.Failed(GitHubIdentityFailure.Unreachable);
+        }
+
         var jwt = GitHubAppJwt.TryCreate(appId, privateKey, _time.GetUtcNow());
         if (jwt is null)
         {
@@ -223,6 +238,7 @@ public sealed partial class GitHubGateway : ICodeHost
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested && IsOutage(exception))
         {
+            NoteRateLimit(exception);
             return GitHubIdentityResult.Failed(GitHubIdentityFailure.Unreachable);
         }
         catch (ApiException)
@@ -248,7 +264,7 @@ public sealed partial class GitHubGateway : ICodeHost
         return new GitHubInstallation(installation.Id, account, type, selection, Suspended: false, names);
     }
 
-    private static GitHubClient CreateClient(Credentials credentials, IHttpClient transport)
+    internal static GitHubClient CreateClient(Credentials credentials, IHttpClient transport)
     {
         var connection = new Connection(
             new Octokit.ProductHeaderValue("Hephaestus", Core.HephaestusVersion.Current),
@@ -259,11 +275,20 @@ public sealed partial class GitHubGateway : ICodeHost
         return new GitHubClient(connection);
     }
 
+    /// <summary>When GitHub answered with a rate limit, closes the gate until the time it states, for every request after this one.</summary>
+    private void NoteRateLimit(Exception exception)
+    {
+        if (GitHubRateLimit.WaitOf(exception, _time.GetUtcNow()) is { } until)
+        {
+            _limit.CloseUntil(until);
+        }
+    }
+
     /// <summary>
     /// GitHub failing to answer: no connection, a timeout, a server error, or a rate limit (a 429, or a 403 that Octokit recognises as
     /// a primary or secondary limit). Anything else GitHub says is a refusal of what it was given.
     /// </summary>
-    private static bool IsOutage(Exception exception) => exception switch
+    internal static bool IsOutage(Exception exception) => exception switch
     {
         HttpRequestException or TimeoutException or TaskCanceledException => true,
         RateLimitExceededException or SecondaryRateLimitExceededException or AbuseException => true,

@@ -86,6 +86,29 @@ namespace Hephaestus.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Hephaestus.Persistence.Model.PollCursorEntry", b =>
+                {
+                    b.Property<long>("RepositoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Stream")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ETag")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Position")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("RepositoryId", "Stream");
+
+                    b.ToTable("PollCursors", (string)null);
+                });
+
             modelBuilder.Entity("Hephaestus.Persistence.Model.ProjectEntry", b =>
                 {
                     b.Property<long>("RepositoryId")
@@ -160,6 +183,62 @@ namespace Hephaestus.Persistence.Migrations
                     b.HasKey("Name");
 
                     b.ToTable("Settings", (string)null);
+                });
+
+            modelBuilder.Entity("Hephaestus.Persistence.Model.SignalEntry", b =>
+                {
+                    b.Property<long>("Sequence")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ActorLogin")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ActorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("CommentAuthorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("CommentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("IssueNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Label")
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OccurredAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("RepositoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SourceEventId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Sequence");
+
+                    b.HasIndex("Source", "SourceEventId")
+                        .IsUnique();
+
+                    b.ToTable("Signals", (string)null);
                 });
 
             modelBuilder.Entity("Hephaestus.Persistence.Model.TrustedUserEntry", b =>

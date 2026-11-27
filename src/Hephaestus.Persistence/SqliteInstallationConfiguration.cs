@@ -162,6 +162,15 @@ internal sealed class SqliteInstallationConfiguration(HephaestusDatabase databas
                 cancellationToken);
         }
 
+        if (change == ProjectChange.Registered)
+        {
+            // Hephaestus watches the Project from now on: what happened while it was not registered is not read when it is registered again.
+            await context.Database.ExecuteSqlInterpolatedAsync($"""DELETE FROM "PollCursors" WHERE "RepositoryId" = {repositoryId}""", cancellationToken);
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""INSERT INTO "PollCursors" ("RepositoryId", "Stream", "Position", "ETag") VALUES ({repositoryId}, {PollStreams.Since}, {registeredAt}, NULL)""",
+                cancellationToken);
+        }
+
         var stored = await context.Projects.AsNoTracking().SingleAsync(p => p.RepositoryId == repositoryId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new ProjectWrite(SqliteReadStore.ToProject(stored), change);
@@ -181,6 +190,9 @@ internal sealed class SqliteInstallationConfiguration(HephaestusDatabase databas
         {
             return null;
         }
+
+        // A removed Project is never read, and registering it again starts from that day.
+        await context.Database.ExecuteSqlInterpolatedAsync($"""DELETE FROM "PollCursors" WHERE "RepositoryId" = {repositoryId}""", cancellationToken);
 
         var stored = await context.Projects.AsNoTracking().SingleAsync(p => p.RepositoryId == repositoryId, cancellationToken);
         await transaction.CommitAsync(cancellationToken);

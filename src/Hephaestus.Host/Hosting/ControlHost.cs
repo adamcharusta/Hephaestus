@@ -35,11 +35,22 @@ internal static class ControlHost
 
         builder.Services.AddSingleton(settings);
         builder.Services.AddHephaestusPersistence(settings.Persistence);
+        // One gate for the gateway and the poller: a rate-limit answer to either holds back every request after it.
+        builder.Services.TryAddSingleton(provider => new GitHubRateLimit(provider.GetRequiredService<TimeProvider>()));
         builder.Services.TryAddSingleton<ICodeHost>(provider => new GitHubGateway(
             provider.GetRequiredService<ISecretStore>(),
             provider.GetRequiredService<IReadStore>(),
             provider.GetRequiredService<IInstallationConfiguration>(),
-            provider.GetRequiredService<TimeProvider>()));
+            provider.GetRequiredService<TimeProvider>(),
+            rateLimit: provider.GetRequiredService<GitHubRateLimit>()));
+        builder.Services.TryAddSingleton(provider => new GitHubPoller(
+            provider.GetRequiredService<IReadStore>(),
+            provider.GetRequiredService<ISecretStore>(),
+            provider.GetRequiredService<ISignalInbox>(),
+            provider.GetRequiredService<IPollCursorStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<GitHubRateLimit>()));
+        builder.Services.AddHostedService<PollerService>();
         builder.Services.TryAddSingleton<TrustedUserService>();
         builder.Services.TryAddSingleton<AliasService>();
         builder.Services.TryAddSingleton<LimitService>();
