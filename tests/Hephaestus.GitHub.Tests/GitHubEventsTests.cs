@@ -31,6 +31,35 @@ public class GitHubEventsTests
         Assert.Equal(5, read.Signal!.ActorId);
     }
 
+    [Fact]
+    public void A_labelled_event_carries_the_issue_title_and_body_as_GitHub_showed_them()
+    {
+        var read = GitHubEvents.ReadIssueEvent(Json("""{"id":9,"event":"labeled","created_at":"2026-11-27T12:00:00Z","actor":{"id":5,"login":"a"},"label":{"name":"hephaestus"},"issue":{"number":3,"title":"Add a login page","body":"Use OAuth.\r\nNo passwords."}}"""), 1)!;
+
+        Assert.Equal(("Add a login page", "Use OAuth.\r\nNo passwords."), (read.Signal!.IssueTitle, read.Signal.IssueBody));
+    }
+
+    [Fact]
+    public void An_issue_with_no_body_has_an_empty_one_and_one_with_no_title_has_neither()
+    {
+        var noBody = GitHubEvents.ReadIssueEvent(Json("""{"id":9,"event":"labeled","created_at":"2026-11-27T12:00:00Z","actor":{"id":5},"label":{"name":"hephaestus"},"issue":{"number":3,"title":"T","body":null}}"""), 1)!;
+        var noTitle = GitHubEvents.ReadIssueEvent(Json("""{"id":9,"event":"labeled","created_at":"2026-11-27T12:00:00Z","actor":{"id":5},"label":{"name":"hephaestus"},"issue":{"number":3,"body":"text"}}"""), 1)!;
+
+        Assert.Equal(("T", string.Empty), (noBody.Signal!.IssueTitle, noBody.Signal.IssueBody));
+        Assert.Equal((null, null), (noTitle.Signal!.IssueTitle, noTitle.Signal.IssueBody));
+    }
+
+    [Theory]
+    [InlineData("unlabeled")]
+    [InlineData("closed")]
+    [InlineData("reopened")]
+    public void The_other_events_carry_no_content_so_none_is_stored_with_them(string name)
+    {
+        var read = GitHubEvents.ReadIssueEvent(Json($$$"""{"id":9,"event":"{{{name}}}","created_at":"2026-11-27T12:00:00Z","actor":{"id":5},"label":{"name":"x"},"issue":{"number":3,"title":"T","body":"B"}}"""), 1)!;
+
+        Assert.Equal((null, null), (read.Signal!.IssueTitle, read.Signal.IssueBody));
+    }
+
     [Theory]
     [InlineData("""{"id":1,"event":"assigned","created_at":"2026-11-27T12:00:00Z","actor":{"id":5},"issue":{"number":3}}""")]
     [InlineData("""{"id":1,"event":"labeled","created_at":"2026-11-27T12:00:00Z","actor":{"id":5},"issue":{"number":3,"pull_request":{}}}""")]

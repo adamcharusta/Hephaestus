@@ -18,6 +18,7 @@ internal sealed class CommandTree
         Json = new Option<bool>("--json") { Description = Describe(MessageIds.CliHelpOptionJson) };
 
         Version = new Command("version", Describe(MessageIds.CliVersionDescription)) { Json };
+        Health = new Command("health", Describe(MessageIds.CliHealthDescription)) { Json };
 
         // A secret's value is read from standard input and is never an argument or an option (UX "Command Line").
         SecretSetName = new Argument<string>("name");
@@ -102,7 +103,7 @@ internal sealed class CommandTree
 
         Project.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project };
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Health, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -110,6 +111,8 @@ internal sealed class CommandTree
     public Command Root { get; }
 
     public Command Version { get; }
+
+    public Command Health { get; }
 
     public Command Secret { get; }
 

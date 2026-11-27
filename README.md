@@ -81,8 +81,8 @@ docker exec hephaestus hephaestus trusted-user remove adamcharusta
 A user is identified by GitHub's numeric id, so one who changes their login stays trusted and one who takes over an old login does
 not inherit anything. Adding a login GitHub does not know fails, and so does adding the App's own bot account (`<slug>[bot]`).
 `remove` works from what `list` shows, without asking GitHub, so trust can be taken back while GitHub is down; a user who has since changed their login
-can be removed by the new one. The users live in the database on the `hephaestus-data` volume and survive a restart. Nothing reads
-the list yet, so no label, answer, or command is acted on or ignored because of it.
+can be removed by the new one. The users live in the database on the `hephaestus-data` volume and survive a restart. The Marker Label
+is the first thing that reads the list (see [Opting an issue in](#opting-an-issue-in)); answers and commands are not acted on yet.
 
 ## Aliases, limits, protected paths, and settings
 
@@ -132,20 +132,33 @@ it cannot read what a protection requires and does not claim anything about it. 
 id, so a repository that is renamed is still the same Project: register it again under its new name to refresh the name shown, or
 remove it by its new name. Registering a Project again with another Base Branch changes the Base Branch. `project remove` retires the
 Project and keeps its record and everything recorded under it; registering it again brings it back. The Projects live in the database
-on the `hephaestus-data` volume and survive a restart. Nothing starts a Task yet.
+on the `hephaestus-data` volume and survive a restart.
 
 ### Noticing what happens on GitHub
 
 While the host runs it polls GitHub for each registered Project (and for no other repository): an issue labelled, unlabelled, closed, or
 reopened, and a comment created or edited, each become one Signal in a persisted inbox, with the numeric id of the user GitHub names as the
 actor. There is no public endpoint, so it works behind a home router. Requests are conditional, GitHub's `304` and any minimum interval
-and rate-limit wait are respected, and a restart loses or doubles nothing. Nothing acts on the Signals yet.
+and rate-limit wait are respected, and a restart loses or doubles nothing.
 
 ```bash
 docker exec hephaestus hephaestus setting set pollingInterval 120   # seconds, 10 to 3600; the default is 60
 ```
 
 [`docs/polling.md`](docs/polling.md) describes what is watched, what a Signal holds, and the waits.
+
+### Opting an issue in
+
+An issue becomes a Task when a Trusted User applies the label `hephaestus` to it on GitHub; the label from anyone else does nothing
+(Hephaestus records who it was and why it was refused). The Task starts `queued` with the issue's title and body, as GitHub showed them with the label event, snapshotted and its
+branch `hephaestus/<issue-number>-<slug>` chosen. Nothing works on the Task yet: dispatch, the state on the issue, withdrawing, and
+the Dashboard are later stories. Ask whether the orchestrator loop is running:
+
+```bash
+docker exec hephaestus hephaestus health          # Loop: alive, last tick 2026-11-27T12:00:03Z.  Exit code 1 when it is not alive
+```
+
+[`docs/intake.md`](docs/intake.md) says what the loop does with each Signal, what the snapshot holds, and how the branch is named.
 
 ### The Project's configuration file
 

@@ -86,7 +86,7 @@ public sealed class PollingEndToEndTests : IDisposable
         var host = StartHost();
         await host.GetRequiredService<DatabaseMigrator>().MigrateAsync(Token);
         await host.GetRequiredService<ISecretStore>().SetAsync(GitHubAppCredential.PrivateKeySecretName, RSA.Create(2048).ExportRSAPrivateKeyPem(), Token);
-        await host.GetRequiredService<IInstallationConfiguration>().SetGitHubAppIdAsync(123456, Token);
+        await host.GetRequiredService<IInstallationConfiguration>().SetGitHubAppIdAsync(123456, "hephaestus-test", Token);
         await host.GetRequiredService<IInstallationConfiguration>().RegisterProjectAsync(101, "acme/shop", "main", Token);
         return host;
     }

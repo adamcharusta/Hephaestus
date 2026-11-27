@@ -73,6 +73,11 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
 
         var command = parse.CommandResult.Command;
         var json = parse.GetValue(tree.Json);
+        if (command == tree.Health)
+        {
+            return await HealthAsync(json, cancellationToken);
+        }
+
         if (command == tree.SecretSet)
         {
             return await SetSecretAsync(parse.GetValue(tree.SecretSetName)!, json, cancellationToken);
@@ -183,6 +188,44 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
 
         output.WriteLine(_catalog.Resolve(new Message(MessageIds.VersionLine, version), _language));
         return Success;
+    }
+
+    /// <summary>Prints whether the loop is alive; a loop that is not alive is exit code 1, so that a script can ask.</summary>
+    private async Task<int> HealthAsync(bool json, CancellationToken cancellationToken)
+    {
+        var answer = await CallAsync("/api/health", cancellationToken);
+        if (answer is null)
+        {
+            return Failure;
+        }
+
+        if (!answer.IsSuccess)
+        {
+            return Report(answer);
+        }
+
+        var loop = ReadDocument(answer.Body, ApiJson.Default.HealthDocument)?.Loop;
+        if (loop is null)
+        {
+            return Report(answer with { Problem = null });
+        }
+
+        if (json)
+        {
+            output.WriteLine(answer.Body.Trim());
+        }
+        else
+        {
+            var line = (loop.Alive, loop.LastTickAt) switch
+            {
+                (true, { } lastTick) => new Message(MessageIds.CliHealthAlive, lastTick),
+                (_, { } lastTick) => new Message(MessageIds.CliHealthStalled, lastTick),
+                _ => new Message(MessageIds.CliHealthNeverTicked),
+            };
+            output.WriteLine(_catalog.Resolve(line, _language));
+        }
+
+        return loop.Alive ? Success : Failure;
     }
 
     private async Task<int> SetSecretAsync(string name, bool json, CancellationToken cancellationToken)

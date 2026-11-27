@@ -29,4 +29,18 @@ internal sealed class SignalEntry
     public long? CommentAuthorId { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
+
+    /// <summary>The issue's title at the time the event was read; only a labelled event has one.</summary>
+    public string? IssueTitle { get; set; }
+
+    public string? IssueBody { get; set; }
+
+    /// <summary><c>pending</c> until the loop applies or rejects the Signal, which it does in one transaction with the Task writes it causes.</summary>
+    public string Status { get; set; } = "pending";
+
+    public string? Reason { get; set; }
+
+    public Guid? TaskId { get; set; }
+
+    public DateTimeOffset? ProcessedAt { get; set; }
 }

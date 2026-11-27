@@ -16,6 +16,8 @@ internal static class ControlApi
     {
         routes.MapGet("/api/version", () => Results.Json(new VersionDocument(HephaestusVersion.Current), ApiJson.Default.VersionDocument));
 
+        HealthApi.Map(routes);
+
         // The value of a secret travels in the body of a PUT, never in an address, and no document the API answers contains it.
         var secrets = routes.MapGroup("/api/secrets");
         secrets.MapGet(string.Empty, ListSecretsAsync);

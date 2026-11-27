@@ -69,6 +69,8 @@ public static class SignalKinds
 /// <param name="CommentId">GitHub's id of the comment of a comment event.</param>
 /// <param name="CommentAuthorId">The numeric id of the comment's author, which for an edit is not the actor.</param>
 /// <param name="OccurredAt">When GitHub says the event happened.</param>
+/// <param name="IssueTitle">For a <see cref="SignalKind.Labeled"/> event, the issue's title as GitHub's event data showed it when the poller read the event; null for the other kinds and for a Signal that carries none.</param>
+/// <param name="IssueBody">For a <see cref="SignalKind.Labeled"/> event, the issue's body as it was shown with <paramref name="IssueTitle"/>; empty when the issue has none.</param>
 public sealed record Signal(
     string Source,
     string SourceEventId,
@@ -80,11 +82,19 @@ public sealed record Signal(
     string? Label,
     long? CommentId,
     long? CommentAuthorId,
-    DateTimeOffset OccurredAt)
+    DateTimeOffset OccurredAt,
+    string? IssueTitle = null,
+    string? IssueBody = null)
 {
     /// <summary>The one source of the Signals the GitHub gateway's poller appends.</summary>
     public const string GitHubSource = "github";
 }
 
-/// <summary>A Signal as the inbox holds it, with the position the database gave it: inbox order is this sequence.</summary>
-public sealed record StoredSignal(long Sequence, Signal Signal);
+/// <summary>
+/// A Signal as the inbox holds it: the position the database gave it, which is the inbox order, and what became of it. Only the
+/// orchestrator loop moves a Signal out of <see cref="SignalStatus.Pending"/> (AD-1).
+/// </summary>
+/// <param name="Status">Pending until the loop has applied it in one transaction, then applied or rejected.</param>
+/// <param name="Reason">Why a rejected Signal was rejected, as one of the <see cref="SignalRejections"/>; null otherwise.</param>
+/// <param name="TaskId">The Task the Signal created or concerned, when the loop found one; null otherwise.</param>
+public sealed record StoredSignal(long Sequence, Signal Signal, SignalStatus Status = SignalStatus.Pending, string? Reason = null, Guid? TaskId = null);

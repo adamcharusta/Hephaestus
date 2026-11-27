@@ -71,7 +71,7 @@ public sealed partial class GitHubGateway : ICodeHost
             try
             {
                 await _secrets.SetAsync(GitHubAppCredential.PrivateKeySecretName, privateKey, cancellationToken);
-                await _configuration.SetGitHubAppIdAsync(appId, cancellationToken);
+                await _configuration.SetGitHubAppIdAsync(appId, result.Identity!.Slug, cancellationToken);
             }
             catch
             {
@@ -90,9 +90,39 @@ public sealed partial class GitHubGateway : ICodeHost
     public async Task<GitHubIdentityResult> CheckIdentityAsync(CancellationToken cancellationToken)
     {
         var (appId, privateKey) = await ReadCredentialAsync(cancellationToken);
-        return appId is null || privateKey is null
-            ? GitHubIdentityResult.Failed(GitHubIdentityFailure.NotConnected)
-            : await ReadIdentityAsync(appId.Value, privateKey, cancellationToken);
+        if (appId is null || privateKey is null)
+        {
+            return GitHubIdentityResult.Failed(GitHubIdentityFailure.NotConnected);
+        }
+
+        var result = await ReadIdentityAsync(appId.Value, privateKey, cancellationToken);
+        if (result.Identity is { } identity && identity.AppId == appId)
+        {
+            await KeepSlugAsync(identity, cancellationToken);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Keeps the App's slug current: one stored before the slug was kept, or one GitHub has changed since (an App that was renamed), is
+    /// replaced, so that the loop can tell the App's own bot account. Under the credential lock, and only while the stored App is still
+    /// the one that was read, so that a check cannot undo a connection made meanwhile.
+    /// </summary>
+    private async Task KeepSlugAsync(GitHubIdentity identity, CancellationToken cancellationToken)
+    {
+        await _credential.WaitAsync(cancellationToken);
+        try
+        {
+            if (await _reads.GetGitHubAppIdAsync(cancellationToken) == identity.AppId && await _reads.GetGitHubAppSlugAsync(cancellationToken) != identity.Slug)
+            {
+                await _configuration.SetGitHubAppIdAsync(identity.AppId, identity.Slug, cancellationToken);
+            }
+        }
+        finally
+        {
+            _credential.Release();
+        }
     }
 
     public async Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken)

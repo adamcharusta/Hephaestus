@@ -1,7 +1,8 @@
 # How Hephaestus notices what happens on GitHub
 
 Hephaestus polls GitHub. It has no public endpoint, takes no webhook, and needs no port open on your router, so an installation behind a
-home router works as it is. Nothing acts on what is noticed yet: a label, a comment, or a close is recorded and changes no Task.
+home router works as it is. What is noticed is recorded as Signals; the orchestrator loop applies them ([`intake.md`](intake.md)), and so far
+only a Trusted User's Marker Label does anything: it creates a Task.
 
 ## What is watched
 
@@ -24,6 +25,8 @@ the issue number, the label or comment it concerns, when GitHub says it happened
 
 - **Who acted** is GitHub's numeric user id, taken from GitHub's own event data and never from what an issue or comment says. The login is
   kept for display only. Whether that id is a Trusted User is decided later, in one place, and not by the poller.
+- **A labelled event carries the issue's title and body** as GitHub's event data showed them when the poller read it, because the Task that
+  the label may create is snapshotted from them ([`intake.md`](intake.md)). No other kind of Signal carries content.
 - **A comment edit has no actor.** GitHub's comment data names the author, not the person who edited, so an edit's actor is recorded as
   unknown and the author is kept apart. An actor that is unknown is never a Trusted User.
 - **A comment that was edited before it was first seen** still gives its creation Signal (when it was made after the Project was

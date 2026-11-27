@@ -22,3 +22,19 @@
   summary: Tell the Owner, with the time, that a command is waiting for a GitHub rate limit, instead of "GitHub is unreachable"; and consider a gate per installation.
   evidence: The gate is shared and global, so a limit the poller met makes `project add` and `github check` answer as if GitHub were unreachable for up to the stated wait (at most two hours), and GitHub's limits are per installation. The acceptance criteria treat the wait as temporary unavailability, so this is a message and granularity refinement for the command stories (review of Story 2.1).
 
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-opt-an-issue-in-with-the-marker-label.md`
+  summary: Close the window between the Marker Label being applied and the poller reading the event, in which an edit to the issue's title or body ends up in the snapshot.
+  evidence: The snapshot is the issue as GitHub's event data showed it when the event was read, up to one polling cycle after the label. An edit by anyone in that window is hashed as the admitted content, so the hash comparison of AD-15 cannot see it. Story 2.11 owns edit detection and must settle whether to compare the snapshot with the issue's `updated_at` and the edit history (open question 4 of the spine) (review of Story 2.2).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-opt-an-issue-in-with-the-marker-label.md`
+  summary: Point the container's health check at the loop (`hephaestus health`) so that a stalled loop restarts the container, or decide that it should not.
+  evidence: The health check is `hephaestus version`, which only shows that the API answers; `GET /api/health` and the `health` command now report the loop, and exit 1 when it is not alive, but nothing acts on that. Restarting on a stalled loop changes how the installation behaves under a fault and was not asked for by the story (review of Story 2.2).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-opt-an-issue-in-with-the-marker-label.md`
+  summary: Decide what the Marker Label on an issue that is already closed means.
+  evidence: The loop reads intent from events and never from the issue's open or closed state (AD-2), so a Trusted User's label on a closed issue creates a `Queued` Task. Story 2.3 defines a trusted close and reopening; whether a label on a closed issue should wait for a reopening is not in any acceptance criterion (review of Story 2.2).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-opt-an-issue-in-with-the-marker-label.md`
+  summary: Decide how long the Signal inbox keeps applied and rejected Signals, now that the loop reads it.
+  evidence: Story 2.2 added the status index the loop's reads need, but the `Signals` table, and now the issue body each labelled Signal carries, still only grow, and no story's acceptance criteria set a retention (review of Story 2.2).
