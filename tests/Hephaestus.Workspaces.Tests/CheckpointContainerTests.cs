@@ -439,22 +439,35 @@ public sealed class CheckpointContainerTests : IDisposable
     }
 
     [Theory]
-    [InlineData(TarEntryType.SymbolicLink, "result.bundle", "/etc/passwd", 0)]
-    [InlineData(TarEntryType.HardLink, "result.bundle", "other", 0)]
-    [InlineData(TarEntryType.Directory, "result.bundle", null, 0)]
-    [InlineData(TarEntryType.RegularFile, "../result.bundle", null, 0)]
-    [InlineData(TarEntryType.RegularFile, "/result.bundle", null, 0)]
-    [InlineData(TarEntryType.RegularFile, "checkpoint/result.bundle", null, 0)]
-    [InlineData(TarEntryType.RegularFile, "another.bundle", null, 0)]
-    [InlineData(TarEntryType.RegularFile, "result.bundle", null, 1)]
-    public async Task An_archive_with_a_link_a_directory_a_path_another_name_or_an_extra_entry_is_an_infrastructure_error_and_nothing_is_used(TarEntryType type, string name, string? linkName, int extra)
+    [InlineData(TarEntryType.SymbolicLink, "result.bundle", "/etc/passwd", 0, "first entry SymbolicLink result.bundle")]
+    [InlineData(TarEntryType.HardLink, "result.bundle", "other", 0, "first entry HardLink result.bundle")]
+    [InlineData(TarEntryType.Directory, "result.bundle", null, 0, "first entry Directory result.bundle")]
+    [InlineData(TarEntryType.RegularFile, "../result.bundle", null, 0, "first entry RegularFile ../result.bundle")]
+    [InlineData(TarEntryType.RegularFile, "/result.bundle", null, 0, "first entry RegularFile /result.bundle")]
+    [InlineData(TarEntryType.RegularFile, "checkpoint/result.bundle", null, 0, "first entry RegularFile checkpoint/result.bundle")]
+    [InlineData(TarEntryType.RegularFile, "another.bundle", null, 0, "first entry RegularFile another.bundle")]
+    [InlineData(TarEntryType.RegularFile, "result.bundle", null, 1, "extra entry RegularFile extra0")]
+    public async Task An_archive_with_a_link_a_directory_a_path_another_name_or_an_extra_entry_is_an_infrastructure_error_and_nothing_is_used(TarEntryType type, string name, string? linkName, int extra, string detail)
     {
         _docker.ResultArchive = (_, _) => DockerDouble.Archive(ResultTar(ResultBundle(), name, type, linkName, extra));
 
         var failure = await RefusedAsync();
 
         Assert.Equal(MessageIds.WorkspaceCheckpointResultArchive, failure.Info.Id);
-        Assert.Equal<object[]>(["result.bundle"], failure.Info.Arguments);
+        Assert.Equal<object[]>(["result.bundle", detail], failure.Info.Arguments);
+    }
+
+    [Fact]
+    public async Task A_name_the_container_chose_is_shown_without_its_control_characters_and_cut_short()
+    {
+        _docker.ResultArchive = (_, _) => DockerDouble.Archive(ResultTar(ResultBundle(), "evil\u001b[31m" + new string('x', 200)));
+
+        var failure = await RefusedAsync();
+
+        var detail = (string)failure.Info.Arguments[1];
+        Assert.DoesNotContain('\u001b', detail);
+        Assert.StartsWith("first entry RegularFile evil?[31mxxx", detail, StringComparison.Ordinal);
+        Assert.True(detail.Length <= "first entry RegularFile ".Length + 80);
     }
 
     [Fact]
@@ -465,6 +478,7 @@ public sealed class CheckpointContainerTests : IDisposable
         var failure = await RefusedAsync();
 
         Assert.Equal(MessageIds.WorkspaceCheckpointResultArchive, failure.Info.Id);
+        Assert.Contains("InvalidDataException", (string)failure.Info.Arguments[1], StringComparison.Ordinal);
     }
 
     [Fact]

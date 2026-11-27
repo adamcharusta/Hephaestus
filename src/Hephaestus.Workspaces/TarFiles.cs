@@ -110,20 +110,25 @@ internal static class TarFiles
     /// <paramref name="maximumBytes"/>, and there must be no second entry. A link entry, a name with a parent or a directory in it, or anything else makes it <see cref="ReadOutcome.NotOneRegularFile"/>, and a file that
     /// was started is deleted: nothing from such an archive is used. It is read asynchronously, because the stream of a copy out of a container does not support a synchronous read, and the copy stops at <paramref name="cancellationToken"/>. The size is the header's and the copy is bounded by it, so a stream that is longer than it says is never read past it.
     /// </summary>
-    public static async Task<(ReadOutcome Outcome, string? Sha256, long Length)> ReadOneFileAsync(Stream archive, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
+    public static async Task<(ReadOutcome Outcome, string? Sha256, string? Detail)> ReadOneFileAsync(Stream archive, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
     {
         try
         {
             await using var reader = new TarReader(archive, leaveOpen: true);
             var entry = await reader.GetNextEntryAsync(copyData: false, cancellationToken);
+            if (entry is null)
+            {
+                return (ReadOutcome.NotOneRegularFile, null, "no entry");
+            }
+
             if (entry is not { EntryType: TarEntryType.RegularFile or TarEntryType.V7RegularFile, DataStream: { } data } || !string.Equals(entry.Name, name, StringComparison.Ordinal))
             {
-                return (ReadOutcome.NotOneRegularFile, null, 0);
+                return (ReadOutcome.NotOneRegularFile, null, $"first entry {entry.EntryType} {Printable(entry.Name)}");
             }
 
             if (entry.Length > maximumBytes)
             {
-                return (ReadOutcome.TooLarge, null, entry.Length);
+                return (ReadOutcome.TooLarge, null, null);
             }
 
             string checksum;
@@ -142,10 +147,10 @@ internal static class TarFiles
                 }
 
                 // Whatever follows the file is an extra entry, unless it is the end of the archive.
-                if (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is not null)
+                if (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is { } extra)
                 {
                     File.Delete(destination);
-                    return (ReadOutcome.NotOneRegularFile, null, 0);
+                    return (ReadOutcome.NotOneRegularFile, null, $"extra entry {extra.EntryType} {Printable(extra.Name)}");
                 }
 
                 checksum = Convert.ToHexStringLower(hash.GetHashAndReset());
@@ -156,13 +161,16 @@ internal static class TarFiles
                 throw;
             }
 
-            return (ReadOutcome.Written, checksum, entry.Length);
+            return (ReadOutcome.Written, checksum, null);
         }
         catch (Exception exception) when (exception is InvalidDataException or EndOfStreamException or FormatException)
         {
-            return (ReadOutcome.NotOneRegularFile, null, 0);
+            return (ReadOutcome.NotOneRegularFile, null, $"{exception.GetType().Name}: {Printable(exception.Message)}");
         }
     }
+
+    /// <summary>What a container named, as text that is safe to print: no control character, at most 80 characters. The name is the container's to choose, and it is shown to the Owner.</summary>
+    private static string Printable(string text) => string.Concat(text.Take(80).Select(character => char.IsControl(character) ? '?' : character));
 
     /// <summary>A stream that feeds everything read through it to a hash.</summary>
     private sealed class HashingReadStream(Stream inner, IncrementalHash hash) : Stream

@@ -127,15 +127,15 @@ public sealed partial class DockerWorkspaceRuntime
         var temporary = Path.Combine(directory, $".{CheckpointDirectory}-{request.StepRunId:D}.tmp");
         try
         {
-            using (var stream = archive.Stream ?? throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceCheckpointResultArchive, CheckpointResultFile)))
+            using (var stream = archive.Stream ?? throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceCheckpointResultArchive, CheckpointResultFile, "no stream")))
             {
-                var (outcome, checksum, _) = await TarFiles.ReadOneFileAsync(stream, CheckpointResultFile, options.MaximumBundleBytes, temporary, cancellationToken);
+                var (outcome, checksum, detail) = await TarFiles.ReadOneFileAsync(stream, CheckpointResultFile, options.MaximumBundleBytes, temporary, cancellationToken);
                 switch (outcome)
                 {
                     case TarFiles.ReadOutcome.TooLarge:
                         throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceCheckpointResultSize, options.MaximumBundleBytes.ToString(CultureInfo.InvariantCulture)));
                     case TarFiles.ReadOutcome.NotOneRegularFile:
-                        throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceCheckpointResultArchive, CheckpointResultFile));
+                        throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceCheckpointResultArchive, CheckpointResultFile, detail ?? string.Empty));
                 }
 
                 var tip = ReadCheckpointTip(temporary, request);
