@@ -1,0 +1,28 @@
+using System.Text;
+using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Invocations;
+using Hephaestus.Core.Ports;
+using Hephaestus.Core.Workspaces;
+
+namespace Hephaestus.EndToEnd.Tests.Harness;
+
+/// <summary>
+/// The scripted fake <see cref="IAgentAdapter"/> of the end-to-end harness (AR-37, Story 3.3): its invocation runs a shell script in a step container and
+/// makes no vendor call, so a test decides what the "Agent" prints, how long it runs, and how it ends. It starts nothing and knows nothing of Docker, as an adapter does not (AD-10).
+/// Every later story of the epic adds to the harness what it needs of an adapter.
+/// </summary>
+internal sealed class ScriptedAgentAdapter(string script, Agent agent = Agent.ClaudeCode) : IAgentAdapter
+{
+    public const string ResultPath = StepContainerLayout.Workspace + "/result.txt";
+
+    public string Script { get; } = script;
+
+    public Agent Agent { get; } = agent;
+
+    public AgentInvocation DescribeInvocation(InvocationRequest request) => new(
+        ["/bin/sh", "-c", Script],
+        new Dictionary<string, string>(),
+        [new WorkspaceFile(request.InstructionPath, Encoding.UTF8.GetBytes(Script))],
+        [],
+        ResultPath);
+}

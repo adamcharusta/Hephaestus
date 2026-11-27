@@ -14,7 +14,7 @@ public class ImageResolutionTests
     private readonly DockerDouble _docker = new();
 
     private Task<ResolvedImage> ResolveAsync(string image, AgentArchitecture architecture = AgentArchitecture.X64) =>
-        new DockerWorkspaceRuntime(_docker.Client, new WorkspaceRuntimeOptions("test-installation", new FakeVendor().Lock, architecture))
+        new DockerWorkspaceRuntime(_docker.Client, new WorkspaceRuntimeOptions("test-installation", new FakeVendor().Lock, architecture), new RecordingWatcher())
             .ResolveImageAsync(image, TestContext.Current.CancellationToken);
 
     private static Task<ImageNotUsableException> RefusalAsync(Task<ResolvedImage> task) => Assert.ThrowsAsync<ImageNotUsableException>(() => task);

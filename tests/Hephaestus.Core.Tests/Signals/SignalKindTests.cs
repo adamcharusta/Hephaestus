@@ -12,6 +12,7 @@ public class SignalKindTests
     [InlineData(SignalKind.Reopened, "reopened")]
     [InlineData(SignalKind.CommentCreated, "comment-created")]
     [InlineData(SignalKind.CommentEdited, "comment-edited")]
+    [InlineData(SignalKind.StepExited, "step-exited")]
     public void Each_kind_has_one_name_and_the_name_gives_the_kind_back(SignalKind kind, string tag)
     {
         Assert.Equal(tag, kind.Tag());

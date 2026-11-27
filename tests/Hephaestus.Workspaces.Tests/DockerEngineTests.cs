@@ -25,7 +25,8 @@ public sealed class DockerEngineTests(EngineFixture engine) : IClassFixture<Engi
             environment ?? new Dictionary<string, string>(),
             new StepLimits(1500, 512L * 1024 * 1024),
             [new WorkspaceFile("instruction.md", Encoding.UTF8.GetBytes("Do the step."))],
-            [new WorkspaceFile("manifest.yml", Encoding.UTF8.GetBytes("name: test"))]);
+            [new WorkspaceFile("manifest.yml", Encoding.UTF8.GetBytes("name: test"))],
+            DateTimeOffset.UtcNow.AddHours(1));
 
     private async Task<(long ExitCode, string Output)> RunToEndAsync(string container)
     {

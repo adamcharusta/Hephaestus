@@ -291,6 +291,13 @@ public sealed partial class OrchestratorLoop(
             return DecideLeaving(stored, context, existing);
         }
 
+        // A step's container ended, as the runtime reports (AD-18). The step run it belongs to is written by the story that dispatches steps
+        // (3.14), so for now it is applied with no change; because the loop never waits for a step, it is applied within a tick of its append.
+        if (signal.Kind == SignalKind.StepExited)
+        {
+            return new SignalApplication(stored.Sequence, SignalStatus.Applied);
+        }
+
         // What the later stories of the epic act on (the rest of withdrawal and close, commands, edits) is applied with no change for now: the
         // Signal is consumed, and nothing is inferred from it.
         if (!IsMarkerLabeled(signal))

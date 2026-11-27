@@ -38,6 +38,14 @@ internal sealed class SignalEntry
     /// <summary>The comment's text at the time the event was read; only a created comment has one.</summary>
     public string? CommentBody { get; set; }
 
+    /// <summary>The step run of a step-exited Signal, as the text of its id.</summary>
+    public Guid? StepRunId { get; set; }
+
+    public int? ExitCode { get; set; }
+
+    /// <summary>Why a step container ended, as one of the names of <c>StepExitCause</c>.</summary>
+    public string? Cause { get; set; }
+
     /// <summary><c>pending</c> until the loop applies or rejects the Signal, which it does in one transaction with the Task writes it causes.</summary>
     public string Status { get; set; } = "pending";
 

@@ -13,4 +13,16 @@ public sealed record WorkspaceRuntimeOptions(string InstallationId, AgentLock Ag
 
     /// <summary>The Docker network every step container is attached to, and to no other: it has no route out (AD-7).</summary>
     public string WorkspaceNetwork { get; init; } = "hephaestus-workspace";
+
+    /// <summary>How often the runtime looks at a running step container; the deadline is acted on when it passes, not at the next look (AD-18).</summary>
+    public TimeSpan StepPollInterval { get; init; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long the runtime waits before it tries again what failed while it watched a step: a call to Docker, or the store, or the inbox.</summary>
+    public TimeSpan RetryInterval { get; init; } = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long a step's output may take to arrive after its container stopped, before what has arrived is all there is.</summary>
+    public TimeSpan OutputDrainLimit { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>The seconds a container that is stopped at its deadline is given to end before it is killed.</summary>
+    public uint StopGraceSeconds { get; init; } = 10;
 }

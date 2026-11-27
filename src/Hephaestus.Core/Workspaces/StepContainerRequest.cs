@@ -11,6 +11,7 @@ namespace Hephaestus.Core.Workspaces;
 /// <param name="Environment">The environment of the invocation, besides <c>HOME</c>.</param>
 /// <param name="Context">The context files of the step run (AD-12).</param>
 /// <param name="Methodology">The Methodology's files (AD-14).</param>
+/// <param name="Deadline">When the runtime stops the container if it still runs (FR-19, AD-18). The loop records it on the step run before it asks for the container, so a restart knows it too; the runtime alone acts on it.</param>
 public sealed record StepContainerRequest(
     Guid TaskId,
     Guid StepRunId,
@@ -19,7 +20,8 @@ public sealed record StepContainerRequest(
     IReadOnlyDictionary<string, string> Environment,
     StepLimits Limits,
     IReadOnlyList<WorkspaceFile> Context,
-    IReadOnlyList<WorkspaceFile> Methodology);
+    IReadOnlyList<WorkspaceFile> Methodology,
+    DateTimeOffset Deadline);
 
 /// <summary>A step container that exists: its id and name, and whether this call made it (false when a restart found it already made).</summary>
 public sealed record StartedStep(string ContainerId, string Name, bool Created);

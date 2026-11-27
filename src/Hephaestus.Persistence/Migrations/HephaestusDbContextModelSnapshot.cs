@@ -334,6 +334,42 @@ namespace Hephaestus.Persistence.Migrations
                     b.ToTable("IssueSnapshots", (string)null);
                 });
 
+            modelBuilder.Entity("Hephaestus.Persistence.Model.OutputFileEntry", b =>
+                {
+                    b.Property<string>("StepRunId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Bytes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContainerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaskId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("StepRunId");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("OutputFiles", (string)null);
+                });
+
             modelBuilder.Entity("Hephaestus.Persistence.Model.PollCursorEntry", b =>
                 {
                     b.Property<long>("RepositoryId")
@@ -446,6 +482,10 @@ namespace Hephaestus.Persistence.Migrations
                     b.Property<long?>("ActorId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Cause")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<long?>("CommentAuthorId")
                         .HasColumnType("INTEGER");
 
@@ -466,6 +506,9 @@ namespace Hephaestus.Persistence.Migrations
                     b.Property<string>("Label")
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
+
+                    b.Property<int?>("ExitCode")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("IssueBody")
                         .HasColumnType("TEXT");
@@ -493,6 +536,9 @@ namespace Hephaestus.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT")
                         .HasDefaultValue("pending");
+
+                    b.Property<string>("StepRunId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("TaskId")
                         .HasColumnType("TEXT");

@@ -1,8 +1,11 @@
+using Hephaestus.Core.Workspaces;
+
 namespace Hephaestus.Core.Signals;
 
 /// <summary>
-/// What happened on GitHub that can matter to a Task (AD-2): an actor-attributed event, never an inference from the labels or the
-/// open or closed state an issue has now. Pull request events join this set with the stories that act on them.
+/// What happened that can matter to a Task (AD-2): an actor-attributed event on GitHub, never an inference from the labels or the
+/// open or closed state an issue has now, or the end of a step container, which only the runtime can report (AD-18). Pull request events
+/// join this set with the stories that act on them.
 /// </summary>
 public enum SignalKind
 {
@@ -23,6 +26,9 @@ public enum SignalKind
 
     /// <summary>A comment was edited. Its editor is not in the event data (AD-15), so the Signal names none.</summary>
     CommentEdited,
+
+    /// <summary>A step container ended; the runtime appends it once for each step run (AD-18).</summary>
+    StepExited,
 }
 
 public static class SignalKinds
@@ -36,6 +42,7 @@ public static class SignalKinds
         SignalKind.Reopened => "reopened",
         SignalKind.CommentCreated => "comment-created",
         SignalKind.CommentEdited => "comment-edited",
+        SignalKind.StepExited => "step-exited",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -72,6 +79,9 @@ public static class SignalKinds
 /// <param name="IssueTitle">For a <see cref="SignalKind.Labeled"/> event, the issue's title as GitHub's event data showed it when the poller read the event; null for the other kinds and for a Signal that carries none.</param>
 /// <param name="IssueBody">For a <see cref="SignalKind.Labeled"/> event, the issue's body as it was shown with <paramref name="IssueTitle"/>; empty when the issue has none.</param>
 /// <param name="CommentBody">For a <see cref="SignalKind.CommentCreated"/> event, the comment's text as GitHub showed it when the poller read the event; empty when the comment has none; null for the other kinds. Whether it is used is decided later, by the author's id (AD-15).</param>
+/// <param name="StepRunId">For a <see cref="SignalKind.StepExited"/> Signal, the step run whose container ended; null for the other kinds.</param>
+/// <param name="ExitCode">For a <see cref="SignalKind.StepExited"/> Signal, the exit code of the container's process; null when none is known (<see cref="StepExitCause.Lost"/>).</param>
+/// <param name="Cause">For a <see cref="SignalKind.StepExited"/> Signal, why the container ended, as the runtime saw it.</param>
 public sealed record Signal(
     string Source,
     string SourceEventId,
@@ -86,10 +96,24 @@ public sealed record Signal(
     DateTimeOffset OccurredAt,
     string? IssueTitle = null,
     string? IssueBody = null,
-    string? CommentBody = null)
+    string? CommentBody = null,
+    Guid? StepRunId = null,
+    int? ExitCode = null,
+    StepExitCause? Cause = null)
 {
     /// <summary>The one source of the Signals the GitHub gateway's poller appends.</summary>
     public const string GitHubSource = "github";
+
+    /// <summary>The source of the Signals the runtime appends.</summary>
+    public const string RuntimeSource = "runtime";
+
+    /// <summary>
+    /// The one Signal that reports the end of a step run's container (AD-18). Its source event id is the step run, so a second append, which a
+    /// restart can make, is the no-op the inbox makes of every duplicate: the loop hears of a step's end exactly once. It concerns no
+    /// repository or issue by itself; the loop finds the Task through the step run.
+    /// </summary>
+    public static Signal StepExited(Guid stepRunId, int? exitCode, StepExitCause cause, DateTimeOffset occurredAt) =>
+        new(RuntimeSource, stepRunId.ToString("D"), SignalKind.StepExited, 0, 0, null, null, null, null, null, occurredAt, StepRunId: stepRunId, ExitCode: exitCode, Cause: cause);
 }
 
 /// <summary>
