@@ -39,7 +39,13 @@ jobs:
       - name: Build (warnings are errors)
         run: dotnet build Hephaestus.slnx --no-restore --configuration Release
 
+      - name: Build the hephaestus image for the egress proxies of the tests
+        # The tests that start a real step container need the egress proxy, which is this image's `egress-proxy` command (Story 3.4).
+        run: docker build -f deploy/Dockerfile -t hephaestus:ci .
+
       - name: Test with coverage
+        env:
+          HEPHAESTUS_TEST_PROXY_IMAGE: hephaestus:ci
         run: >
           dotnet test --solution Hephaestus.slnx --no-build --configuration Release
           --coverlet --coverlet-output-format cobertura --results-directory TestResults
@@ -117,6 +123,20 @@ jobs:
           docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 300
           docker exec hephaestus test ! -e "$volume_dir/stray"
           test "$(docker exec hephaestus grep -c 'BEGIN CERTIFICATE' "$volume_dir/certs/ca-certificates.crt")" -gt 10
+
+      - name: The image's egress-proxy command listens on the fixed port and refuses a private address
+        # The proxy of every step run is this same image (Story 3.4, AR-41): it starts with no volume, no credential, and no socket, and says so on its output.
+        run: |
+          image="$(docker inspect --format '{{.Config.Image}}' hephaestus)"
+          trap 'docker rm -f ci-egress > /dev/null 2>&1; docker network rm ci-egress-probe > /dev/null 2>&1' EXIT
+          docker network create --internal ci-egress-probe
+          docker run -d --name ci-egress --network ci-egress-probe --cap-drop ALL --security-opt no-new-privileges --read-only --tmpfs /tmp --user 10001:10001 --entrypoint hephaestus "$image" egress-proxy
+          for attempt in $(seq 1 30); do docker logs ci-egress 2>&1 | grep -q '^listening 3128$' && break; sleep 1; done
+          docker logs ci-egress 2>&1 | grep -q '^listening 3128$'
+          answer="$(docker run --rm --network ci-egress-probe --entrypoint sh alpine:3.23 -c 'printf "CONNECT 127.0.0.1:8717 HTTP/1.1\r\n\r\n" | nc -w 5 ci-egress 3128 | head -n 1')"
+          echo "proxy answered: $answer"
+          grep -q '403' <<< "$answer"
+          docker logs ci-egress 2>&1 | grep -q '^refused 127.0.0.1 private-address$'
 
       - name: The command line reaches the API
         run: |

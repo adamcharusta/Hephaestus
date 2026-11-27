@@ -23,7 +23,7 @@ internal static class WorkspaceRuntimeSetup
     {
         var agentLock = AgentLock.Parse(File.ReadAllText(settings.AgentsLockFile));
         var architecture = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? AgentArchitecture.Arm64 : AgentArchitecture.X64;
-        return new WorkspaceRuntimeOptions(settings.InstallationId, agentLock, architecture);
+        return new WorkspaceRuntimeOptions(settings.InstallationId, agentLock, architecture) { EgressProxyImage = settings.EgressProxyImage };
     }
 
     /// <summary>The watcher tells the host's logger what fails while it sees a step to its end; the sentences it passes name a step run and hold none of its output.</summary>

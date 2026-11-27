@@ -11,7 +11,8 @@ namespace Hephaestus.Workspaces;
 /// <summary>
 /// The Docker runtime (AD-6, AD-7, AD-18, Stories 3.2 and 3.3). It creates the hardened container of a step and starts it without waiting for the step to
 /// end, hands it to the <see cref="IStepWatcher"/>, which sees it to its end, creates and prepares the Task's volume, and resolves a Project's image. It is
-/// the only code that talks to the Docker socket, and it writes no journal: the loop does, and passes the idempotency key of each effect.
+/// the only code that talks to the Docker socket, and it writes no journal: the loop does, and passes the idempotency key of each effect. Every step run has an internal
+/// network of its own and an egress proxy on it, which is the only way out of the network (Story 3.4).
 /// </summary>
 public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, WorkspaceRuntimeOptions options, IStepWatcher watcher) : IWorkspaceRuntime
 {
@@ -54,12 +55,23 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
         // and is the container of this step run; it is never made twice (AD-5).
         if (await FindStepContainerAsync(request.StepRunId, cancellationToken) is { } existing)
         {
+            // A container that has not started yet is given its proxy first, if the crash took that too; one that runs keeps what it has.
+            if (string.Equals(existing.State, "created", StringComparison.Ordinal) && !await EgressProxyRunsAsync(request.StepRunId, cancellationToken))
+            {
+                await EnsureNetworkAsync(options.OutboundNetwork, isInternal: false, WorkspaceLabels.For(options.InstallationId, null, null, idempotencyKey), cancellationToken);
+                await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey), cancellationToken);
+                await StartEgressProxyAsync(request, idempotencyKey, cancellationToken);
+            }
+
             await StartIfCreatedAsync(existing, cancellationToken);
             watcher.Watch(Watched(request, existing.ID));
             return new StartedStep(existing.ID, StepName(existing), Created: false);
         }
 
-        await EnsureWorkspaceNetworkAsync(idempotencyKey, cancellationToken);
+        // The step run's network and its egress proxy come first, and the step container is created only when the proxy listens, so that no step meets a network with no way out.
+        await EnsureNetworkAsync(options.OutboundNetwork, isInternal: false, WorkspaceLabels.For(options.InstallationId, null, null, idempotencyKey), cancellationToken);
+        await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey), cancellationToken);
+        await StartEgressProxyAsync(request, idempotencyKey, cancellationToken);
         await PlaceFilesAsync(request, idempotencyKey, cancellationToken);
 
         string id;
@@ -126,13 +138,15 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
     }
 
     /// <summary>
-    /// The workspace network: a Docker internal network, which has no route out (AD-7). Its only exit, the egress proxy, joins it in a later story.
+    /// Makes a network of the given name, or finds the one that is there: a crash between the intent and its result leaves it, and the same name is used again. A network of the step run
+    /// that has a route out would void the isolation of the step on it (AD-7), so what is found must be internal, and is never used otherwise; an outbound network that is internal would
+    /// leave every proxy with no route out and nothing to name the cause, so it is refused the same way.
     /// </summary>
-    private async Task EnsureWorkspaceNetworkAsync(string idempotencyKey, CancellationToken cancellationToken)
+    private async Task EnsureNetworkAsync(string name, bool isInternal, Dictionary<string, string> labels, CancellationToken cancellationToken)
     {
         try
         {
-            await RequireInternalAsync(cancellationToken);
+            await RequireNetworkAsync(name, isInternal, cancellationToken);
             return;
         }
         catch (DockerApiException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
@@ -142,30 +156,26 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
 
         try
         {
-            await docker.Networks.CreateNetworkAsync(
-                new NetworksCreateParameters
-                {
-                    Name = options.WorkspaceNetwork,
-                    Driver = "bridge",
-                    Internal = true,
-                    Labels = WorkspaceLabels.For(options.InstallationId, null, null, idempotencyKey),
-                },
-                cancellationToken);
+            await docker.Networks.CreateNetworkAsync(new NetworksCreateParameters { Name = name, Driver = "bridge", Internal = isInternal, Labels = labels }, cancellationToken);
         }
         catch (DockerApiException exception) when (exception.StatusCode == HttpStatusCode.Conflict)
         {
-            // Made by another call between the look and the creation, or by something else: what is there must be internal all the same.
-            await RequireInternalAsync(cancellationToken);
+            // Made by another call between the look and the creation, or by something else: what is there must be what is asked for all the same.
+            await RequireNetworkAsync(name, isInternal, cancellationToken);
         }
     }
 
-    /// <summary>A network of that name that has a route out would void the isolation of every step on it (AD-7), so it is never used.</summary>
-    private async Task RequireInternalAsync(CancellationToken cancellationToken)
+    private async Task RequireNetworkAsync(string name, bool isInternal, CancellationToken cancellationToken)
     {
-        var network = await docker.Networks.InspectNetworkAsync(options.WorkspaceNetwork, cancellationToken);
-        if (!network.Internal)
+        var network = await docker.Networks.InspectNetworkAsync(name, cancellationToken);
+        if (isInternal && !network.Internal)
         {
-            throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceNetworkNotInternal, options.WorkspaceNetwork));
+            throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceNetworkNotInternal, name));
+        }
+
+        if (!isInternal && network.Internal)
+        {
+            throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceNetworkNotOutbound, name));
         }
     }
 

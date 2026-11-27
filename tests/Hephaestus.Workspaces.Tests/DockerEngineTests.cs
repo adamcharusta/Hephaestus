@@ -16,7 +16,7 @@ public sealed class DockerEngineTests(EngineFixture engine) : IClassFixture<Engi
 {
     private static CancellationToken Cancel => TestContext.Current.CancellationToken;
 
-    private StepContainerRequest Request(Guid taskId, Guid stepRunId, ResolvedImage image, IReadOnlyList<string> command, IReadOnlyDictionary<string, string>? environment = null) =>
+    private StepContainerRequest Request(Guid taskId, Guid stepRunId, ResolvedImage image, IReadOnlyList<string> command, IReadOnlyDictionary<string, string>? environment = null, IReadOnlyList<string>? allowedHosts = null) =>
         new(
             taskId,
             stepRunId,
@@ -26,7 +26,8 @@ public sealed class DockerEngineTests(EngineFixture engine) : IClassFixture<Engi
             new StepLimits(1500, 512L * 1024 * 1024),
             [new WorkspaceFile("instruction.md", Encoding.UTF8.GetBytes("Do the step."))],
             [new WorkspaceFile("manifest.yml", Encoding.UTF8.GetBytes("name: test"))],
-            DateTimeOffset.UtcNow.AddHours(1));
+            DateTimeOffset.UtcNow.AddHours(1),
+            allowedHosts);
 
     private async Task<(long ExitCode, string Output)> RunToEndAsync(string container)
     {
@@ -38,6 +39,8 @@ public sealed class DockerEngineTests(EngineFixture engine) : IClassFixture<Engi
 
     private async Task<(ResolvedImage Image, Guid TaskId)> PrepareAsync(string imageName)
     {
+        // A step needs its egress proxy, which is the hephaestus image: where none is named, a step cannot be started and these tests prove nothing.
+        Unless(engine.ProxyImage is not null, $"{EngineFixture.ProxyImageVariable} names no hephaestus image to create the egress proxies from.");
         var image = await engine.Runtime.ResolveImageAsync(imageName, Cancel);
         var taskId = Guid.CreateVersion7();
         await engine.Runtime.EnsureTaskVolumeAsync(taskId, image, "task:g1:volume:0", Cancel);
@@ -94,7 +97,7 @@ public sealed class DockerEngineTests(EngineFixture engine) : IClassFixture<Engi
         Assert.Equal(1_500_000_000, inspected.HostConfig!.NanoCPUs);
         Assert.Empty(inspected.HostConfig!.PortBindings! ?? new Dictionary<string, IList<PortBinding>>());
         Assert.Empty(inspected.NetworkSettings!.Ports! ?? new Dictionary<string, IList<PortBinding>>());
-        Assert.Equal(engine.WorkspaceNetwork, inspected.HostConfig!.NetworkMode);
+        Assert.Equal($"hephaestus-net-{stepRunId}", inspected.HostConfig!.NetworkMode);
         Assert.Equal(engine.InstallationId, inspected.Config!.Labels!["hephaestus.installation"]);
         Assert.Equal(taskId.ToString(), inspected.Config!.Labels!["hephaestus.task"]);
         Assert.Equal(stepRunId.ToString(), inspected.Config!.Labels!["hephaestus.step-run"]);

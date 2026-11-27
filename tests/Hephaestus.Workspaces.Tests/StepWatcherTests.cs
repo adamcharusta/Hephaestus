@@ -41,26 +41,28 @@ public class StepWatcherTests
     }
 
     [Fact]
-    public async Task The_end_is_output_complete_then_the_Signal_then_the_container_and_the_volumes_of_the_step_run_removed()
+    public async Task The_end_is_output_complete_then_the_Signal_then_the_container_the_proxy_the_network_and_the_volumes_of_the_step_run_removed()
     {
         await using var rig = new WatchRig();
         rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
 
         await rig.WatchToTheEndAsync();
 
-        // The output is recorded beside the look at the container, so only the order of the end is fixed.
-        var end = rig.Docker.Calls.Where(call => call is "complete output" or "append signal" || call.StartsWith("remove", StringComparison.Ordinal)).ToList();
+        // The output is recorded beside the look at the container, so only the order of the end is fixed. The proxy's log is read before anything is removed.
+        var end = rig.Docker.Calls.Where(call => call is "complete output" or "append signal" || call.StartsWith("remove", StringComparison.Ordinal) || call.StartsWith("logs hephaestus-egress", StringComparison.Ordinal)).ToList();
         Assert.Equal(
             [
                 "complete output",
+                $"logs hephaestus-egress-{WatchRig.StepRunId}",
                 "append signal",
                 $"remove {WatchRig.Container}",
+                $"remove hephaestus-egress-{WatchRig.StepRunId}",
+                $"remove network hephaestus-net-{WatchRig.StepRunId}",
                 $"remove volume hephaestus-context-{WatchRig.StepRunId}",
                 $"remove volume hephaestus-methodology-{WatchRig.StepRunId}",
             ],
             end);
-        Assert.True(rig.Docker.Removals.Single().Force);
-        Assert.True(rig.Docker.Removals.Single().RemoveVolumes);
+        Assert.All(rig.Docker.Removals, removal => Assert.True(removal.Force));
         Assert.DoesNotContain(rig.Docker.RemovedVolumes, volume => volume.StartsWith("hephaestus-ws-", StringComparison.Ordinal));
         Assert.True(Assert.Single(rig.Output.Files).Value.Disposed);
     }
@@ -418,7 +420,7 @@ public class StepWatcherTests
 
         await rig.WatchToTheEndAsync();
 
-        Assert.Equal(["A container or volume of step run 018f4b6e-0000-7000-8000-000000000002 could not be removed; it is left for cleanup. (DockerApiException)"], rig.Problems);
+        Assert.Equal(["A container, network, or volume of step run 018f4b6e-0000-7000-8000-000000000002 could not be removed; it is left for cleanup. (DockerApiException)"], rig.Problems);
         Assert.Single(rig.Inbox.Appended);
     }
 
@@ -441,12 +443,13 @@ public class StepWatcherTests
     {
         await using var rig = new WatchRig();
         rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
-        rig.Docker.RemoveFails = _ => Status(HttpStatusCode.Conflict);
+        rig.Docker.RemoveFails = container => container == WatchRig.Container ? Status(HttpStatusCode.Conflict) : null;
 
         await rig.WatchToTheEndAsync();
 
-        Assert.Equal(["A container or volume of step run 018f4b6e-0000-7000-8000-000000000002 could not be removed; it is left for cleanup. (DockerApiException)"], rig.Problems);
+        Assert.Equal(["A container, network, or volume of step run 018f4b6e-0000-7000-8000-000000000002 could not be removed; it is left for cleanup. (DockerApiException)"], rig.Problems);
         Assert.Equal(2, rig.Docker.RemovedVolumes.Count);
+        Assert.Contains($"hephaestus-egress-{WatchRig.StepRunId}", rig.Docker.Removed);
     }
 
     [Fact]
@@ -680,5 +683,70 @@ public class StepWatcherTests
         public override void SetLength(long value) => throw new NotSupportedException();
 
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+    [Fact]
+    public async Task The_hosts_the_egress_proxy_refused_are_read_from_its_log_and_carried_on_the_Signal_each_once()
+    {
+        await using var rig = new WatchRig();
+        rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
+        rig.Docker.ProxyLogs = (_, _) => Task.FromResult(DockerDouble.Output((1, "listening 3128\nrefused evil.example not-allowed\n"), (1, "refused 169.254.169.254 private-address\nrefused evil.example not-allowed\n")));
+
+        await rig.WatchToTheEndAsync();
+
+        var signal = Assert.Single(rig.Inbox.Appended);
+        Assert.Equal(["evil.example", "169.254.169.254"], signal.RefusedHosts!);
+        Assert.Equal([$"hephaestus-egress-{WatchRig.StepRunId}"], rig.Docker.ProxyLogRequests);
+    }
+
+    [Fact]
+    public async Task A_proxy_that_refused_nothing_leaves_no_hosts_on_the_Signal()
+    {
+        await using var rig = new WatchRig();
+        rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
+
+        await rig.WatchToTheEndAsync();
+
+        Assert.Null(Assert.Single(rig.Inbox.Appended).RefusedHosts);
+    }
+
+    [Fact]
+    public async Task A_proxy_that_is_already_gone_leaves_no_hosts_and_is_not_a_problem()
+    {
+        await using var rig = new WatchRig();
+        rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
+        rig.Docker.ProxyLogs = (_, _) => Task.FromException<MultiplexedStream>(DockerDouble.NotFound());
+
+        await rig.WatchToTheEndAsync();
+
+        Assert.Null(Assert.Single(rig.Inbox.Appended).RefusedHosts);
+        Assert.Empty(rig.Problems);
+    }
+
+    [Fact]
+    public async Task A_proxy_log_that_cannot_be_read_is_reported_once_and_the_step_still_ends_with_no_host_recorded()
+    {
+        await using var rig = new WatchRig();
+        rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
+        rig.Docker.ProxyLogs = (_, _) => Task.FromException<MultiplexedStream>(new HttpRequestException("gone"));
+
+        await rig.WatchToTheEndAsync();
+
+        Assert.Null(Assert.Single(rig.Inbox.Appended).RefusedHosts);
+        Assert.Single(rig.Problems, problem => problem.Contains("refused could not be read", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_proxy_or_network_that_cannot_be_removed_is_reported_and_the_rest_is_still_tried()
+    {
+        await using var rig = new WatchRig();
+        rig.Docker.Inspector = RunsThenEnds(0, DockerDouble.Inspected("exited"));
+        rig.Docker.RemoveFails = container => container.StartsWith("hephaestus-egress-", StringComparison.Ordinal) ? new HttpRequestException("busy") : null;
+        rig.Docker.NetworkRemoveFails = _ => new HttpRequestException("busy");
+
+        await rig.WatchToTheEndAsync();
+
+        Assert.Equal(2, rig.Problems.Count(problem => problem.Contains("could not be removed", StringComparison.Ordinal)));
+        Assert.Equal([$"hephaestus-context-{WatchRig.StepRunId}", $"hephaestus-methodology-{WatchRig.StepRunId}"], rig.Docker.RemovedVolumes);
+        Assert.Equal([$"hephaestus-net-{WatchRig.StepRunId}"], rig.Docker.RemovedNetworks);
     }
 }

@@ -1,3 +1,4 @@
+using Hephaestus.Core.Workspaces;
 using Hephaestus.Host.Cli;
 using Hephaestus.Host.Hosting;
 
@@ -17,6 +18,12 @@ internal static class EntryPoint
         Func<string, string?> getVariable,
         CancellationToken cancellationToken)
     {
+        // The egress proxy of a step run is this executable in another container (Story 3.4): it needs no settings, no database, and no control API.
+        if (args is ["egress-proxy"])
+        {
+            return await EgressProxyCommand.RunAsync(getVariable, output, EgressProxyAddress.Port, cancellationToken);
+        }
+
         var settings = HostSettings.FromEnvironment(getVariable);
 
         if (args is ["serve"])

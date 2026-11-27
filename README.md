@@ -53,6 +53,16 @@ The runtime also sees each step to its end. What a step prints, on standard outp
 has a deadline: the runtime stops its container when the deadline passes, and nothing else does. When the container ends, for whatever reason, the runtime reports it once, with the exit code and why it ended (`exited`, `timeout`,
 `out-of-memory`, or `lost`), and removes the container. [`docs/step-containers.md`](docs/step-containers.md) has the definition, how the C library of a Project's image is established, how a step ends, and the checks.
 
+A step container's only way to the network is an egress proxy, reached at **`http://hephaestus-egress:3128`**. Each step run gets an internal Docker network of its own and a proxy of its own on it: a
+container of the same `hephaestus` image running `hephaestus egress-proxy`, unprivileged, with no credential, no volume, and no Docker socket, created and removed with the step. A connection that skips the proxy
+fails, because the network has no route out. The proxy resolves names itself and refuses anything that resolves to a loopback, link-local, or private address, so a step reaches neither the host, nor your
+local network, nor another step. The runtime hands each proxy the step's list of allowed hosts: the Project's `allowedEgressHosts` plus, for the container that runs an Agent, the hosts that Agent's CLI needs; with no Project
+list any public host passes, which is the default in v0.1. The hosts a step was refused are recorded with the step. The proxy carries HTTPS and plain HTTP only; a tunnel to any other port, and so SSH,
+has no way out. Hephaestus sets the standard proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` with the container's own loopback excluded, and their lower-case forms) and makes git fetch `github.com`
+over HTTPS where an SSH address is given; a build tool that ignores those variables, such as Maven or Gradle, needs the proxy's address in the Project's image
+([`docs/project-configuration.md`](docs/project-configuration.md)). The host name and port are part of the versioned public surface. [ADR-0021](docs/adr/0021-egress-proxy.md) records the decision; the Docker host
+must be able to run the `hephaestus` image as a second container, which Compose provides through `HEPHAESTUS_EGRESS_PROXY_IMAGE`.
+
 ## Secrets
 
 A credential is handed to Hephaestus on standard input; a value given as an argument is refused. It is stored as a file on the `hephaestus-secrets` volume, which only the `hephaestus` container mounts;

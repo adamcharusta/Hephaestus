@@ -26,5 +26,6 @@ Each record states one decision, the alternatives weighed, and what follows from
 | [0018](0018-task-branch-is-untrusted-code.md) | A Task branch is untrusted code in a trusted repository | Accepted | AD-19 |
 | [0019](0019-language-is-data.md) | Language is data; the machine surface has one language | Accepted | AD-21 |
 | [0020](0020-branches-quality-gate-and-image-channels.md) | Branches, the quality gate, and image channels for Hephaestus's own repository | Accepted | Conventions, NFR-18 |
+| [0021](0021-egress-proxy.md) | The egress proxy: one per step run, built into the hephaestus image | Accepted | AD-7, AD-18, NFR-4 |
 
 The brief asked for records on eight topics. They map as follows: modular monolith (0001); agent integration strategy (0004, 0005, 0011); task provider abstraction (0006); local persistence (0014); workspace isolation (0008, 0009, 0010); workflow execution (0002); control plane and execution plane separation (0015, 0008); security boundaries (0008, 0010, 0013, 0018).

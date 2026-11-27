@@ -69,4 +69,12 @@ public class HostSettingsTests
         Assert.Equal("hephaestus", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_INSTALLATION_ID" ? " " : null).InstallationId);
         Assert.Equal("dev-1", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_INSTALLATION_ID" ? "dev-1" : null).InstallationId);
     }
+
+    [Fact]
+    public void The_egress_proxy_is_created_from_the_hephaestus_image_unless_a_variable_names_another()
+    {
+        Assert.Equal("ghcr.io/adamcharusta/hephaestus:latest", HostSettings.FromEnvironment(_ => null).EgressProxyImage);
+        Assert.Equal(HostSettings.DefaultEgressProxyImage, HostSettings.FromEnvironment(name => name == "HEPHAESTUS_EGRESS_PROXY_IMAGE" ? "" : null).EgressProxyImage);
+        Assert.Equal("hephaestus:dev", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_EGRESS_PROXY_IMAGE" ? "hephaestus:dev" : null).EgressProxyImage);
+    }
 }

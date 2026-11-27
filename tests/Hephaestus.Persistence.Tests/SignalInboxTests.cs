@@ -69,6 +69,21 @@ public class SignalInboxTests
     }
 
     [Fact]
+    public async Task A_step_exited_Signal_keeps_the_hosts_the_egress_proxy_refused_in_order_and_none_as_null()
+    {
+        using var installation = await StartAsync();
+        var inbox = installation.Provider.GetRequiredService<ISignalInbox>();
+        var refused = Guid.Parse("018f4b6e-0000-7000-8000-000000000003");
+        var clean = Guid.Parse("018f4b6e-0000-7000-8000-000000000004");
+
+        await inbox.AppendAsync([Signal.StepExited(refused, 1, Hephaestus.Core.Workspaces.StepExitCause.Exited, Noon, ["evil.example", "169.254.169.254", "[::1]"]), Signal.StepExited(clean, 0, Hephaestus.Core.Workspaces.StepExitCause.Exited, Noon, [])], Token);
+
+        var stored = await inbox.ReadAsync(0, 10, Token);
+        Assert.Equal(["evil.example", "169.254.169.254", "[::1]"], stored[0].Signal.RefusedHosts!);
+        Assert.Null(stored[1].Signal.RefusedHosts);
+    }
+
+    [Fact]
     public async Task A_step_exited_Signal_of_a_container_that_was_lost_holds_no_exit_code()
     {
         using var installation = await StartAsync();

@@ -215,20 +215,28 @@ On upgrade, the database is backed up, migrations run, and a failed migration st
 flowchart LR
     subgraph Host[Docker host]
         H[hephaestus<br/>long-running]
-        S1[step container]
-        S2[step container]
-        P[egress proxy<br/>unprivileged]
+        subgraph N1[step run network, internal]
+            S1[step container]
+            P1[egress proxy]
+        end
+        subgraph N2[step run network, internal]
+            S2[step container]
+            P2[egress proxy]
+        end
         V[(volumes: data, secrets,<br/>mirrors, agents, one per Task)]
     end
     H -->|creates| S1
     H -->|creates| S2
-    S1 -->|all egress| P
-    S2 -->|all egress| P
-    P --> Internet[(Public internet)]
+    H -->|creates| P1
+    H -->|creates| P2
+    S1 -->|all egress| P1
+    S2 -->|all egress| P2
+    P1 --> Internet[(Public internet)]
+    P2 --> Internet
     H --- V
 ```
 
-One Compose file, the long-running `hephaestus` service, the egress proxy, and short-lived containers that `hephaestus` creates. The command line is the same executable in client mode, run with `docker exec`; it talks to the control API on a Unix socket inside the container and does nothing else. That socket is on no network, and it is the only place anything can be changed ([ADR-0015](adr/0015-one-host-process-and-cli-as-api-client.md)).
+One Compose file, the long-running `hephaestus` service, and short-lived containers that `hephaestus` creates: a step container and its egress proxy for each step run, on an internal network of their own ([ADR-0021](adr/0021-egress-proxy.md)). The command line is the same executable in client mode, run with `docker exec`; it talks to the control API on a Unix socket inside the container and does nothing else. That socket is on no network, and it is the only place anything can be changed ([ADR-0015](adr/0015-one-host-process-and-cli-as-api-client.md)).
 
 ### The Dashboard
 
@@ -288,7 +296,7 @@ Deliberately absent: a message broker, a second database, a workflow engine, .NE
 
 - **The spike that gates v0.1.** Which BMAD workflows complete unattended. The injection spike has run and confirmed the container boundary and the supplied CLIs; whether a repository plugin can be loaded and is then stopped is left open by it.
 - **Codex with a subscription sign-in.** It needs a credential file refreshed between runs, which conflicts with the rule that nothing from a step container is written back to the secrets store. That file is also a full account credential, and the tools the account brings cannot be listed from the CLI. Codex is supported with an API key.
-- **The egress proxy in detail.** The mechanism is fixed; which proxy is used, how it is started and given each step's allowed hosts, and how step containers are kept from reaching each other on a network they share with it are to be settled with the v0.1 execution work. Traffic that is not HTTP or HTTPS, and intercepting traffic without the client's cooperation, are out of scope for v1.
+- **The egress proxy's remaining limits.** Which proxy is used, how it is started and given each step's hosts, and how step containers are kept apart are decided ([ADR-0021](adr/0021-egress-proxy.md): `hephaestus egress-proxy`, one per step run on a network per step run, reached at `hephaestus-egress:3128`). Traffic that is not HTTP or HTTPS, SSH rewrites for hosts other than `github.com`, and intercepting traffic without the client's cooperation stay out of scope for v1.
 - **Reading who edited a text.** GitHub's GraphQL API lists the edits of an issue body or comment with their editors. Whether it does so for a GitHub App's token is to be confirmed by a test. Until then, and wherever the editor cannot be read, the Task is held.
 - **Dependencies that can never be satisfied.** A Task whose dependency failed, was closed without a merge, or is not a Task at all is never started. What the Owner is told about it is to be settled with the intake work.
 - **Later releases.** Usage-limit detection and notifications (v0.2); stacked pull requests, merge, and rework (v0.3).

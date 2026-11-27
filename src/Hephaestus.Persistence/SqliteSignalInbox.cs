@@ -25,10 +25,11 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             var occurredAt = UtcInstantConverter.ToText(signal.OccurredAt);
             var stepRun = signal.StepRunId is { } stepRunId ? EntityIdConverter.ToText(stepRunId) : null;
             var cause = signal.Cause?.Tag();
+            var refused = signal.RefusedHosts is { Count: > 0 } hosts ? string.Join('\n', hosts) : null;
             appended += await context.Database.ExecuteSqlInterpolatedAsync(
                 $"""
-                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody", "CommentBody", "StepRunId", "ExitCode", "Cause")
-                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody}, {signal.CommentBody}, {stepRun}, {signal.ExitCode}, {cause})
+                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody", "CommentBody", "StepRunId", "ExitCode", "Cause", "RefusedHosts")
+                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody}, {signal.CommentBody}, {stepRun}, {signal.ExitCode}, {cause}, {refused})
                 ON CONFLICT ("Source", "SourceEventId") DO NOTHING
                 """,
                 cancellationToken);
@@ -72,7 +73,8 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             entry.CommentBody,
             entry.StepRunId,
             entry.ExitCode,
-            entry.Cause is null ? null : StepExitCauses.TryParse(entry.Cause, out var cause) ? cause : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown cause '{entry.Cause}'.")),
+            entry.Cause is null ? null : StepExitCauses.TryParse(entry.Cause, out var cause) ? cause : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown cause '{entry.Cause}'."),
+            entry.RefusedHosts is { Length: > 0 } refused ? refused.Split('\n') : null),
         SignalStatuses.TryParse(entry.Status, out var status) ? status : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown status '{entry.Status}'."),
         entry.Reason,
         entry.TaskId);

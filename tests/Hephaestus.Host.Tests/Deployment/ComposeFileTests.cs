@@ -60,6 +60,26 @@ public class ComposeFileTests
     }
 
     [Fact]
+    public void The_egress_proxy_is_created_from_the_same_image_the_service_runs_so_that_both_are_one_release()
+    {
+        var service = Service();
+        var environment = (Dictionary<object, object>)service["environment"];
+
+        Assert.Equal(service["image"], environment["HEPHAESTUS_EGRESS_PROXY_IMAGE"]);
+        Assert.Equal("ghcr.io/adamcharusta/hephaestus:${HEPHAESTUS_IMAGE_TAG:-latest}", service["image"]);
+    }
+
+    [Fact]
+    public void The_hephaestus_service_is_on_no_network_a_step_container_or_the_egress_proxy_is_on()
+    {
+        var document = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(Deploy("compose.yaml")));
+
+        // The runtime makes the outbound network and each step run's network itself; the Compose file declares neither, so the service is on the project's default network alone.
+        Assert.DoesNotContain("networks", document.Keys);
+        Assert.DoesNotContain("networks", Service().Keys);
+    }
+
+    [Fact]
     public void The_container_is_not_privileged_drops_every_capability_and_mounts_its_own_named_volumes_and_the_docker_socket_and_nothing_else()
     {
         var service = Service();

@@ -5,7 +5,7 @@ namespace Hephaestus.Core.Ports;
 /// <summary>
 /// The Docker runtime behind the loop (AD-6, AD-7, AD-18). Everything it creates carries the labels of the installation it serves, so that recovery and
 /// cleanup can select on them. Every method that creates something takes the idempotency key of the effect that causes it (AD-5), which is recorded on what is
-/// created. A retry after a crash makes no second object: a step run's container is found by its labels, and the Task's volume, the workspace network, and the helpers by their fixed names.
+/// created. A retry after a crash makes no second object: a step run's container is found by its labels, and the Task's volume, the step run's network and proxy, and the helpers by their fixed names.
 /// </summary>
 public interface IWorkspaceRuntime
 {
@@ -28,6 +28,6 @@ public interface IWorkspaceRuntime
     /// that container is returned and a second one is not made.
     /// </summary>
     /// <exception cref="ArgumentException">The request cannot be carried out: no command, a limit that Docker would read as no limit, an environment name that cannot be one, or files that collide.</exception>
-    /// <exception cref="WorkspaceRuntimeException">The workspace network exists and is not an internal network.</exception>
+    /// <exception cref="WorkspaceRuntimeException">A network of the step run exists and is not an internal one, the outbound network exists and is an internal one, or the step run's egress proxy did not start (AD-7).</exception>
     Task<StartedStep> StartStepAsync(StepContainerRequest request, string idempotencyKey, CancellationToken cancellationToken);
 }

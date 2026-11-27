@@ -33,7 +33,8 @@ public class StepContainerTests
         IReadOnlyDictionary<string, string>? environment = null,
         IReadOnlyList<WorkspaceFile>? context = null,
         IReadOnlyList<WorkspaceFile>? methodology = null,
-        DateTimeOffset? deadline = null) =>
+        DateTimeOffset? deadline = null,
+        IReadOnlyList<string>? allowedHosts = null) =>
         new(
             TaskId,
             StepRunId,
@@ -43,7 +44,8 @@ public class StepContainerTests
             limits ?? new StepLimits(2500, 3L * 1024 * 1024 * 1024),
             context ?? [new WorkspaceFile("instruction.md", [1])],
             methodology ?? [new WorkspaceFile("manifest.yml", [2])],
-            deadline ?? Deadline);
+            deadline ?? Deadline,
+            allowedHosts);
 
     private async Task<CreateContainerParameters> StartedAsync(StepContainerRequest? request = null)
     {
@@ -99,11 +101,11 @@ public class StepContainerTests
     }
 
     [Fact]
-    public async Task The_container_is_attached_to_the_workspace_network_alone_and_is_not_restarted_by_docker()
+    public async Task The_container_is_attached_to_the_internal_network_of_its_step_run_alone_and_is_not_restarted_by_docker()
     {
         var host = (await StartedAsync()).HostConfig!;
 
-        Assert.Equal("hephaestus-workspace", host.NetworkMode);
+        Assert.Equal($"hephaestus-net-{StepRunId}", host.NetworkMode);
         Assert.Equal(RestartPolicyKind.No, host.RestartPolicy!.Name);
         Assert.Empty(host.Binds! ?? []);
         Assert.Empty(host.VolumesFrom! ?? []);
@@ -224,7 +226,7 @@ public class StepContainerTests
     {
         var container = await StartedAsync(Request(environment: new Dictionary<string, string> { ["HOME"] = "/root", ["TOKEN_FILE"] = "/x" }));
 
-        Assert.Equal(["TOKEN_FILE=/x", "HOME=/hephaestus/home"], container.Env!);
+        Assert.Equal(["TOKEN_FILE=/x", .. EgressEnvironment.Variables.Select(pair => $"{pair.Key}={pair.Value}"), "HOME=/hephaestus/home"], container.Env!);
     }
 
     [Theory]
@@ -281,7 +283,7 @@ public class StepContainerTests
         Assert.True(started.Created);
         Assert.Equal($"hephaestus-step-{StepRunId}", started.Name);
         Assert.Equal($"id-hephaestus-step-{StepRunId}", started.ContainerId);
-        Assert.Equal([started.ContainerId], _docker.Started);
+        Assert.Equal([$"id-hephaestus-egress-{StepRunId}", started.ContainerId], _docker.Started);
         await _docker.Client.Containers.DidNotReceiveWithAnyArgs().WaitContainerAsync(default!, TestContext.Current.CancellationToken);
         await _docker.Client.Containers.DidNotReceiveWithAnyArgs().AttachContainerAsync(default!, default!, TestContext.Current.CancellationToken);
     }
@@ -365,7 +367,7 @@ public class StepContainerTests
 
         Assert.False(started.Created);
         Assert.Equal("winner", started.ContainerId);
-        Assert.Equal(["winner"], _docker.Started);
+        Assert.Equal([$"id-hephaestus-egress-{StepRunId}", "winner"], _docker.Started);
         Assert.Equal("winner", Assert.Single(_watcher.Watched).ContainerId);
     }
 
@@ -385,24 +387,29 @@ public class StepContainerTests
         var failure = await Assert.ThrowsAsync<DockerApiException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
 
         Assert.Equal(System.Net.HttpStatusCode.InternalServerError, failure.StatusCode);
-        Assert.Empty(_docker.Started);
+        Assert.DoesNotContain(_docker.Started, started => started.Contains("-step-", StringComparison.Ordinal));
     }
 
     [Fact]
-    public async Task The_workspace_network_is_created_internal_when_it_is_missing()
+    public async Task The_step_runs_network_is_created_internal_when_it_is_missing_and_the_outbound_network_with_a_route_out()
     {
-        await Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken);
+        await StartedAsync();
 
-        var network = Assert.Single(_docker.Networks);
-        Assert.Equal("hephaestus-workspace", network.Name);
-        Assert.True(network.Internal);
-        Assert.StartsWith("hephaestus-", network.Name, StringComparison.Ordinal);
-        Assert.Equal(Installation, network.Labels!["hephaestus.installation"]);
-        Assert.Equal(Key, network.Labels!["hephaestus.effect"]);
+        Assert.Equal(2, _docker.Networks.Count);
+        var outbound = _docker.Networks.Single(network => network.Name == "hephaestus-outbound");
+        Assert.False(outbound.Internal);
+        Assert.Equal(string.Empty, outbound.Labels!["hephaestus.step-run"]);
+        var step = _docker.Networks.Single(network => network.Name == $"hephaestus-net-{StepRunId}");
+        Assert.True(step.Internal);
+        Assert.Equal("bridge", step.Driver);
+        Assert.Equal(Installation, step.Labels!["hephaestus.installation"]);
+        Assert.Equal(TaskId.ToString(), step.Labels!["hephaestus.task"]);
+        Assert.Equal(StepRunId.ToString(), step.Labels!["hephaestus.step-run"]);
+        Assert.Equal(Key, step.Labels!["hephaestus.effect"]);
     }
 
     [Fact]
-    public async Task A_workspace_network_that_has_a_route_out_is_never_used()
+    public async Task A_step_runs_network_that_has_a_route_out_is_never_used()
     {
         _docker.NetworkExists = true;
         _docker.NetworkInternal = false;
@@ -410,7 +417,7 @@ public class StepContainerTests
         var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
 
         Assert.Equal(Hephaestus.Core.Localization.MessageIds.WorkspaceNetworkNotInternal, refusal.Info.Id);
-        Assert.Equal(["hephaestus-workspace"], refusal.Info.Arguments);
+        Assert.Equal([$"hephaestus-net-{StepRunId}"], refusal.Info.Arguments);
         Assert.Empty(_docker.Created);
         Assert.Empty(_docker.Started);
     }
@@ -421,10 +428,10 @@ public class StepContainerTests
         _docker.NetworkCreateFails = DockerDouble.Conflict();
         _docker.NetworkInternal = false;
         var inspections = 0;
-        _docker.Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ =>
-            ++inspections == 1
+        _docker.Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+            ++inspections % 2 == 1
                 ? Task.FromException<NetworkResponse>(DockerDouble.NotFound())
-                : Task.FromResult(new NetworkResponse { Name = "hephaestus-workspace", Internal = false }));
+                : Task.FromResult(new NetworkResponse { Name = call.Arg<string>(), Internal = false }));
 
         await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
 
@@ -434,7 +441,7 @@ public class StepContainerTests
     [Fact]
     public async Task A_container_that_cannot_start_is_removed_so_that_a_retry_makes_a_new_one()
     {
-        _docker.StartFails = new DockerApiException(System.Net.HttpStatusCode.BadRequest, "executable file not found");
+        _docker.StartFailsFor = container => container.Contains("-step-", StringComparison.Ordinal) ? new DockerApiException(System.Net.HttpStatusCode.BadRequest, "executable file not found") : null;
 
         await Assert.ThrowsAsync<DockerApiException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
 
@@ -466,7 +473,7 @@ public class StepContainerTests
     }
 
     [Fact]
-    public async Task The_workspace_network_is_left_alone_when_it_exists()
+    public async Task The_networks_are_left_alone_when_they_exist()
     {
         _docker.NetworkExists = true;
 
@@ -480,14 +487,218 @@ public class StepContainerTests
     {
         _docker.NetworkCreateFails = DockerDouble.Conflict();
         var inspections = 0;
-        _docker.Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(_ =>
-            ++inspections == 1
+        _docker.Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+            ++inspections % 2 == 1
                 ? Task.FromException<NetworkResponse>(DockerDouble.NotFound())
-                : Task.FromResult(new NetworkResponse { Name = "hephaestus-workspace", Internal = true }));
+                : Task.FromResult(new NetworkResponse { Name = call.Arg<string>(), Internal = !call.Arg<string>().StartsWith("hephaestus-outbound", StringComparison.Ordinal) }));
 
         var started = await Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken);
 
         Assert.True(started.Created);
+    }
+
+    private CreateContainerParameters Proxy() => _docker.Created.Single(created => created.Name == $"hephaestus-egress-{StepRunId}");
+
+    [Fact]
+    public async Task The_egress_proxy_is_a_separate_unprivileged_container_of_the_hephaestus_image_with_no_mount_no_credential_and_no_socket()
+    {
+        await StartedAsync();
+        var proxy = Proxy();
+        var host = proxy.HostConfig!;
+
+        Assert.Equal("ghcr.io/adamcharusta/hephaestus:latest", proxy.Image);
+        Assert.Equal(["hephaestus", "egress-proxy"], proxy.Entrypoint!);
+        Assert.Equal("10001:10001", proxy.User);
+        Assert.Equal(["ALL"], host.CapDrop!);
+        Assert.Equal(["no-new-privileges"], host.SecurityOpt!);
+        Assert.False(host.Privileged);
+        Assert.True(host.ReadonlyRootfs);
+        Assert.False(host.PublishAllPorts);
+        Assert.Empty(host.Mounts! ?? []);
+        Assert.Empty(host.Binds! ?? []);
+        Assert.Equal(["/tmp"], host.Tmpfs!.Keys);
+        Assert.Equal(512, host.PidsLimit);
+        Assert.True(host.Memory > 0);
+        Assert.Equal(host.Memory, host.MemorySwap);
+        Assert.Equal(RestartPolicyKind.No, host.RestartPolicy!.Name);
+        Assert.DoesNotContain(proxy.Env!, variable => variable.Contains("TOKEN", StringComparison.OrdinalIgnoreCase) || variable.Contains("SECRET", StringComparison.OrdinalIgnoreCase) || variable.Contains("KEY", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("egress-proxy", proxy.Labels!["hephaestus.role"]);
+        Assert.Equal(StepRunId.ToString(), proxy.Labels!["hephaestus.step-run"]);
+        Assert.Equal(TaskId.ToString(), proxy.Labels!["hephaestus.task"]);
+        Assert.Equal(Installation, proxy.Labels!["hephaestus.installation"]);
+    }
+
+    [Fact]
+    public async Task The_proxy_is_created_on_the_outbound_network_and_joins_the_step_runs_network_under_the_fixed_name_before_it_starts()
+    {
+        await StartedAsync();
+
+        Assert.Equal("hephaestus-outbound", Proxy().HostConfig!.NetworkMode);
+        var (network, parameters) = Assert.Single(_docker.Connections);
+        Assert.Equal($"hephaestus-net-{StepRunId}", network);
+        Assert.Equal($"id-hephaestus-egress-{StepRunId}", parameters.Container);
+        Assert.Equal(["hephaestus-egress"], parameters.EndpointConfig!.Aliases!);
+        var order = _docker.Calls.Where(call => call.StartsWith("connect", StringComparison.Ordinal) || call.StartsWith("start", StringComparison.Ordinal) || call.StartsWith("create network", StringComparison.Ordinal) || call.StartsWith("create container hephaestus-", StringComparison.Ordinal)).ToList();
+        Assert.Equal(
+            [
+                "create network hephaestus-outbound",
+                $"create network hephaestus-net-{StepRunId}",
+                $"create container hephaestus-egress-{StepRunId}",
+                $"connect id-hephaestus-egress-{StepRunId} hephaestus-net-{StepRunId}",
+                $"start id-hephaestus-egress-{StepRunId}",
+                $"create container hephaestus-file-fill-{StepRunId}",
+                $"create container hephaestus-step-{StepRunId}",
+                $"start id-hephaestus-step-{StepRunId}",
+            ],
+            order);
+    }
+
+    [Fact]
+    public async Task The_step_container_is_created_only_after_the_proxy_says_it_is_listening()
+    {
+        var reads = 0;
+        _docker.ProxyLogs = (_, _) => Task.FromResult(++reads < 3 ? DockerDouble.Output() : DockerDouble.Output((1, "listening 3128\n")));
+
+        await Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, reads);
+        Assert.True(_docker.Calls.IndexOf($"logs id-hephaestus-egress-{StepRunId}") < _docker.Calls.IndexOf($"create container hephaestus-step-{StepRunId}"));
+    }
+
+    [Fact]
+    public async Task A_proxy_that_stops_before_it_listens_stops_the_step_and_says_why_and_is_removed()
+    {
+        _docker.ProxyLogs = (_, _) => Task.FromResult(DockerDouble.Output((2, "crashed\n")));
+        _docker.Inspector = (id, _) => Task.FromResult(DockerDouble.Inspected(id.Contains("egress", StringComparison.Ordinal) ? "exited" : "running", exitCode: 1));
+
+        var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
+
+        Assert.Equal(Hephaestus.Core.Localization.MessageIds.WorkspaceEgressProxyNotReady, refusal.Info.Id);
+        Assert.Equal(["ghcr.io/adamcharusta/hephaestus:latest"], refusal.Info.Arguments);
+        Assert.Contains($"id-hephaestus-egress-{StepRunId}", _docker.Removed);
+        Assert.DoesNotContain(_docker.Created, created => created.Name == $"hephaestus-step-{StepRunId}");
+    }
+
+    [Fact]
+    public async Task A_proxy_that_said_it_was_listening_and_then_ended_stops_the_step()
+    {
+        _docker.Inspector = (id, _) => Task.FromResult(DockerDouble.Inspected(id.Contains("egress", StringComparison.Ordinal) ? "exited" : "running", exitCode: 139));
+
+        var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
+
+        Assert.Equal(Hephaestus.Core.Localization.MessageIds.WorkspaceEgressProxyNotReady, refusal.Info.Id);
+        Assert.DoesNotContain(_docker.Created, created => created.Name == $"hephaestus-step-{StepRunId}");
+    }
+
+    [Fact]
+    public async Task An_outbound_network_that_is_internal_is_never_used_because_no_proxy_on_it_would_have_a_route_out()
+    {
+        _docker.NetworkExists = true;
+        _docker.Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call => Task.FromResult(new NetworkResponse { Name = call.Arg<string>(), Internal = true }));
+
+        var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
+
+        Assert.Equal(Hephaestus.Core.Localization.MessageIds.WorkspaceNetworkNotOutbound, refusal.Info.Id);
+        Assert.Equal(["hephaestus-outbound"], refusal.Info.Arguments);
+        Assert.Empty(_docker.Created);
+    }
+
+    [Fact]
+    public async Task A_found_container_that_has_not_started_gets_its_proxy_back_before_it_starts_when_the_crash_took_the_proxy_too()
+    {
+        _docker.Existing.Add(new ContainerListResponse { ID = "left", Names = [$"/hephaestus-step-{StepRunId}"], State = "created" });
+        _docker.Inspector = (id, _) => id.Contains("egress", StringComparison.Ordinal) && !id.StartsWith("id-", StringComparison.Ordinal)
+            ? Task.FromException<ContainerInspectResponse>(DockerDouble.NotFound())
+            : Task.FromResult(DockerDouble.Inspected("running"));
+
+        var started = await Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken);
+
+        Assert.False(started.Created);
+        Assert.Equal([$"id-hephaestus-egress-{StepRunId}", "left"], _docker.Started);
+        Assert.Single(_docker.Created, created => created.Name == $"hephaestus-egress-{StepRunId}");
+        Assert.DoesNotContain(_docker.Created, created => created.Name == $"hephaestus-step-{StepRunId}");
+    }
+
+    [Fact]
+    public async Task A_found_container_that_has_not_started_keeps_its_proxy_when_it_still_runs()
+    {
+        _docker.Existing.Add(new ContainerListResponse { ID = "left", Names = [$"/hephaestus-step-{StepRunId}"], State = "created" });
+
+        var started = await Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken);
+
+        Assert.False(started.Created);
+        Assert.Equal(["left"], _docker.Started);
+        Assert.Empty(_docker.Created);
+    }
+
+    [Fact]
+    public async Task A_proxy_that_does_not_listen_within_the_limit_stops_the_step()
+    {
+        _docker.ProxyLogs = (_, _) => Task.FromResult(DockerDouble.Output());
+        var runtime = new DockerWorkspaceRuntime(_docker.Client, new WorkspaceRuntimeOptions(Installation, _vendor.Lock, AgentArchitecture.X64) { EgressProxyReadyLimit = TimeSpan.FromMilliseconds(50), EgressProxyPollInterval = TimeSpan.FromMilliseconds(10) }, _watcher);
+
+        var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => runtime.StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
+
+        Assert.Equal(Hephaestus.Core.Localization.MessageIds.WorkspaceEgressProxyNotReady, refusal.Info.Id);
+        Assert.Contains($"id-hephaestus-egress-{StepRunId}", _docker.Removed);
+    }
+
+    [Fact]
+    public async Task A_proxy_image_that_is_not_on_this_machine_stops_the_step_and_names_the_image()
+    {
+        _docker.FailCreate = parameters => parameters.Name!.StartsWith("hephaestus-egress-", StringComparison.Ordinal) ? DockerDouble.NotFound() : null;
+
+        var refusal = await Assert.ThrowsAsync<WorkspaceRuntimeException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
+
+        Assert.Equal(Hephaestus.Core.Localization.MessageIds.WorkspaceEgressProxyNotReady, refusal.Info.Id);
+        Assert.Empty(_docker.Started);
+    }
+
+    [Fact]
+    public async Task A_proxy_that_a_crash_left_is_replaced_because_it_holds_nothing()
+    {
+        await StartedAsync();
+
+        Assert.Contains($"remove hephaestus-egress-{StepRunId}", _docker.Calls);
+        Assert.True(_docker.Calls.IndexOf($"remove hephaestus-egress-{StepRunId}") < _docker.Calls.IndexOf($"create container hephaestus-egress-{StepRunId}"));
+    }
+
+    [Fact]
+    public async Task The_proxy_gets_the_step_runs_allowed_hosts_in_its_environment_and_nothing_when_any_public_host_may_be_reached()
+    {
+        await StartedAsync(Request(allowedHosts: ["api.nuget.org", "Registry.npmjs.org"]));
+        Assert.Contains("HEPHAESTUS_EGRESS_ALLOWED_HOSTS=api.nuget.org,registry.npmjs.org", Proxy().Env!);
+
+        _docker.Created.Clear();
+        await StartedAsync(Request(allowedHosts: null));
+        Assert.DoesNotContain(Proxy().Env!, variable => variable.StartsWith("HEPHAESTUS_EGRESS_ALLOWED_HOSTS", StringComparison.Ordinal));
+
+        _docker.Created.Clear();
+        await StartedAsync(Request(allowedHosts: []));
+        Assert.Contains("HEPHAESTUS_EGRESS_ALLOWED_HOSTS=", Proxy().Env!);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("api.nuget.org,evil.example")]
+    [InlineData("has space.example")]
+    [InlineData("http://example.com")]
+    [InlineData("example.com/path")]
+    public async Task A_host_that_is_not_a_host_name_is_refused_before_anything_is_created(string host)
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => Runtime().StartStepAsync(Request(allowedHosts: [host]), Key, TestContext.Current.CancellationToken));
+
+        Assert.Empty(_docker.Calls);
+    }
+
+    [Fact]
+    public async Task The_proxy_variables_and_the_git_rewrite_are_set_in_every_step_container_and_replace_what_the_invocation_sets()
+    {
+        var container = await StartedAsync(Request(environment: new Dictionary<string, string> { ["HTTPS_PROXY"] = "http://evil.example:1", ["no_proxy"] = "*", ["GIT_CONFIG_COUNT"] = "9", ["X"] = "1" }));
+
+        Assert.Equal(["X=1", .. EgressEnvironment.Variables.Select(pair => $"{pair.Key}={pair.Value}"), "HOME=/hephaestus/home"], container.Env!);
+        Assert.Contains("HTTPS_PROXY=http://hephaestus-egress:3128", container.Env!);
+        Assert.Contains("NO_PROXY=localhost,127.0.0.1,::1", container.Env!);
     }
 
     [Fact]
@@ -559,7 +770,7 @@ public class StepContainerTests
         await Assert.ThrowsAsync<IOException>(() => Runtime().StartStepAsync(Request(), Key, TestContext.Current.CancellationToken));
 
         Assert.Contains($"id-hephaestus-file-fill-{StepRunId}", _docker.Removed);
-        Assert.Empty(_docker.Started);
+        Assert.Equal([$"id-hephaestus-egress-{StepRunId}"], _docker.Started);
         Assert.DoesNotContain(_docker.Created, created => created.Labels!["hephaestus.role"] == "step");
     }
 
@@ -594,7 +805,8 @@ public class StepContainerTests
 
         var watched = Assert.Single(_watcher.Watched);
         Assert.Equal(new WatchedStep(TaskId, StepRunId, started.ContainerId, deadline), watched);
-        Assert.DoesNotContain(_docker.Calls, call => call.StartsWith("inspect", StringComparison.Ordinal) || call.StartsWith("logs", StringComparison.Ordinal));
+        // The proxy is looked at until it listens; the step container is not looked at by the call, only by the watcher.
+        Assert.DoesNotContain(_docker.Calls, call => call == $"inspect {started.ContainerId}" || call == $"logs {started.ContainerId}");
     }
 
     [Fact]

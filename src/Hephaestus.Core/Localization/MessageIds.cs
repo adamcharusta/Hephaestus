@@ -307,4 +307,6 @@ public static class MessageIds
     public const string WorkspaceImageMissing = "workspace.image.missing";
     public const string WorkspaceImageVolumes = "workspace.image.volumes";
     public const string WorkspaceNetworkNotInternal = "workspace.network.not-internal";
+    public const string WorkspaceEgressProxyNotReady = "workspace.egress-proxy.not-ready";
+    public const string WorkspaceNetworkNotOutbound = "workspace.network.not-outbound";
 }

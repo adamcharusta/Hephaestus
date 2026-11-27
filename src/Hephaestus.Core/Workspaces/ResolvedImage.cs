@@ -29,7 +29,7 @@ public sealed class ImageNotUsableException(Message info, Exception? innerExcept
 }
 
 /// <summary>
-/// The runtime cannot give a step the isolation it promises (AD-7): the workspace network exists and is not an internal network. Nothing is started, and the message says what to change.
+/// The runtime cannot give a step the isolation it promises (AD-7): a workspace network exists and is not an internal network, or the egress proxy did not start. Nothing is started, and the message says what to change.
 /// </summary>
 public sealed class WorkspaceRuntimeException(Message info, Exception? innerException = null) : Exception(info.Id, innerException)
 {
