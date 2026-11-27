@@ -11,6 +11,9 @@
 # root-equivalent on the host and the only container that is. A step container gets no socket, and no Task volume is ever mounted here. The process user
 # is not root, so it joins the group that owns the socket: set HEPHAESTUS_DOCKER_GID to the group id of /var/run/docker.sock
 # (`export HEPHAESTUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock)` on Linux); 999 is the usual one.
+# Every step run gets an internal Docker network of its own and an egress proxy on it (Story 3.4, AD-7): a container of this same image running
+# `hephaestus egress-proxy`, which the orchestrator creates and removes with the step. The proxy is the only way out of a step's network; it is attached to the
+# `hephaestus-outbound` network, which the orchestrator also creates. This service is on neither, so no step container can reach it.
 name: hephaestus
 
 services:
@@ -31,6 +34,8 @@ services:
       # The value of the `hephaestus.installation` label on every container, volume, and network this installation creates. A second installation on
       # the same Docker host, such as a development one, names its own, so that neither selects the other's objects.
       HEPHAESTUS_INSTALLATION_ID: ${HEPHAESTUS_INSTALLATION_ID:-hephaestus}
+      # The image the egress proxy of every step run is created from: this one, so that the proxy and the orchestrator are one release.
+      HEPHAESTUS_EGRESS_PROXY_IMAGE: ghcr.io/adamcharusta/hephaestus:${HEPHAESTUS_IMAGE_TAG:-latest}
     logging:
       driver: json-file
       options:

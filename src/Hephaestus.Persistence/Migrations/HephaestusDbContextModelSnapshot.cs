@@ -527,6 +527,9 @@ namespace Hephaestus.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RefusedHosts")
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("RepositoryId")
                         .HasColumnType("INTEGER");
 

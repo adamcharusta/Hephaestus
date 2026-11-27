@@ -20,6 +20,7 @@ public static class WorkspaceLabels
     public const string Effect = "hephaestus.effect";
 
     public const string StepRole = "step";
+    public const string EgressProxyRole = "egress-proxy";
     public const string ProbeRole = "image-probe";
     public const string VolumeHelperRole = "volume-helper";
     public const string FillRole = "file-fill";
@@ -27,6 +28,12 @@ public static class WorkspaceLabels
     public static string TaskVolume(Guid taskId) => $"{StepContainerLayout.NamePrefix}ws-{taskId:D}";
 
     public static string StepContainer(Guid stepRunId) => $"{StepContainerLayout.NamePrefix}step-{stepRunId:D}";
+
+    /// <summary>The internal network of one step run: the step container and its egress proxy are on it and nothing else is, which keeps step containers apart (AD-7).</summary>
+    public static string StepNetwork(Guid stepRunId) => $"{StepContainerLayout.NamePrefix}net-{stepRunId:D}";
+
+    /// <summary>The egress proxy of one step run.</summary>
+    public static string EgressProxy(Guid stepRunId) => $"{StepContainerLayout.NamePrefix}egress-{stepRunId:D}";
 
     public static string ContextVolume(Guid stepRunId) => $"{StepContainerLayout.NamePrefix}context-{stepRunId:D}";
 

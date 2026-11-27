@@ -45,7 +45,16 @@ public sealed class EngineFixture : IAsyncLifetime
 
     public string AgentsVolume => $"hephaestus-agents-test-{_suffix}";
 
-    public string WorkspaceNetwork => $"hephaestus-workspace-test-{_suffix}";
+    /// <summary>The network with a route out that the egress proxies of the tests are attached to; the networks of the step runs are named after the step runs.</summary>
+    public string OutboundNetwork => $"hephaestus-outbound-test-{_suffix}";
+
+    /// <summary>
+    /// The <c>hephaestus</c> image the egress proxies are created from, which the tests need to start a step: continuous integration builds it before the tests run and names it in
+    /// <see cref="ProxyImageVariable"/>. Where nothing names one, no step can be started and the tests that start one are skipped.
+    /// </summary>
+    public string? ProxyImage { get; } = Environment.GetEnvironmentVariable(ProxyImageVariable);
+
+    public const string ProxyImageVariable = "HEPHAESTUS_TEST_PROXY_IMAGE";
 
     public IDockerClient Docker { get; private set; }
 
@@ -55,6 +64,9 @@ public sealed class EngineFixture : IAsyncLifetime
 
     public DockerWorkspaceRuntime Runtime { get; private set; }
 
+    /// <summary>The options the fixture's runtime was built with, for a test that builds a runtime of its own on the same installation.</summary>
+    public WorkspaceRuntimeOptions RuntimeOptions { get; private set; }
+
     public async ValueTask InitializeAsync()
     {
         if (!RealEngine.Available)
@@ -63,7 +75,8 @@ public sealed class EngineFixture : IAsyncLifetime
         }
 
         Docker = new DockerClientBuilder().WithTimeout(TimeSpan.FromMinutes(10)).Build();
-        Runtime = new DockerWorkspaceRuntime(Docker, new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, WorkspaceNetwork = WorkspaceNetwork }, new RecordingWatcher());
+        RuntimeOptions = new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, OutboundNetwork = OutboundNetwork, EgressProxyImage = ProxyImage ?? "hephaestus.invalid/none:0", EgressProxyPollInterval = TimeSpan.FromMilliseconds(100), StepPollInterval = TimeSpan.FromMilliseconds(250) };
+        Runtime = new DockerWorkspaceRuntime(Docker, RuntimeOptions, new RecordingWatcher());
         var image = await Runtime.ResolveImageAsync(Musl, TestContext.Current.CancellationToken);
         await FillAgentsVolumeAsync(image.Reference, TestContext.Current.CancellationToken);
     }
@@ -86,13 +99,9 @@ public sealed class EngineFixture : IAsyncLifetime
             await Docker.Volumes.RemoveAsync(volume.Name, true, CancellationToken.None);
         }
 
-        try
+        foreach (var network in await Docker.Networks.ListNetworksAsync(new NetworksListParameters { Filters = label }, CancellationToken.None))
         {
-            await Docker.Networks.DeleteNetworkAsync(WorkspaceNetwork, CancellationToken.None);
-        }
-        catch (DockerApiException)
-        {
-            // Never created by the tests that ran.
+            await Docker.Networks.DeleteNetworkAsync(network.ID, CancellationToken.None);
         }
 
         Docker.Dispose();

@@ -26,7 +26,7 @@ flowchart TB
 
 ## Level 2: Containers
 
-Everything runs on one Docker host. Apart from `hephaestus` and the egress proxy, every container lives for a single step of a single Task.
+Everything runs on one Docker host. Apart from `hephaestus`, every container lives for a single step of a single Task; the egress proxy is one of them, one per step run ([ADR-0021](adr/0021-egress-proxy.md)).
 
 ```mermaid
 flowchart TB
@@ -40,11 +40,14 @@ flowchart TB
         end
         Socket[/Docker socket/]
 
-        subgraph Network[Workspace network · internal, no route out]
+        subgraph NetworkA[Step run network · internal, no route out · one per step run]
             StepAgent[Agent step container<br/>Project image + injected Agent CLI<br/>one Agent credential]
-            StepPlain[Validation, checkout, or checkpoint container<br/>no credentials]
+            ProxyA[Egress proxy · hephaestus egress-proxy<br/>unprivileged, no credentials<br/>Project list + this Agent's hosts]
         end
-        Proxy[Egress proxy container<br/>unprivileged, no credentials<br/>public hosts only, allowlist when set]
+        subgraph NetworkB[Step run network · internal, no route out]
+            StepPlain[Validation, checkout, or checkpoint container<br/>no credentials]
+            ProxyB[Egress proxy<br/>Project list alone]
+        end
 
         Data[(data volume<br/>SQLite database,<br/>raw agent output)]
         Secrets[(secrets volume<br/>credential files)]
@@ -65,10 +68,11 @@ flowchart TB
     StepPlain --- TaskVolume
     Binaries -.->|read-only| StepAgent
     Process <-->|HTTPS: poll, push, API| GitHub
-    StepAgent -->|all egress| Proxy
-    StepPlain -->|all egress| Proxy
-    Proxy -->|HTTPS: model requests| Vendors
-    Proxy -->|HTTPS: package registries<br/>and other public hosts| Internet[(Public internet)]
+    StepAgent -->|all egress| ProxyA
+    StepPlain -->|all egress| ProxyB
+    ProxyA -->|HTTPS: model requests| Vendors
+    ProxyA -->|HTTPS: package registries<br/>and other public hosts| Internet[(Public internet)]
+    ProxyB -->|public hosts, allowlist when set| Internet
 ```
 
 | Container | Lifetime | Holds credentials | Notes |
@@ -77,7 +81,7 @@ flowchart TB
 | Agent step container | One step | The credential of the one Agent running that step | Runs as a non-root user with all capabilities dropped. The agent's own sandbox is off; the container is the boundary. |
 | Validation container | One command | None | Runs one of the Project's build or test commands on a fresh checkout, in the Project image. |
 | Checkout and checkpoint containers | Seconds | None | Run a small tools image with git only: re-create the checkout before a step, and afterwards write one commit and one bundle file. |
-| Egress proxy | Not decided yet | None | The only exit from the workspace network. Refuses loopback, link-local, and private destinations and applies each step's allowed hosts: the Project's list, plus an Agent's own hosts in that Agent's container only. Unprivileged, with no volume and no Docker socket. |
+| Egress proxy | One per step run, for the step's duration | None | `hephaestus egress-proxy`, a command of the `hephaestus` image, on the step run's internal network and on `hephaestus-outbound`. The only exit from the step run's network. Refuses loopback, link-local, and private destinations and applies each step's allowed hosts: the Project's list, plus an Agent's own hosts in that Agent's container only. Unprivileged, with no volume and no Docker socket. |
 
 No volume is shared between Tasks, and a Task volume is never mounted into the `hephaestus` container. Work crosses that line only as a git bundle.
 

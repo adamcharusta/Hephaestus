@@ -7,6 +7,7 @@ using Hephaestus.Core.Ports;
 using Hephaestus.Core.Secrets;
 using Hephaestus.Core.Signals;
 using Hephaestus.Core.Workspaces;
+using Hephaestus.Workspaces.Egress;
 
 namespace Hephaestus.Workspaces;
 
@@ -24,7 +25,7 @@ public interface IStepWatcher
 /// <summary>
 /// Sees every step container to its end (AD-18, FR-19, FR-53): it follows the container's output through the masker into <see cref="IOutputStore"/>,
 /// stops the container when its deadline passes, which nothing else does, appends exactly one step-exited Signal, and removes the container and the
-/// volumes of the step run. The order of the end is: output complete, Signal appended, container removed. A crash after the Signal leaves a labelled
+/// egress proxy, network, and volumes of the step run. The order of the end is: output complete, Signal appended, container removed. A crash after the Signal leaves a labelled
 /// container that recovery finds (Story 3.17); a crash before it leaves the container, which is watched again from the start of its log.
 /// </summary>
 /// <remarks>
@@ -153,9 +154,11 @@ public sealed class StepWatcher : IStepWatcher, IAsyncDisposable
                 await recording;
             }
 
+            // The proxy's log is complete once the step has ended, so what it refused is read now, before anything is removed, and reported with the end.
+            var refused = await ReadRefusedHostsAsync(step, stopping);
             await RetryAsync(
                 $"The end of step run {step.StepRunId:D} could not be reported.",
-                token => _inbox.AppendAsync([Signal.StepExited(step.StepRunId, end.ExitCode, end.Cause, _time.GetUtcNow())], token),
+                token => _inbox.AppendAsync([Signal.StepExited(step.StepRunId, end.ExitCode, end.Cause, _time.GetUtcNow(), refused)], token),
                 stopping);
             await RemoveAsync(step, stopping);
         }
@@ -270,6 +273,27 @@ public sealed class StepWatcher : IStepWatcher, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// The hosts the step run's egress proxy refused, from its log (AD-7, AD-18); none when the proxy is already gone. A log that cannot be read is reported once, and the step ends with
+    /// no host recorded: its end does not depend on it.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> ReadRefusedHostsAsync(WatchedStep step, CancellationToken stopping)
+    {
+        try
+        {
+            return EgressRefusals.Parse(await ContainerLogs.ReadAsync(_docker, WorkspaceLabels.EgressProxy(step.StepRunId), stopping));
+        }
+        catch (DockerApiException exception) when (exception.StatusCode == HttpStatusCode.NotFound)
+        {
+            return [];
+        }
+        catch (Exception exception) when (!stopping.IsCancellationRequested)
+        {
+            Report($"The hosts that the egress proxy of step run {step.StepRunId:D} refused could not be read; none is recorded.", exception);
+            return [];
+        }
+    }
+
     /// <summary>The container's state, or null when there is no such container.</summary>
     private async Task<StepState?> InspectAsync(string container, CancellationToken cancellationToken)
     {
@@ -299,12 +323,14 @@ public sealed class StepWatcher : IStepWatcher, IAsyncDisposable
     }
 
     /// <summary>
-    /// Removes the container and the step run's context and Methodology volumes. The Signal has been appended by now, so a failure here is reported and
+    /// Removes the container, the step run's egress proxy and network, and its context and Methodology volumes. The Signal has been appended by now, so a failure here is reported and
     /// left to the removal of what a crash leaves behind, which selects on the installation label (Story 3.17).
     /// </summary>
     private async Task RemoveAsync(WatchedStep step, CancellationToken stopping)
     {
         await RemoveOneAsync(step, () => _docker.Containers.RemoveContainerAsync(step.ContainerId, new ContainerRemoveParameters { Force = true, RemoveVolumes = true }, stopping), stopping);
+        await RemoveOneAsync(step, () => _docker.Containers.RemoveContainerAsync(WorkspaceLabels.EgressProxy(step.StepRunId), new ContainerRemoveParameters { Force = true, RemoveVolumes = true }, stopping), stopping);
+        await RemoveOneAsync(step, () => _docker.Networks.DeleteNetworkAsync(WorkspaceLabels.StepNetwork(step.StepRunId), stopping), stopping);
         await RemoveOneAsync(step, () => _docker.Volumes.RemoveAsync(WorkspaceLabels.ContextVolume(step.StepRunId), false, stopping), stopping);
         await RemoveOneAsync(step, () => _docker.Volumes.RemoveAsync(WorkspaceLabels.MethodologyVolume(step.StepRunId), false, stopping), stopping);
     }
@@ -318,7 +344,7 @@ public sealed class StepWatcher : IStepWatcher, IAsyncDisposable
         }
         catch (Exception exception) when (IsTransient(exception) && !stopping.IsCancellationRequested)
         {
-            Report($"A container or volume of step run {step.StepRunId:D} could not be removed; it is left for cleanup.", exception);
+            Report($"A container, network, or volume of step run {step.StepRunId:D} could not be removed; it is left for cleanup.", exception);
         }
     }
 

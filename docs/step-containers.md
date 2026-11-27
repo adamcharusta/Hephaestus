@@ -16,7 +16,7 @@ A step container is created from the image the Task started with and nothing els
 | Seccomp | Docker's default profile (none is named, none is weakened) |
 | Processes | at most 512 |
 | Processor and memory | the Task's settings, never more than the installation's limits (`hephaestus limit show`); 2 processors and 4 GiB when neither names one; no swap |
-| Network | the internal workspace network `hephaestus-workspace`, which has no route out; no port is published |
+| Network | the internal network of its step run, `hephaestus-net-<step-run>`, which has no route out and whose only other member is the step run's egress proxy; no port is published |
 | Entry point and working directory | replaced: the first element of the invocation and `/workspace` |
 
 The processes inside see exactly these mounts, and no host path:
@@ -68,7 +68,7 @@ restart after a crash between the intent to create it and its result finds, that
    | `lost` | the container was gone when the runtime looked; no exit code is known |
 
    Whether a CLI that ended by itself ended well is for its adapter to say (Story 3.16). The loop applies the Signal like any other, within a tick, whatever else is running.
-4. **Removal.** It removes the container and the step run's context and Methodology volumes. The order is output complete, Signal, removal: a crash after the Signal leaves a labelled container for recovery to find (Story 3.17), and a crash before it
+4. **Removal.** It removes the container, the step run's egress proxy and network, and the step run's context and Methodology volumes. The order is output complete, Signal, removal: a crash after the Signal leaves a labelled container for recovery to find (Story 3.17), and a crash before it
    leaves a container whose log is read again from the start, which replaces the output file.
 
 What fails while a step is watched is reported to the host's log (with the step run's id and no output of the step), and what the step's end depends on is tried again every five seconds until it works or the host stops: the looks at
@@ -81,12 +81,40 @@ while nobody watched is reported by its state, not as a timeout (Story 3.17).
 
 ## What a process inside cannot reach
 
-The container holds no Docker socket, no Hephaestus API socket, and no host path; the workspace network has no route to the host, so the dashboard port and every other port of the host are
-out of reach too. Only the `hephaestus` container holds the Docker socket (`deploy/compose.yaml`); no Task volume is mounted into it. The tests that show this run against a real
-Docker Engine in CI: `DockerEngineTests` starts step containers on glibc and musl images, inspects them, writes to the workspace as the step user, and tries to reach
-a listener on the host and the paths of the sockets. The Docker socket makes the orchestrator equivalent to root on the host, and the threat model says so.
+The container holds no Docker socket, no Hephaestus API socket, and no host path. It is attached to one network, the internal network of its step run, which has no route out; the only other
+thing on that network is the step run's egress proxy, so the host, the dashboard port, the Owner's local network, and every other step container are out of reach directly, and the proxy refuses
+them too (below). Only the `hephaestus` container holds the Docker socket (`deploy/compose.yaml`); no Task volume is mounted into it, and it is on no network a step container or a proxy is on. The
+tests that show this run against a real Docker Engine in CI: `DockerEngineTests` and `EgressProxyEngineTests` start step containers on glibc and musl images, inspect them and their networks, write
+to the workspace as the step user, and try to reach a listener on the host, the paths of the sockets, another step container, and private addresses, directly and through the proxy. The Docker socket
+makes the orchestrator equivalent to root on the host, and the threat model says so.
 
-The egress proxy, the only way out of the workspace network, is a later story (3.4). Until then a step container has no network at all.
+## The egress proxy (AD-7, Story 3.4)
+
+A step container's only way to the network is its egress proxy, reached at **`http://hephaestus-egress:3128`**. That host name and port are part of the versioned public surface: a build tool that does not
+honour the standard proxy variables, such as Maven or Gradle, needs them written into the Project's image (`docs/project-configuration.md`). [ADR-0021](adr/0021-egress-proxy.md) records the decision.
+
+**One network and one proxy per step run.** The runtime creates an internal network `hephaestus-net-<step-run>` and a proxy container `hephaestus-egress-<step-run>` for each step run, before the step
+container, and removes both with it. The proxy is `hephaestus egress-proxy`: a command of the same image the orchestrator runs (`HEPHAESTUS_EGRESS_PROXY_IMAGE`, set by Compose to the service's own image),
+in a container of its own as user `10001:10001` with every capability dropped, `no-new-privileges`, a read-only root file system, no mount but a small memory-only `/tmp`, no credential, no Docker socket, and no
+published port. It is attached to the step run's network under the name `hephaestus-egress` and to `hephaestus-outbound`, the one network with a route out, which the runtime also creates. The step container is
+created only once the proxy has written `listening 3128` to its log; a proxy that does not, within a minute, stops the step with `workspace.egress-proxy.not-ready`, which names the image to check for.
+
+**What the proxy refuses.** It resolves the destination's name itself and refuses the request when any address in the answer is a loopback, link-local, private, or otherwise non-public address, whatever the
+Project's list says; it connects to the address it tested, never to the name again. With a list of allowed hosts it refuses every host not on the list, by exact name in any case; with no list it passes any public
+host. A refusal is a `403` to the client and one line in the proxy's log, `refused <host> not-allowed` or `refused <host> private-address`, each host once and at most a hundred.
+
+**Whose list.** The hosts a step run may reach are the Project's `allowedEgressHosts` plus, only for a container that runs an Agent invocation, the hosts the Agent's adapter declares for it; a Validation container
+gets the Project's list alone, so it cannot reach an Agent vendor's host the Project did not list. The installation's egress default is one constant, `EgressPolicy.Default`: open unless a list is set, in v0.1.
+
+**What it carries.** HTTPS as a `CONNECT` tunnel it does not look into, and plain HTTP as one request per connection, rewritten to origin form with the host it checked (`dotnet restore` fetches a certificate
+revocation list that way). Nothing else: a protocol an HTTP proxy cannot carry has no way out.
+
+**What every step container is told.** `HTTP_PROXY`, `HTTPS_PROXY`, and their lower-case forms point at the proxy; `NO_PROXY` and `no_proxy` exclude `localhost,127.0.0.1,::1`, so a test database on the
+container's own loopback still works; `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0`/`VALUE_0`, and `GIT_CONFIG_KEY_1`/`VALUE_1` make git fetch `git@github.com:` and `ssh://git@github.com/` addresses over
+HTTPS. These replace any variable of the same name an invocation sets. Nothing specific to a language or build tool is set.
+
+**Refused hosts are recorded.** When the step ends, the runtime reads the proxy's log and carries the refused hosts on the step-exited Signal (`refusedHosts`), before the proxy and the network are removed. A
+host an Agent's CLI needs that its adapter does not declare therefore shows up there, not as an obscure failure.
 
 ## The Docker socket in Compose
 

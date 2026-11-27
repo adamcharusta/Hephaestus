@@ -82,6 +82,7 @@ public static class SignalKinds
 /// <param name="StepRunId">For a <see cref="SignalKind.StepExited"/> Signal, the step run whose container ended; null for the other kinds.</param>
 /// <param name="ExitCode">For a <see cref="SignalKind.StepExited"/> Signal, the exit code of the container's process; null when none is known (<see cref="StepExitCause.Lost"/>).</param>
 /// <param name="Cause">For a <see cref="SignalKind.StepExited"/> Signal, why the container ended, as the runtime saw it.</param>
+/// <param name="RefusedHosts">For a <see cref="SignalKind.StepExited"/> Signal, the host names the egress proxy refused during the step run, each once, in the order they were first refused; null when it refused none and for the other kinds (AD-7, AD-18).</param>
 public sealed record Signal(
     string Source,
     string SourceEventId,
@@ -99,7 +100,8 @@ public sealed record Signal(
     string? CommentBody = null,
     Guid? StepRunId = null,
     int? ExitCode = null,
-    StepExitCause? Cause = null)
+    StepExitCause? Cause = null,
+    IReadOnlyList<string>? RefusedHosts = null)
 {
     /// <summary>The one source of the Signals the GitHub gateway's poller appends.</summary>
     public const string GitHubSource = "github";
@@ -112,8 +114,8 @@ public sealed record Signal(
     /// restart can make, is the no-op the inbox makes of every duplicate: the loop hears of a step's end exactly once. It concerns no
     /// repository or issue by itself; the loop finds the Task through the step run.
     /// </summary>
-    public static Signal StepExited(Guid stepRunId, int? exitCode, StepExitCause cause, DateTimeOffset occurredAt) =>
-        new(RuntimeSource, stepRunId.ToString("D"), SignalKind.StepExited, 0, 0, null, null, null, null, null, occurredAt, StepRunId: stepRunId, ExitCode: exitCode, Cause: cause);
+    public static Signal StepExited(Guid stepRunId, int? exitCode, StepExitCause cause, DateTimeOffset occurredAt, IReadOnlyList<string>? refusedHosts = null) =>
+        new(RuntimeSource, stepRunId.ToString("D"), SignalKind.StepExited, 0, 0, null, null, null, null, null, occurredAt, StepRunId: stepRunId, ExitCode: exitCode, Cause: cause, RefusedHosts: refusedHosts is { Count: > 0 } ? refusedHosts : null);
 }
 
 /// <summary>

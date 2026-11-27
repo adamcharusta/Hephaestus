@@ -30,7 +30,7 @@ internal sealed class DockerDouble
         {
             Calls.Add($"start {call.Arg<string>()}");
             Started.Add(call.Arg<string>());
-            return StartFails is { } failure ? Task.FromException<bool>(failure) : Task.FromResult(true);
+            return (StartFails ?? StartFailsFor?.Invoke(call.Arg<string>())) is { } failure ? Task.FromException<bool>(failure) : Task.FromResult(true);
         });
         Client.Containers.RemoveContainerAsync(Arg.Any<string>(), Arg.Any<ContainerRemoveParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
@@ -68,9 +68,16 @@ internal sealed class DockerDouble
         });
         Client.Containers.GetContainerLogsAsync(Arg.Any<string>(), Arg.Any<ContainerLogsParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
-            Calls.Add($"logs {call.Arg<string>()}");
+            var container = call.Arg<string>();
+            Calls.Add($"logs {container}");
+            if (container.Contains("hephaestus-egress-", StringComparison.Ordinal))
+            {
+                ProxyLogRequests.Add(container);
+                return ProxyLogs(container, call.Arg<CancellationToken>());
+            }
+
             LogRequests.Add(call.Arg<ContainerLogsParameters>());
-            return Logs(call.Arg<string>(), call.Arg<CancellationToken>());
+            return Logs(container, call.Arg<CancellationToken>());
         });
         Client.Containers.StopContainerAsync(Arg.Any<string>(), Arg.Any<ContainerStopParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
@@ -92,7 +99,19 @@ internal sealed class DockerDouble
             return Task.FromResult(new VolumeResponse { Name = parameters.Name });
         });
         Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
-            NetworkExists ? Task.FromResult(new NetworkResponse { Name = call.Arg<string>(), Internal = NetworkInternal }) : Task.FromException<NetworkResponse>(NotFound()));
+            NetworkExists ? Task.FromResult(new NetworkResponse { Name = call.Arg<string>(), Internal = !call.Arg<string>().StartsWith("hephaestus-outbound", StringComparison.Ordinal) && NetworkInternal }) : Task.FromException<NetworkResponse>(NotFound()));
+        Client.Networks.ConnectNetworkAsync(Arg.Any<string>(), Arg.Any<NetworkConnectParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            Calls.Add($"connect {call.Arg<NetworkConnectParameters>().Container} {call.Arg<string>()}");
+            Connections.Add((call.Arg<string>(), call.Arg<NetworkConnectParameters>()));
+            return ConnectFails is { } failure ? Task.FromException(failure) : Task.CompletedTask;
+        });
+        Client.Networks.DeleteNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+        {
+            Calls.Add($"remove network {call.Arg<string>()}");
+            RemovedNetworks.Add(call.Arg<string>());
+            return NetworkRemoveFails?.Invoke(call.Arg<string>()) is { } failure ? Task.FromException(failure) : Task.CompletedTask;
+        });
         Client.Networks.CreateNetworkAsync(Arg.Any<NetworksCreateParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
         {
             Calls.Add($"create network {call.Arg<NetworksCreateParameters>().Name}");
@@ -130,6 +149,20 @@ internal sealed class DockerDouble
 
     /// <summary>The output of a container: nothing, which ends at once.</summary>
     public Func<string, CancellationToken, Task<MultiplexedStream>> Logs { get; set; } = (_, _) => Task.FromResult(Output());
+
+    /// <summary>The log of an egress proxy, which the runtime reads apart from a step's output: a proxy that listens and has refused nothing.</summary>
+    public Func<string, CancellationToken, Task<MultiplexedStream>> ProxyLogs { get; set; } = (_, _) => Task.FromResult(Output((1, "listening 3128\n")));
+
+    /// <summary>The proxy containers whose log was read, in order.</summary>
+    public List<string> ProxyLogRequests { get; } = [];
+
+    public List<(string Network, NetworkConnectParameters Parameters)> Connections { get; } = [];
+
+    public List<string> RemovedNetworks { get; } = [];
+
+    public Exception? ConnectFails { get; set; }
+
+    public Func<string, Exception?>? NetworkRemoveFails { get; set; }
 
     public int InspectCalls { get; private set; }
 
@@ -202,6 +235,9 @@ internal sealed class DockerDouble
     public List<ContainerRemoveParameters> Removals { get; } = [];
 
     public Exception? StartFails { get; set; }
+
+    /// <summary>A start that fails for some containers and not others, given the container's id.</summary>
+    public Func<string, Exception?>? StartFailsFor { get; set; }
 
     public ImageInspectResponse? Image { get; set; }
 

@@ -46,6 +46,9 @@ internal sealed class SignalEntry
     /// <summary>Why a step container ended, as one of the names of <c>StepExitCause</c>.</summary>
     public string? Cause { get; set; }
 
+    /// <summary>The host names the egress proxy refused during the step run of a step-exited Signal, one on each line; null when it refused none.</summary>
+    public string? RefusedHosts { get; set; }
+
     /// <summary><c>pending</c> until the loop applies or rejects the Signal, which it does in one transaction with the Task writes it causes.</summary>
     public string Status { get; set; } = "pending";
 

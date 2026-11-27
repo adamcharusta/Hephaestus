@@ -78,7 +78,8 @@ internal sealed class Installation : IAsyncDisposable
                 builder.Services.TryAddSingleton(new WorkspaceRuntimeOptions(engine.InstallationId, engine.Vendor.Lock, engine.HostArchitecture)
                 {
                     AgentsVolume = engine.AgentsVolume,
-                    WorkspaceNetwork = engine.WorkspaceNetwork,
+                    OutboundNetwork = engine.OutboundNetwork,
+                    EgressProxyImage = engine.ProxyImage ?? "hephaestus.invalid/none:0",
                     StepPollInterval = TimeSpan.FromMilliseconds(250),
                     StopGraceSeconds = 1,
                 });
@@ -109,6 +110,18 @@ internal sealed class Installation : IAsyncDisposable
     /// <summary>Describes the scripted Agent's invocation of a step, creates the Task's volume, and starts the step's container. Returns as soon as the container is started, as the runtime does.</summary>
     public async Task<HarnessStep> StartStepAsync(ScriptedAgentAdapter adapter, TimeSpan timeout, string image = EngineFixture.Musl)
     {
+        // A step needs its egress proxy, which is the hephaestus image: where none is named, the test proves nothing, and in continuous integration that is a failure.
+        if (Engine?.ProxyImage is null)
+        {
+            var reason = $"{EngineFixture.ProxyImageVariable} names no hephaestus image to create the egress proxies from.";
+            if (RealEngine.Required)
+            {
+                Assert.Fail(reason);
+            }
+
+            Assert.Skip(reason);
+        }
+
         var runtime = Services.GetRequiredService<IWorkspaceRuntime>();
         var time = TimeProvider.System;
         var taskId = EntityId.New(time);
@@ -117,7 +130,7 @@ internal sealed class Installation : IAsyncDisposable
         var resolved = await runtime.ResolveImageAsync(image, Cancel);
         await runtime.EnsureTaskVolumeAsync(taskId, resolved, $"task:{taskId:N}:volume:0", Cancel);
         var started = await runtime.StartStepAsync(
-            new StepContainerRequest(taskId, stepRunId, resolved, invocation.Command, invocation.Environment, new StepLimits(1000, 256L * 1024 * 1024), invocation.Files, [], time.GetUtcNow() + timeout),
+            new StepContainerRequest(taskId, stepRunId, resolved, invocation.Command, invocation.Environment, new StepLimits(1000, 256L * 1024 * 1024), invocation.Files, [], time.GetUtcNow() + timeout, AllowedEgressHosts: null),
             $"task:{taskId:N}:container:0",
             Cancel);
         return new HarnessStep(taskId, stepRunId, started.ContainerId);

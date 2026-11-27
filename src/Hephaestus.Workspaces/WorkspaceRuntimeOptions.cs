@@ -11,8 +11,20 @@ public sealed record WorkspaceRuntimeOptions(string InstallationId, AgentLock Ag
     /// <summary>The volume the host fills with the Agent CLIs (<c>hephaestus-agents</c>).</summary>
     public string AgentsVolume { get; init; } = "hephaestus-agents";
 
-    /// <summary>The Docker network every step container is attached to, and to no other: it has no route out (AD-7).</summary>
-    public string WorkspaceNetwork { get; init; } = "hephaestus-workspace";
+    /// <summary>
+    /// The Docker network with a route out, which the egress proxies are attached to besides the internal network of their step run (AR-41). No step container and
+    /// not the <c>hephaestus</c> container is on it.
+    /// </summary>
+    public string OutboundNetwork { get; init; } = "hephaestus-outbound";
+
+    /// <summary>The image the egress proxy of a step run is created from: the <c>hephaestus</c> image itself, whose <c>egress-proxy</c> command is the proxy (Story 3.4).</summary>
+    public string EgressProxyImage { get; init; } = "ghcr.io/adamcharusta/hephaestus:latest";
+
+    /// <summary>How long a step may wait for its egress proxy to start listening before it is not started.</summary>
+    public TimeSpan EgressProxyReadyLimit { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>How often the runtime looks for the proxy's line that says it is listening.</summary>
+    public TimeSpan EgressProxyPollInterval { get; init; } = TimeSpan.FromMilliseconds(200);
 
     /// <summary>How often the runtime looks at a running step container; the deadline is acted on when it passes, not at the next look (AD-18).</summary>
     public TimeSpan StepPollInterval { get; init; } = TimeSpan.FromSeconds(1);

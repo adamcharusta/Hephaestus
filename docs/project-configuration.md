@@ -54,14 +54,18 @@ never ignored.
 | `limits.taskDuration` | no | The longest a Task may run, for example `90m` or `2h30m` (1 minute to 7 days). |
 | `limits.cpus` | no | The most processors, for example `2` or `1.5` (0.1 to 1024). |
 | `limits.memory` | no | The most memory, for example `512m` or `4g` (64m to 4096g). |
-| `allowedEgressHosts` | no | A list of host names a Task's containers may reach, for example `api.nuget.org`. A host name, in lower or upper case, with no scheme, port, path, or wildcard, and not an address. The hosts an Agent's own CLI needs will be added by Hephaestus for the Agent's step and are never listed here. The list is applied by the egress proxy, which does not exist yet; with no list, the design lets any public host through. |
+| `allowedEgressHosts` | no | A list of host names a Task's containers may reach, for example `api.nuget.org`. A host name, in lower or upper case, with no scheme, port, path, or wildcard, and not an address. The hosts an Agent's own CLI needs will be added by Hephaestus for the Agent's step and are never listed here. The egress proxy applies the list by exact name; with no list, any public host is let through (the installation's default in v0.1). A name that resolves to a loopback, link-local, or private address is refused whatever the list says, and the hosts a step was refused are recorded with the step. |
 | `language` | no | `en` or `pl`: the language of the text Hephaestus writes on the Project's issues and pull requests. Without it, the installation's language is used. Any other value is an error. |
 
 The value of an Alias key is the name the Owner gave the Alias with `alias add`; `alias list` shows them. An Alias that is not
 defined on this installation is an error, and so is one of the wrong kind.
 
 A build tool that does not honour the standard proxy variables, such as Maven or Gradle, needs its own proxy settings in the
-Project's image; Hephaestus sets only the generic variables.
+Project's image; Hephaestus sets only the generic variables (`HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY`, their lower-case forms, and git's rewrite of
+`github.com` SSH addresses to HTTPS). The proxy is reached from a step container at `http://hephaestus-egress:3128`; that host name and port are part
+of the versioned public surface. For Gradle: `JAVA_TOOL_OPTIONS="-Dhttps.proxyHost=hephaestus-egress -Dhttps.proxyPort=3128 -Dhttp.proxyHost=hephaestus-egress -Dhttp.proxyPort=3128"`.
+For Maven: a `<proxy>` element with the same host and port in the `settings.xml` the image carries, for example under `$MAVEN_HOME/conf/`. See
+[`docs/step-containers.md`](step-containers.md).
 
 ## What the check reports
 

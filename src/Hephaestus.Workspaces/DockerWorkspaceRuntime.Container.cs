@@ -2,6 +2,7 @@ using Docker.DotNet.Models;
 using Hephaestus.Core.AgentBinaries;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Workspaces;
+using Hephaestus.Workspaces.Egress;
 
 namespace Hephaestus.Workspaces;
 
@@ -14,8 +15,8 @@ public sealed partial class DockerWorkspaceRuntime
 
     /// <summary>
     /// The definition of a step container (AD-7): user <c>10001:10001</c>, every capability dropped, <c>no-new-privileges</c>, Docker's default
-    /// seccomp profile (nothing is named, so the default applies), a process limit, no published port, the limits of the Task, and exactly the mounts of the
-    /// container layout. The image's entry point and working directory are replaced, so that an image cannot change what runs.
+    /// seccomp profile (nothing is named, so the default applies), a process limit, no published port, the limits of the Task, exactly the mounts of the
+    /// container layout, and no network but the internal one of its step run, whose only other member is the egress proxy. The image's entry point and working directory are replaced, so that an image cannot change what runs.
     /// </summary>
     private CreateContainerParameters StepContainer(StepContainerRequest request, string idempotencyKey)
     {
@@ -30,9 +31,12 @@ public sealed partial class DockerWorkspaceRuntime
             throw new ArgumentException("A step needs a processor limit above zero and a memory limit of at least 6 MiB.", nameof(request));
         }
 
+        // The proxy variables and git's rewrite are the runtime's, and replace any of the same name an invocation or an image sets; HOME likewise (AD-7).
+        ValidateHosts(request.AllowedEgressHosts);
         var environment = request.Environment
-            .Where(pair => pair.Key is not "HOME")
+            .Where(pair => pair.Key is not "HOME" && !EgressEnvironment.Variables.ContainsKey(pair.Key))
             .Select(pair => EnvironmentEntry(pair.Key, pair.Value))
+            .Concat(EgressEnvironment.Variables.Select(pair => EnvironmentEntry(pair.Key, pair.Value)))
             .Append($"HOME={StepContainerLayout.Home}")
             .ToList();
         return new CreateContainerParameters
@@ -55,12 +59,24 @@ public sealed partial class DockerWorkspaceRuntime
                 Memory = request.Limits.MemoryBytes,
                 MemorySwap = request.Limits.MemoryBytes,
                 NanoCPUs = request.Limits.CpuMillis * 1_000_000L,
-                NetworkMode = options.WorkspaceNetwork,
+                NetworkMode = WorkspaceLabels.StepNetwork(request.StepRunId),
                 RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.No },
                 Mounts = StepMounts(request),
                 Tmpfs = new Dictionary<string, string> { [StepContainerLayout.Home] = HomeOptions },
             },
         };
+    }
+
+    /// <summary>A host the proxy is to allow is a host name: the proxy's list is one line of names, and a name that cannot be one could change what the line says.</summary>
+    private static void ValidateHosts(IReadOnlyList<string>? hosts)
+    {
+        foreach (var host in hosts ?? [])
+        {
+            if (host.Length is 0 or > EgressRefusals.MaximumHostLength || EgressAllowlist.Normalize(host) is not { Length: > 0 } normalized || !normalized.All(c => char.IsAsciiLetterOrDigit(c) || c is '.' or '-' or '_'))
+            {
+                throw new ArgumentException($"'{host}' is not a host name.", nameof(hosts));
+            }
+        }
     }
 
     private static string EnvironmentEntry(string name, string value) =>

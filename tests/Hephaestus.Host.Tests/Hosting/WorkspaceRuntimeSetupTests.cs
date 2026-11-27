@@ -26,6 +26,17 @@ public class WorkspaceRuntimeSetupTests
     }
 
     [Fact]
+    public void The_options_carry_the_egress_proxy_image_the_settings_name()
+    {
+        using var installation = new TempSocket();
+        installation.PrepareAgents();
+
+        var options = WorkspaceRuntimeSetup.CreateOptions(installation.Settings() with { EgressProxyImage = "hephaestus:dev" });
+
+        Assert.Equal("hephaestus:dev", options.EgressProxyImage);
+    }
+
+    [Fact]
     public void A_lock_that_cannot_be_parsed_stops_the_build_of_the_runtime()
     {
         using var installation = new TempSocket();
