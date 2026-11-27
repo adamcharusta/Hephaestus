@@ -4,7 +4,7 @@ Deployment files of the spine's source tree. Each is added by the story that fir
 
 | File | Story | Holds |
 | --- | --- | --- |
-| `compose.yaml` | 1.4, 1.5, 3.1 | The `hephaestus` service: one container, no published port, healthy when its API answers; the `hephaestus-data`, `hephaestus-secrets`, and `hephaestus-agents` volumes |
+| `compose.yaml` | 1.4, 1.5, 3.1, 3.2 | The `hephaestus` service: one container, no published port, healthy when its API answers; the `hephaestus-data`, `hephaestus-secrets`, and `hephaestus-agents` volumes; the Docker socket, which only this service mounts |
 | `Dockerfile` | 1.4, 1.5, 3.1 | The `hephaestus` image for linux/amd64 and linux/arm64, with the mount points of the three volumes and `agents.lock`, and no Agent binary |
 | `agents.lock` | 3.1 | The Agent CLIs this release was tested with: one version of each, and the SHA-256 of every executable, per architecture and C library ([`docs/agent-clis.md`](../docs/agent-clis.md)) |
 | `tools.Dockerfile` | the story that first starts a helper container | |
@@ -30,6 +30,10 @@ docker exec hephaestus hephaestus version
   official channel, verifies every executable against `agents.lock`, and stops, naming the file, unless all of them match. The first start therefore needs the
   vendors' download hosts and about a gigabyte of download; later starts download nothing. The volume is not installation state, so it is not part of a
   backup. [`docs/agent-clis.md`](../docs/agent-clis.md) has the details.
+- **Docker socket.** `/var/run/docker.sock` is mounted into this service and no other (Story 3.2): the orchestrator creates a hardened container for every step of every Task through it, so
+  it is root-equivalent on the host and the only container that is. The host runs as a user that is not root and joins the group that owns the socket: `export HEPHAESTUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock)`
+  before `docker compose up` (the default is 999). `HEPHAESTUS_INSTALLATION_ID` (`hephaestus` by default) is the value of the `hephaestus.installation` label on everything the installation creates;
+  a second installation on the same Docker host names its own, and an installation that has run Tasks keeps the one it has. [`docs/step-containers.md`](../docs/step-containers.md) describes the containers.
 - **Secrets.** `docker exec -i hephaestus hephaestus secret set <name>` reads the value from standard input; see the
   [README](../README.md#secrets).
 - **Health.** The container's health check is `hephaestus version --json`, so it is healthy when the API answers.

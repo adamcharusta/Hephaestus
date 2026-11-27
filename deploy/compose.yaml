@@ -7,6 +7,10 @@
 # A third, `hephaestus-agents`, holds the Agent CLIs: at every start the host downloads what the volume lacks from each vendor,
 # checks every executable against deploy/agents.lock, and places a CA certificate bundle beside them (Story 3.1). It is not state:
 # an empty volume is filled again at the next start, which needs the vendors' download hosts.
+# The Docker socket is mounted into this service alone (Story 3.2, AD-7): the orchestrator creates every Task's step containers through it, so it is
+# root-equivalent on the host and the only container that is. A step container gets no socket, and no Task volume is ever mounted here. The process user
+# is not root, so it joins the group that owns the socket: set HEPHAESTUS_DOCKER_GID to the group id of /var/run/docker.sock
+# (`export HEPHAESTUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock)` on Linux); 999 is the usual one.
 name: hephaestus
 
 services:
@@ -24,6 +28,9 @@ services:
       # `en` or `pl`: the language of an installation that has set none. The installation's language is a setting of its own:
       # `hephaestus setting set language pl`.
       HEPHAESTUS_LANGUAGE: ${HEPHAESTUS_LANGUAGE:-en}
+      # The value of the `hephaestus.installation` label on every container, volume, and network this installation creates. A second installation on
+      # the same Docker host, such as a development one, names its own, so that neither selects the other's objects.
+      HEPHAESTUS_INSTALLATION_ID: ${HEPHAESTUS_INSTALLATION_ID:-hephaestus}
     logging:
       driver: json-file
       options:
@@ -33,6 +40,9 @@ services:
       - hephaestus-data:/var/lib/hephaestus/data
       - hephaestus-secrets:/var/lib/hephaestus/secrets
       - hephaestus-agents:/var/lib/hephaestus/agents
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      - "${HEPHAESTUS_DOCKER_GID:-999}"
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     healthcheck:

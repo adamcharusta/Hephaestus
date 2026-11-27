@@ -71,3 +71,12 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-10-answer-on-the-issue-to-resume-the-task.md`
   summary: The rule that a reply must be later than the Escalation compares GitHub's comment time with the host clock at the moment the Escalation was raised.
   evidence: Review found that a host clock more than a human's reaction time ahead of GitHub's would demote a genuine answer to context; anchoring on the question comment's own GitHub creation time would remove the dependency, and needs that time to be recorded when the comment is found by its marker.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-run-every-step-in-a-hardened-container.md`
+  summary: Remove the per-step-run context and Methodology volumes (`hephaestus-context-<id>`, `hephaestus-methodology-<id>`) when the step's container is removed.
+  evidence: Story 3.2 creates both for every step run and nothing removes them yet; Story 3.3 removes the container when the step ends and is the first place that knows the step is over, so it must remove the two volumes with it, and recovery (Story 3.17) must remove those a crash left, selecting on the installation label.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-2-run-every-step-in-a-hardened-container.md`
+  summary: Report at startup, and in `hephaestus health`, that the Docker socket cannot be used, naming `HEPHAESTUS_DOCKER_GID`.
+  evidence: The runtime connects to Docker only when the loop first asks, so a host whose socket group differs from the default 999 starts healthy and fails at its first Task; Story 3.15 (refuse to start what is not ready) is where readiness checks belong.
+

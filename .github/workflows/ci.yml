@@ -72,6 +72,10 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Name the group that owns the Docker socket
+        # The host runs as a user of its own and reaches the Docker socket through the socket's group (Story 3.2, deploy/compose.yaml).
+        run: echo "HEPHAESTUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock)" >> "$GITHUB_ENV"
+
       - name: Build the image
         run: |
           docker version --format 'Docker Engine {{.Server.Version}}'
@@ -139,6 +143,19 @@ jobs:
         run: |
           test "$(docker exec hephaestus id -u)" -ne 0
           test "$(docker exec hephaestus stat -c %a /run/hephaestus/control.sock)" = 600
+
+      - name: The Docker socket is mounted into this container only, and the container holds nothing else of the host
+        run: |
+          # Only this container holds the Docker socket, and the host process can use it as the user it runs as (Story 3.2, AD-7).
+          test "$(docker ps -a --filter volume=/var/run/docker.sock --format '{{.Names}}')" = hephaestus
+          docker exec hephaestus test -S /var/run/docker.sock
+          docker exec hephaestus test -r /var/run/docker.sock
+          docker exec hephaestus test -w /var/run/docker.sock
+          # Its mounts are the socket and its own three volumes: no other host path and no Task volume (`hephaestus-ws-<task-id>`).
+          actual="$(docker inspect --format '{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Destination}}{{println}}{{end}}' hephaestus | grep -v '^$' | sort)"
+          expected="$(printf '%s\n' 'bind||/var/run/docker.sock' 'volume|hephaestus-agents|/var/lib/hephaestus/agents' 'volume|hephaestus-data|/var/lib/hephaestus/data' 'volume|hephaestus-secrets|/var/lib/hephaestus/secrets' | sort)"
+          echo "mounts of the hephaestus container:"; echo "$actual"
+          test "$actual" = "$expected"
 
       - name: A secret is a file on the secrets volume and its name is in the database
         run: |

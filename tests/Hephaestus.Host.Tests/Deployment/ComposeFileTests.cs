@@ -5,7 +5,7 @@ namespace Hephaestus.Host.Tests.Deployment;
 
 /// <summary>
 /// What <c>deploy/compose.yaml</c> and <c>deploy/Dockerfile</c> promise (Story 1.4, AD-17): one container named
-/// <c>hephaestus</c>, healthy when its API answers, publishing no port, with nothing that reaches the Docker host.
+/// <c>hephaestus</c>, healthy when its API answers, publishing no port, and holding the Docker socket (Story 3.2, AD-7) and no other path of the host.
 /// </summary>
 public class ComposeFileTests
 {
@@ -60,15 +60,40 @@ public class ComposeFileTests
     }
 
     [Fact]
-    public void The_container_is_not_privileged_drops_every_capability_and_mounts_only_its_own_named_volumes()
+    public void The_container_is_not_privileged_drops_every_capability_and_mounts_its_own_named_volumes_and_the_docker_socket_and_nothing_else()
     {
         var service = Service();
+        var mounts = ((List<object>)service["volumes"]).Cast<string>().ToList();
 
         Assert.DoesNotContain("privileged", service.Keys);
         Assert.Equal(["ALL"], ((List<object>)service["cap_drop"]).Cast<string>());
         Assert.Equal(["no-new-privileges:true"], ((List<object>)service["security_opt"]).Cast<string>());
-        Assert.All(((List<object>)service["volumes"]).Cast<string>(), mount => Assert.StartsWith("hephaestus-", mount, StringComparison.Ordinal));
-        Assert.DoesNotContain("docker.sock", File.ReadAllText(Deploy("compose.yaml")), StringComparison.Ordinal);
+        Assert.Equal(["/var/run/docker.sock:/var/run/docker.sock"], mounts.Where(mount => !mount.StartsWith("hephaestus-", StringComparison.Ordinal)));
+        Assert.All(mounts, mount => Assert.False(mount.StartsWith('.') || mount.StartsWith('~') || (mount.StartsWith('/') && mount != "/var/run/docker.sock:/var/run/docker.sock"), $"{mount} is a host path."));
+    }
+
+    [Fact]
+    public void The_docker_socket_is_mounted_into_the_hephaestus_service_and_into_no_other_and_no_task_volume_is_mounted_into_it()
+    {
+        var document = new DeserializerBuilder().Build().Deserialize<Dictionary<object, object>>(File.ReadAllText(Deploy("compose.yaml")));
+        var services = (Dictionary<object, object>)document["services"];
+        var mounting = services.Where(service => ((Dictionary<object, object>)service.Value).TryGetValue("volumes", out var volumes) && ((List<object>)volumes).Cast<string>().Any(mount => mount.Contains("docker.sock", StringComparison.Ordinal)));
+
+        Assert.Equal(["hephaestus"], mounting.Select(service => (string)service.Key));
+        // A Task's volume is `hephaestus-ws-<task-id>`, created by the runtime at run time; the file names none, and no volume of it holds a task.
+        Assert.DoesNotContain("hephaestus-ws", File.ReadAllText(Deploy("compose.yaml")), StringComparison.Ordinal);
+        Assert.DoesNotContain(((Dictionary<object, object>)document["volumes"]).Keys.Cast<string>(), name => name.StartsWith("hephaestus-ws", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void The_process_user_joins_the_group_that_owns_the_socket_and_the_installation_is_named()
+    {
+        var service = Service();
+        var environment = (Dictionary<object, object>)service["environment"];
+
+        Assert.Equal(["${HEPHAESTUS_DOCKER_GID:-999}"], ((List<object>)service["group_add"]).Cast<string>());
+        Assert.Equal("${HEPHAESTUS_INSTALLATION_ID:-hephaestus}", environment["HEPHAESTUS_INSTALLATION_ID"]);
+        Assert.Equal("hephaestus", HostSettings.DefaultInstallationId);
     }
 
     [Fact]
@@ -116,6 +141,7 @@ public class ComposeFileTests
                 $"hephaestus-data:{HostSettings.DefaultDataDirectory}",
                 $"hephaestus-secrets:{HostSettings.DefaultSecretsDirectory}",
                 $"hephaestus-agents:{HostSettings.DefaultAgentsDirectory}",
+                "/var/run/docker.sock:/var/run/docker.sock",
             ],
             ((List<object>)Service()["volumes"]).Cast<string>());
     }

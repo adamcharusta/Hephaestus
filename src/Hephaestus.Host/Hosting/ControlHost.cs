@@ -1,4 +1,5 @@
 using System.Net.Sockets;
+using Docker.DotNet;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Loop;
@@ -53,6 +54,9 @@ internal static class ControlHost
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<GitHubRateLimit>()));
         builder.Services.AddHostedService<PollerService>();
+        // The client is its own service, so that the host disposes it when it stops.
+        builder.Services.TryAddSingleton(_ => WorkspaceRuntimeSetup.CreateClient());
+        builder.Services.TryAddSingleton(provider => WorkspaceRuntimeSetup.Create(settings, provider.GetRequiredService<IDockerClient>()));
         builder.Services.TryAddSingleton<LoopHeartbeat>();
         builder.Services.TryAddSingleton<INotifier, NoOpNotifier>();
         // The loop takes the language the environment names, for the installation that has stored none.

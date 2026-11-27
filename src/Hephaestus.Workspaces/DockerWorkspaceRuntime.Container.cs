@@ -1,0 +1,169 @@
+using Docker.DotNet.Models;
+using Hephaestus.Core.AgentBinaries;
+using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Workspaces;
+
+namespace Hephaestus.Workspaces;
+
+public sealed partial class DockerWorkspaceRuntime
+{
+    private const long MinimumMemoryBytes = 6L * 1024 * 1024;
+
+    /// <summary>The temporary <c>HOME</c>: memory only, discarded with the container, and owned by the step user (AD-7).</summary>
+    private static readonly string HomeOptions = $"rw,exec,nosuid,nodev,size=512m,uid={StepContainerLayout.UserId},gid={StepContainerLayout.GroupId},mode=0700";
+
+    /// <summary>
+    /// The definition of a step container (AD-7): user <c>10001:10001</c>, every capability dropped, <c>no-new-privileges</c>, Docker's default
+    /// seccomp profile (nothing is named, so the default applies), a process limit, no published port, the limits of the Task, and exactly the mounts of the
+    /// container layout. The image's entry point and working directory are replaced, so that an image cannot change what runs.
+    /// </summary>
+    private CreateContainerParameters StepContainer(StepContainerRequest request, string idempotencyKey)
+    {
+        if (request.Command.Count == 0 || string.IsNullOrEmpty(request.Command[0]))
+        {
+            throw new ArgumentException("A step needs a command.", nameof(request));
+        }
+
+        // Docker reads a limit of zero as no limit, and refuses a memory limit below a few mebibytes.
+        if (request.Limits.CpuMillis <= 0 || request.Limits.MemoryBytes < MinimumMemoryBytes)
+        {
+            throw new ArgumentException("A step needs a processor limit above zero and a memory limit of at least 6 MiB.", nameof(request));
+        }
+
+        var environment = request.Environment
+            .Where(pair => pair.Key is not "HOME")
+            .Select(pair => EnvironmentEntry(pair.Key, pair.Value))
+            .Append($"HOME={StepContainerLayout.Home}")
+            .ToList();
+        return new CreateContainerParameters
+        {
+            Name = WorkspaceLabels.StepContainer(request.StepRunId),
+            Image = request.Image.Reference,
+            User = StepContainerLayout.User,
+            Entrypoint = [request.Command[0]],
+            Cmd = [.. request.Command.Skip(1)],
+            Env = environment,
+            WorkingDir = StepContainerLayout.Workspace,
+            Labels = WorkspaceLabels.For(options.InstallationId, request.TaskId, request.StepRunId, idempotencyKey, WorkspaceLabels.StepRole),
+            HostConfig = new HostConfig
+            {
+                CapDrop = ["ALL"],
+                SecurityOpt = ["no-new-privileges"],
+                Privileged = false,
+                PublishAllPorts = false,
+                PidsLimit = StepContainerLayout.ProcessLimit,
+                Memory = request.Limits.MemoryBytes,
+                MemorySwap = request.Limits.MemoryBytes,
+                NanoCPUs = request.Limits.CpuMillis * 1_000_000L,
+                NetworkMode = options.WorkspaceNetwork,
+                RestartPolicy = new RestartPolicy { Name = RestartPolicyKind.No },
+                Mounts = StepMounts(request),
+                Tmpfs = new Dictionary<string, string> { [StepContainerLayout.Home] = HomeOptions },
+            },
+        };
+    }
+
+    private static string EnvironmentEntry(string name, string value) =>
+        name.Length == 0 || name.Contains('=', StringComparison.Ordinal) || name.Contains('\0', StringComparison.Ordinal) || value.Contains('\0', StringComparison.Ordinal)
+            ? throw new ArgumentException($"'{name}' is not a name an environment can hold.", nameof(name))
+            : $"{name}={value}";
+
+    /// <summary>
+    /// Exactly these, and no other: the Task volume, the context and the Methodology, the build of each Agent CLI that matches the image's C
+    /// library together with the CA bundle, and nothing of the host. Every named volume is mounted with <c>volume-nocopy</c>, so that what an image holds at a mount point
+    /// can neither enter the volume nor change the owner of its root (AD-6).
+    /// </summary>
+    private List<Mount> StepMounts(StepContainerRequest request)
+    {
+        var mounts = new List<Mount>
+        {
+            VolumeMount(WorkspaceLabels.TaskVolume(request.TaskId), StepContainerLayout.Workspace, readOnly: false),
+            VolumeMount(WorkspaceLabels.ContextVolume(request.StepRunId), StepContainerLayout.Context, readOnly: true),
+            VolumeMount(WorkspaceLabels.MethodologyVolume(request.StepRunId), StepContainerLayout.Methodology, readOnly: true),
+        };
+        mounts.AddRange(AgentMounts(request.Image));
+        return mounts;
+    }
+
+    /// <summary>
+    /// The agent binaries volume holds every build; a step container sees one directory for each Agent, whatever the C library of its image, so that an
+    /// invocation's paths do not depend on it (AD-8). Docker mounts a sub-directory of a volume for each, and the certificate directory beside them.
+    /// </summary>
+    private IEnumerable<Mount> AgentMounts(ResolvedImage image)
+    {
+        var libc = image.Libc == CLibrary.Musl ? AgentLibc.Musl : AgentLibc.Glibc;
+        foreach (var agent in options.AgentLock.For(image.Architecture).GroupBy(binary => binary.Agent))
+        {
+            var build = agent.Where(binary => binary.Libc == libc || binary.Libc == AgentLibc.Static).Select(binary => binary.RelativePath[..binary.RelativePath.LastIndexOf('/')]).Distinct().Single();
+            yield return AgentsVolumeMount(build, $"{StepContainerLayout.Agents}/{agent.Key.Tag()}");
+        }
+
+        yield return AgentsVolumeMount("certs", $"{StepContainerLayout.Agents}/certs");
+    }
+
+    private Mount AgentsVolumeMount(string subpath, string target) => new()
+    {
+        Type = "volume",
+        Source = options.AgentsVolume,
+        Target = target,
+        ReadOnly = true,
+        VolumeOptions = new VolumeOptions { NoCopy = true, Subpath = subpath },
+    };
+
+    private static Mount VolumeMount(string volume, string target, bool readOnly) => new()
+    {
+        Type = "volume",
+        Source = volume,
+        Target = target,
+        ReadOnly = readOnly,
+        VolumeOptions = new VolumeOptions { NoCopy = true },
+    };
+
+    /// <summary>
+    /// A container that is created and never started, for a job Docker does with a container's mounts or files: no network, no capability, and only the mounts it is for. Its
+    /// entry point is named, because Docker refuses to create a container from an image that has none, such as one built from scratch, and the C library of such an image must be
+    /// reported, not a refusal of Docker's.
+    /// </summary>
+    private static CreateContainerParameters InertContainer(string name, string image, Dictionary<string, string> labels, List<Mount> mounts) => new()
+    {
+        Name = name,
+        Image = image,
+        Labels = labels,
+        Entrypoint = ["/hephaestus-never-started"],
+        HostConfig = new HostConfig
+        {
+            CapDrop = ["ALL"],
+            SecurityOpt = ["no-new-privileges"],
+            NetworkMode = "none",
+            Mounts = mounts,
+        },
+    };
+
+    /// <summary>Removing a helper takes the anonymous volumes an image declares with it, which Docker makes when it creates a container, and which no label selects.</summary>
+    private static readonly ContainerRemoveParameters HelperRemoval = new() { Force = true, RemoveVolumes = true };
+
+    /// <summary>The files of a directory are written by one archive, so two with one path, or a file where another is a directory, cannot be.</summary>
+    private static void ValidateFiles(IReadOnlyList<WorkspaceFile> files)
+    {
+        var paths = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var file in files)
+        {
+            if (!paths.Add(file.Path))
+            {
+                throw new ArgumentException($"'{file.Path}' is in the list twice.", nameof(files));
+            }
+        }
+
+        foreach (var path in paths)
+        {
+            var names = path.Split('/');
+            for (var depth = 1; depth < names.Length; depth++)
+            {
+                if (paths.Contains(string.Join('/', names.Take(depth))))
+                {
+                    throw new ArgumentException($"'{string.Join('/', names.Take(depth))}' is a file and a directory.", nameof(files));
+                }
+            }
+        }
+    }
+}

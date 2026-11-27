@@ -300,4 +300,11 @@ public static class MessageIds
     public const string AgentsStartUnverified = "agents.start.unverified";
     public const string AgentsStartCaBundle = "agents.start.ca-bundle";
     public const string AgentsStartVolume = "agents.start.volume";
+
+    public const string WorkspaceImageUnavailable = "workspace.image.unavailable";
+    public const string WorkspaceImageArchitecture = "workspace.image.architecture";
+    public const string WorkspaceImageLibc = "workspace.image.libc";
+    public const string WorkspaceImageMissing = "workspace.image.missing";
+    public const string WorkspaceImageVolumes = "workspace.image.volumes";
+    public const string WorkspaceNetworkNotInternal = "workspace.network.not-internal";
 }
