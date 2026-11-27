@@ -49,6 +49,8 @@ public class ProjectServiceTests
         public Task<GitHubIdentityResult> CheckIdentityAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<GitHubUserResult> FindUserAsync(string login, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private static (ProjectService Service, Gateway Gateway, FakeInstallation Store) Create()

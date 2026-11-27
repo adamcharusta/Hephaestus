@@ -22,6 +22,8 @@ RUN case "$TARGETARCH" in \
  && dotnet restore src/Hephaestus.Host/Hephaestus.Host.csproj -a "$(cat /arch)"
 
 COPY src/ src/
+# The Methodologies the image ships; the publish step places them beside the executable.
+COPY methodologies/ methodologies/
 RUN dotnet publish src/Hephaestus.Host/Hephaestus.Host.csproj \
       --no-restore -c Release -a "$(cat /arch)" --no-self-contained -o /app \
  && mv /app/Hephaestus.Host /app/hephaestus

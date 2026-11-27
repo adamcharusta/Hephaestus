@@ -121,6 +121,7 @@ that approved pull requests are merged into:
 docker exec hephaestus hephaestus project add acme/shop --base-branch main
 docker exec hephaestus hephaestus project list                  # name, GitHub repository id, Base Branch, when registered; --all adds removed Projects
 docker exec hephaestus hephaestus project remove acme/shop
+docker exec hephaestus hephaestus project check acme/shop       # reads hephaestus.yml from the Base Branch and says what is wrong with it
 ```
 
 `project add` looks the repository up as the App, so it fails, and says which is wrong, when the App is not installed on the
@@ -130,7 +131,17 @@ it cannot read what a protection requires and does not claim anything about it. 
 id, so a repository that is renamed is still the same Project: register it again under its new name to refresh the name shown, or
 remove it by its new name. Registering a Project again with another Base Branch changes the Base Branch. `project remove` retires the
 Project and keeps its record and everything recorded under it; registering it again brings it back. The Projects live in the database
-on the `hephaestus-data` volume and survive a restart. Nothing reads `hephaestus.yml` or starts a Task yet.
+on the `hephaestus-data` volume and survive a restart. Nothing starts a Task yet.
+
+### The Project's configuration file
+
+A Project is configured by `hephaestus.yml` at the root of its Base Branch: the image its Tasks run in, the Validation commands,
+and the defaults for Agents, Methodology, and limits. [`docs/project-configuration.md`](docs/project-configuration.md) describes
+every key and gives complete examples for .NET, Node.js, and Python, each with a stock image. `project check` reads the file from
+the Base Branch (and from no other branch) and says whether it is valid and which commit it was read from, that the file is missing,
+or every invalid setting with its line and the reason. It exits 0 only for a valid file, and `--json` gives the same answer as one
+document. A key that is not on the list, an Alias or a Methodology that does not exist, no Validation command, and a limit above
+the installation's are errors. The check stores nothing.
 
 ## Build and test
 

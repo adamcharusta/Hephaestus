@@ -104,4 +104,36 @@ internal sealed class FakeCodeHost : ICodeHost
             ? GitHubRepositoryResult.Found(new GitHubRepository(repository.Id, repository.FullName, new GitHubBranch(branch, isProtected)))
             : GitHubRepositoryResult.Failed(GitHubRepositoryFailure.BranchNotFound));
     }
+
+    /// <summary>
+    /// The branches of a repository by its id and what each holds at its tip: the commit id and the bytes of <c>hephaestus.yml</c>, or null when the branch has none.
+    /// A branch that is not here does not exist.
+    /// </summary>
+    public Dictionary<(long RepositoryId, string Branch), (string CommitId, byte[]? Content)> Files { get; } = [];
+
+    /// <summary>When set, every file read fails with it.</summary>
+    public GitHubFileFailure? FileReadFails { get; set; }
+
+    public List<(long RepositoryId, string Branch, string Path)> FileReads { get; } = [];
+
+    public Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken)
+    {
+        FileReads.Add((repositoryId, branch, path));
+        if (FileReadFails is { } failure)
+        {
+            return Task.FromResult(GitHubFileResult.Failed(failure));
+        }
+
+        if (!Files.TryGetValue((repositoryId, branch), out var tip))
+        {
+            return Task.FromResult(GitHubFileResult.Failed(GitHubFileFailure.BranchNotFound));
+        }
+
+        return Task.FromResult(tip.Content switch
+        {
+            null => GitHubFileResult.Failed(GitHubFileFailure.NotFound, tip.CommitId),
+            { Length: var length } when length > maximumLength => GitHubFileResult.Failed(GitHubFileFailure.TooLarge, tip.CommitId),
+            var content => GitHubFileResult.Read(new GitHubFile(content, tip.CommitId)),
+        });
+    }
 }

@@ -15,6 +15,9 @@ internal static class ProjectApi
         var projects = routes.MapGroup("/api/projects");
         projects.MapGet(string.Empty, ListAsync);
 
+        // Reading a file from GitHub changes nothing here, so it is a read; it is on the control socket with everything else until the Dashboard has its own listener.
+        projects.MapGet("/check", CheckAsync);
+
         // The name is a query value, so that whatever the Owner typed reaches Core as typed: in a path, "." and ".." segments would be
         // resolved by the client into another address, and a name that is not owner/repo would be an unknown address, not a refusal.
         projects.MapPut(string.Empty, AddAsync);
@@ -46,6 +49,15 @@ internal static class ProjectApi
         name ??= string.Empty;
         var result = await service.RemoveAsync(name, cancellationToken);
         return result.Project is { } project ? Results.Json(Documents.Project(project), ApiJson.Default.ProjectDocument) : Problem(result.Failure, name, null);
+    }
+
+    private static async Task<IResult> CheckAsync(string? name, ProjectConfigurationService service, CancellationToken cancellationToken)
+    {
+        name ??= string.Empty;
+        var check = await service.CheckAsync(name, cancellationToken);
+        return check is { Failure: ProjectFailure.None, Project: { } project, Status: { } status, CommitId: { } commitId }
+            ? Results.Json(Documents.ConfigurationCheck(project, status, commitId, check.Issues, check.Configuration), ApiJson.Default.ConfigurationCheckDocument)
+            : Problem(check.Failure, name, check.Project?.BaseBranch);
     }
 
     private static ProblemResult Problem(ProjectFailure failure, string name, string? branch) => failure switch

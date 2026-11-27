@@ -171,4 +171,15 @@ public class LimitTests
         Assert.Null(result.Limits);
         Assert.Equal(InstallationLimits.None, store.Limits);
     }
+
+    [Fact]
+    public void Digits_of_other_scripts_are_not_digits_of_a_limit_and_are_refused_not_crashed_on()
+    {
+        var three = ((char)0x0663).ToString();
+
+        Assert.False(LimitFormat.TryParseDuration(three + "m", out _));
+        Assert.False(LimitFormat.TryParseCpus(three, out _));
+        Assert.False(LimitFormat.TryParseCpus("1." + three, out _));
+        Assert.False(LimitFormat.TryParseMemory(three + "g", out _));
+    }
 }

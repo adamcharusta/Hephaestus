@@ -115,12 +115,12 @@ public static partial class LimitFormat
         _ => string.Create(CultureInfo.InvariantCulture, $"{bytes / Kibibyte}k"),
     };
 
-    [GeneratedRegex(@"^(?:(\d{1,4})d)?(?:(\d{1,5})h)?(?:(\d{1,6})m)?(?:(\d{1,7})s)?\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    [GeneratedRegex(@"^(?:([0-9]{1,4})d)?(?:([0-9]{1,5})h)?(?:([0-9]{1,6})m)?(?:([0-9]{1,7})s)?\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex DurationShape();
 
-    [GeneratedRegex(@"^\d{1,4}(?:\.\d{1,3})?\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    [GeneratedRegex(@"^[0-9]{1,4}(?:\.[0-9]{1,3})?\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex CpuShape();
 
-    [GeneratedRegex(@"^(\d{1,10})([kKmMgG])\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    [GeneratedRegex(@"^([0-9]{1,10})([kKmMgG])\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex MemoryShape();
 }

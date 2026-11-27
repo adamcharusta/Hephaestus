@@ -89,6 +89,42 @@ internal sealed record ProjectListDocument(IReadOnlyList<ProjectDocument> Projec
 /// <summary>The Base Branch a Project is to be registered with.</summary>
 internal sealed record ProjectRequest(string? BaseBranch);
 
+/// <summary>
+/// One thing wrong with <c>hephaestus.yml</c>. <c>setting</c> is the key (<c>limits.memory</c>, <c>validation[1]</c>, or the file's name) and is never translated;
+/// <c>line</c> is where it is, or null; <c>id</c> and <c>arguments</c> are the reason as a message id with its parameters, which the reader resolves in its own language
+/// so that this document is the same in every language (AD-21).
+/// </summary>
+internal sealed record ConfigurationIssueDocument(string Setting, int? Line, string Id, IReadOnlyList<string> Arguments);
+
+/// <summary>The resource limits a file asks for, in their written form; a limit the file does not name is null and is the installation's.</summary>
+internal sealed record ProjectLimitsDocument(string? TaskDuration, string? Cpus, string? Memory);
+
+/// <summary>The settings of a valid <c>hephaestus.yml</c> with the defaults that do not depend on the installation applied; a setting without one is null.</summary>
+internal sealed record ProjectConfigurationDocument(
+    string? PrimaryAlias,
+    string? FallbackAlias,
+    string? Effort,
+    string Methodology,
+    IReadOnlyList<string> Validation,
+    int CorrectionRounds,
+    string Image,
+    ProjectLimitsDocument Limits,
+    IReadOnlyList<string> AllowedEgressHosts,
+    string? Language);
+
+/// <summary>
+/// What reading a Project's <c>hephaestus.yml</c> from its Base Branch found. <c>status</c> is <c>valid</c>, <c>invalid</c>, or <c>missing</c>; <c>commitId</c> is the tip
+/// of the Base Branch the file was read from; <c>issues</c> hold every problem of an invalid file; <c>configuration</c> is set for a valid one.
+/// </summary>
+internal sealed record ConfigurationCheckDocument(
+    long RepositoryId,
+    string Name,
+    string BaseBranch,
+    string Status,
+    string CommitId,
+    IReadOnlyList<ConfigurationIssueDocument> Issues,
+    ProjectConfigurationDocument? Configuration);
+
 /// <summary>An RFC 9457 problem details document. <c>type</c> is never translated; <c>title</c> and <c>detail</c> are.</summary>
 internal sealed record ProblemDocument(string Type, string Title, int Status, string Detail);
 
@@ -113,5 +149,6 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(ProjectDocument))]
 [JsonSerializable(typeof(ProjectListDocument))]
 [JsonSerializable(typeof(ProjectRequest))]
+[JsonSerializable(typeof(ConfigurationCheckDocument))]
 [JsonSerializable(typeof(ProblemDocument))]
 internal sealed partial class ApiJson : JsonSerializerContext;

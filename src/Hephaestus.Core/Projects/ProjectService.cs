@@ -79,39 +79,48 @@ public sealed class ProjectService(ICodeHost codeHost, IReadStore reads, IInstal
 
     public async Task<ProjectResult> RemoveAsync(string fullName, CancellationToken cancellationToken)
     {
+        var (project, failure) = await FindAsync(fullName, cancellationToken);
+        if (project is null)
+        {
+            return ProjectResult.Failed(failure);
+        }
+
+        var removed = await configuration.RemoveProjectAsync(project.RepositoryId, cancellationToken);
+        return removed is null ? ProjectResult.Failed(ProjectFailure.NotRegistered) : ProjectResult.Removed(removed);
+    }
+
+    /// <summary>
+    /// The Project the Owner means by <paramref name="fullName"/>, among those Hephaestus works on: what the list shows, by its stored name, so that
+    /// acting on a Project does not depend on GitHub answering. Only when no stored name matches, or several do (a stale name beside the current
+    /// one), GitHub says which repository the name is now, so a repository that was renamed is found by the name it has today.
+    /// </summary>
+    public async Task<(Project? Project, ProjectFailure Failure)> FindAsync(string fullName, CancellationToken cancellationToken)
+    {
         if (!ProjectName.IsValid(fullName))
         {
-            return ProjectResult.Failed(ProjectFailure.InvalidName);
+            return (null, ProjectFailure.InvalidName);
         }
 
-        // What the Owner sees in the list is what is removed, and retiring a Project does not depend on GitHub answering.
         var projects = await reads.ListProjectsAsync(includeRemoved: false, cancellationToken);
         var byName = projects.Where(p => ProjectName.SameName(p.FullName, fullName)).ToList();
-        var target = byName.Count == 1 ? byName[0] : null;
-        if (target is null)
+        if (byName.Count == 1)
         {
-            if (projects.Count == 0)
-            {
-                return ProjectResult.Failed(ProjectFailure.NotRegistered);
-            }
-
-            // No stored name matches, or several do (a stale one beside the current one): GitHub says which repository the name is now,
-            // so a repository that was renamed is found by the name it has today.
-            var lookup = await codeHost.FindRepositoryAsync(fullName, branch: null, cancellationToken);
-            if (lookup.Repository is not { } found)
-            {
-                return ProjectResult.Failed(lookup.Failure == GitHubRepositoryFailure.NotInstalled ? ProjectFailure.NotRegistered : Map(lookup.Failure));
-            }
-
-            target = projects.FirstOrDefault(p => p.RepositoryId == found.Id);
-            if (target is null)
-            {
-                return ProjectResult.Failed(ProjectFailure.NotRegistered);
-            }
+            return (byName[0], ProjectFailure.None);
         }
 
-        var removed = await configuration.RemoveProjectAsync(target.RepositoryId, cancellationToken);
-        return removed is null ? ProjectResult.Failed(ProjectFailure.NotRegistered) : ProjectResult.Removed(removed);
+        if (projects.Count == 0)
+        {
+            return (null, ProjectFailure.NotRegistered);
+        }
+
+        var lookup = await codeHost.FindRepositoryAsync(fullName, branch: null, cancellationToken);
+        if (lookup.Repository is not { } found)
+        {
+            return (null, lookup.Failure == GitHubRepositoryFailure.NotInstalled ? ProjectFailure.NotRegistered : Map(lookup.Failure));
+        }
+
+        var target = projects.FirstOrDefault(p => p.RepositoryId == found.Id);
+        return target is null ? (null, ProjectFailure.NotRegistered) : (target, ProjectFailure.None);
     }
 
     private static ProjectFailure Map(GitHubRepositoryFailure failure) => failure switch
