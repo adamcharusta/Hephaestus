@@ -181,13 +181,13 @@ jobs:
 
       - name: The Docker socket is mounted into this container only, and the container holds nothing else of the host
         run: |
-          set -x
-          docker ps -a --format '{{.Names}} {{.Image}} {{.Status}}'
           # Only this container holds the Docker socket, and the host process can use it as the user it runs as (Story 3.2, AD-7).
           test "$(docker ps -a --filter volume=/var/run/docker.sock --format '{{.Names}}')" = hephaestus
           docker exec hephaestus test -S /var/run/docker.sock
-          docker exec hephaestus test -r /var/run/docker.sock
-          docker exec hephaestus test -w /var/run/docker.sock
+          # The process user is in the group that owns the socket, and the group may read and write it. `test -r` is not used: the `test` of Ubuntu 26.04's Rust coreutils looks at the primary group
+          # alone, and the kernel, which decides when the host connects, looks at every group the process has.
+          docker exec hephaestus sh -c 'socket_group="$(stat -c %g /var/run/docker.sock)"; for group in $(id -G); do test "$group" = "$socket_group" && exit 0; done; exit 1'
+          test "$(docker exec hephaestus stat -c %A /var/run/docker.sock | cut -c5-7)" = rw-
           # Its mounts are the socket and its own four volumes: no other host path and no Task volume (`hephaestus-ws-<task-id>`).
           actual="$(docker inspect --format '{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Destination}}{{println}}{{end}}' hephaestus | grep -v '^$' | sort)"
           expected="$(printf '%s\n' 'bind||/var/run/docker.sock' 'volume|hephaestus-agents|/var/lib/hephaestus/agents' 'volume|hephaestus-data|/var/lib/hephaestus/data' 'volume|hephaestus-mirrors|/var/lib/hephaestus/mirrors' 'volume|hephaestus-secrets|/var/lib/hephaestus/secrets' | sort)"
