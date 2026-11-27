@@ -34,4 +34,31 @@ public class HostSettingsTests
 
         Assert.Equal(HostSettings.DefaultControlSocketPath, settings.ControlSocketPath);
     }
+
+    [Fact]
+    public void Without_variables_the_agents_volume_is_the_images_and_the_lock_is_beside_the_executable()
+    {
+        var settings = HostSettings.FromEnvironment(_ => null);
+
+        Assert.Equal("/var/lib/hephaestus/agents", settings.AgentsDirectory);
+        Assert.Equal(Path.Combine(AppContext.BaseDirectory, "agents.lock"), settings.AgentsLockFile);
+        Assert.Equal("/etc/ssl/certs/ca-certificates.crt", settings.CaBundleFile);
+        Assert.True(File.Exists(settings.AgentsLockFile), "The build places deploy/agents.lock beside the executable.");
+    }
+
+    [Fact]
+    public void The_variables_name_the_agents_volume_the_lock_and_the_certificate_bundle()
+    {
+        var settings = HostSettings.FromEnvironment(name => name switch
+        {
+            "HEPHAESTUS_AGENTS_DIR" => "/tmp/agents",
+            "HEPHAESTUS_AGENTS_LOCK" => "/tmp/agents.lock",
+            "HEPHAESTUS_CA_BUNDLE" => "/tmp/ca.crt",
+            _ => null,
+        });
+
+        Assert.Equal("/tmp/agents", settings.AgentsDirectory);
+        Assert.Equal("/tmp/agents.lock", settings.AgentsLockFile);
+        Assert.Equal("/tmp/ca.crt", settings.CaBundleFile);
+    }
 }

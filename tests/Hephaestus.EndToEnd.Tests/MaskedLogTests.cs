@@ -91,6 +91,11 @@ public sealed class MaskedLogTests : IDisposable
         start.Environment["HEPHAESTUS_CONTROL_SOCKET"] = socket;
         start.Environment["HEPHAESTUS_DATA_DIR"] = data;
         start.Environment["HEPHAESTUS_SECRETS_DIR"] = secrets;
+        foreach (var (name, value) in AgentsEnvironment.Prepare(Path.GetDirectoryName(data)!))
+        {
+            start.Environment[name] = value;
+        }
+
         return Process.Start(start)!;
     }
 }

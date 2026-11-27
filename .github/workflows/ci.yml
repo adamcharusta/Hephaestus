@@ -56,7 +56,8 @@ jobs:
     # file starts one container, it becomes healthy, the command line reaches the API over the socket, and nothing is
     # published or listening on a network address; a secret is a file on its own volume and not in the database or the logs (Story 1.5).
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 25
+    # The first start downloads the Agent CLIs (up to 15 minutes are allowed for it), and two restarts follow.
+    timeout-minutes: 50
     strategy:
       fail-fast: false
       matrix:
@@ -77,7 +78,41 @@ jobs:
           docker compose -f deploy/compose.yaml build
 
       - name: Start with Compose and wait until healthy
-        run: docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 120
+        # The first start downloads the pinned Agent CLIs from the vendors, about a gigabyte, before the API answers (Story 3.1).
+        run: docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 900
+
+      - name: The first start fetched and verified every pinned executable, and the image holds none
+        run: |
+          # Claude Code in a glibc and a musl build, `codex` and `codex-code-mode-host`: four executables for this architecture.
+          test "$(docker logs hephaestus 2>&1 | grep -c 'downloaded and verified')" -eq 4
+          test "$(docker logs hephaestus 2>&1 | grep -c 'already in the volume')" -eq 0
+          docker exec hephaestus test -s /var/lib/hephaestus/agents/certs/ca-certificates.crt
+          image="$(docker inspect --format '{{.Config.Image}}' hephaestus)"
+          # Started without the volume, the image holds no executable of an Agent and no file as large as one.
+          found="$(docker run --rm --user 0 --entrypoint sh "$image" -c 'find / -xdev -type f \( -name claude -o -name codex -o -name codex-code-mode-host -o -size +200M \) -print')"
+          echo "files that look like an Agent binary in the image: [$found]"
+          test -z "$found"
+          test -z "$(docker run --rm --user 0 --entrypoint sh "$image" -c 'ls -A /var/lib/hephaestus/agents')"
+
+      - name: Each pinned executable starts in a hardened container and prints its version
+        run: bash eng/check-agent-binaries.sh hephaestus-agents
+
+      - name: A second start downloads nothing
+        run: |
+          mark="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          docker compose -f deploy/compose.yaml restart
+          docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 300
+          after="$(docker logs --since "$mark" hephaestus 2>&1)"
+          test "$(grep -c 'already in the volume' <<< "$after")" -eq 4
+          test "$(grep -c 'downloaded and verified' <<< "$after" || true)" -eq 0
+          # The certificate bundle is replaced at every start, and the volume holds nothing the lock does not name.
+          volume_dir=/var/lib/hephaestus/agents
+          docker exec hephaestus sh -c "touch $volume_dir/stray && rm $volume_dir/certs/ca-certificates.crt && printf x > $volume_dir/certs/ca-certificates.crt"
+          mark="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          docker compose -f deploy/compose.yaml restart
+          docker compose -f deploy/compose.yaml up -d --wait --wait-timeout 300
+          docker exec hephaestus test ! -e "$volume_dir/stray"
+          test "$(docker exec hephaestus grep -c 'BEGIN CERTIFICATE' "$volume_dir/certs/ca-certificates.crt")" -gt 10
 
       - name: The command line reaches the API
         run: |
@@ -158,6 +193,49 @@ jobs:
         run: |
           docker compose -f deploy/compose.yaml logs --no-color || true
           docker compose -f deploy/compose.yaml down --volumes
+
+  agent-pins:
+    name: Agent CLI pins
+    # A pull request that changes deploy/agents.lock fails unless each digest is the one the vendor publishes and the vendor's signature over
+    # that release verifies (Story 3.1, AD-8). The job runs for every pull request, so that it can be a required check, and does its work
+    # only when the lock or the script that checks it changes; a job that does nothing counts as passed.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Find out whether the pins change
+        id: changed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+        run: |
+          files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}/files" --paginate --jq '.[].filename')"
+          if grep -qxE 'deploy/agents.lock|eng/verify-agents-lock.py' <<< "$files"; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "deploy/agents.lock is not changed by this pull request."
+          fi
+
+      - name: Check out
+        if: steps.changed.outputs.changed == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install cosign
+        if: steps.changed.outputs.changed == 'true'
+        uses: sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab # v4.1.4
+        with:
+          cosign-release: v3.1.6
+
+      - name: Digests match what the vendors publish and their signatures verify
+        if: steps.changed.outputs.changed == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 eng/verify-agents-lock.py
 
   gate-scripts:
     name: Gate scripts

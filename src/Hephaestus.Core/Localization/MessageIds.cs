@@ -284,4 +284,20 @@ public static class MessageIds
     public const string CommentEscalationReasonIssueNotFound = "comment.escalation.reason.issue-not-found";
     public const string CommentEscalationReasonAppNotInstalled = "comment.escalation.reason.app-not-installed";
     public const string CommentEscalationReasonRejected = "comment.escalation.reason.rejected";
+
+    public const string AgentsLockColumns = "agents.lock.columns";
+    public const string AgentsLockValue = "agents.lock.value";
+    public const string AgentsLockNotAnExecutable = "agents.lock.not-an-executable";
+    public const string AgentsLockVersion = "agents.lock.version";
+    public const string AgentsLockDuplicate = "agents.lock.duplicate";
+    public const string AgentsLockMissing = "agents.lock.missing";
+    public const string AgentsStartLockUnreadable = "agents.start.lock-unreadable";
+    public const string AgentsStartLockInvalid = "agents.start.lock-invalid";
+    public const string AgentsStartArchitecture = "agents.start.architecture";
+    public const string AgentsStartDownload = "agents.start.download";
+    public const string AgentsStartChecksum = "agents.start.checksum";
+    public const string AgentsStartArchive = "agents.start.archive";
+    public const string AgentsStartUnverified = "agents.start.unverified";
+    public const string AgentsStartCaBundle = "agents.start.ca-bundle";
+    public const string AgentsStartVolume = "agents.start.volume";
 }

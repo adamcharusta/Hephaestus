@@ -12,7 +12,9 @@ channels arrive with Epic 1.
 
 ## Run
 
-You need Docker Engine 29 or later with Compose v2, and nothing else: no other server, paid service, or cloud service.
+You need Docker Engine 29 or later with Compose v2, and nothing else: no other server, paid service, or cloud service. The first start
+downloads the Agent CLIs this release was tested with (about a gigabyte) from Anthropic's and OpenAI's own download hosts, so the machine needs
+to reach `downloads.claude.ai` and `github.com` then; see [Agent CLIs](#agent-clis).
 
 ```bash
 docker compose -f deploy/compose.yaml up -d      # builds the image, starts the container `hephaestus`, waits until it is healthy
@@ -28,6 +30,15 @@ error, and exits with 0, 1 (a failure), or 2 (not understood). Set the installat
 writes its sentences in Polish. `HEPHAESTUS_LANGUAGE` only names the language of an installation that has set none, and of a command
 that cannot reach the host. Command names, options, and `--json` output never change.
 Logs are one JSON object per line: `docker logs hephaestus`. More in [`deploy/README.md`](deploy/README.md).
+
+## Agent CLIs
+
+Hephaestus drives Claude Code and Codex CLI, and brings exactly the versions it was tested with. Neither is in the Hephaestus image, and neither is in your
+Projects' images: `deploy/agents.lock` pins one version of each and the SHA-256 of every executable, and at every start the host downloads what the
+`hephaestus-agents` volume lacks from the vendor's official channel, checks each file against the lock, and stops, naming the file, if one does not match.
+Nothing unverified is kept in the volume, and a volume that already holds the verified files downloads nothing. A CA certificate bundle copied from the image's own
+certificate store is placed beside them at every start. The first start needs access to `downloads.claude.ai` and `github.com`; the volume is a cache, not installation
+state, and `docker compose down --volumes` deletes it with the rest. [`docs/agent-clis.md`](docs/agent-clis.md) says how the lock is written and how a pin is changed.
 
 ## Secrets
 
