@@ -91,3 +91,19 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-3-keep-what-a-step-printed-and-bound-how-long-it-runs.md`
   summary: Report a timeout, not an exit, for a step found after a restart whose container the earlier watcher stopped at its deadline before the Signal was appended.
   evidence: The cause `timeout` is decided by the watcher that stopped the container; a watcher that starts on the exited container reports `exited` with exit code 137. Story 3.17 reconstructs the step from the container's state and the recorded deadline (review of Story 3.3).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-give-every-step-a-fresh-checkout.md`
+  summary: Build and publish `deploy/tools.Dockerfile` as the `hephaestus-tools` image beside the `hephaestus` image, in the same channel and under the same tag, for both architectures.
+  evidence: Story 3.5's criterion on the publishing workflow of Story 1.13 cannot be met here because that workflow does not exist yet; the Dockerfile and a `tools` Compose build target exist, and Story 1.13 must publish the image under the name `ghcr.io/adamcharusta/hephaestus-tools` that the host's `HEPHAESTUS_TOOLS_IMAGE` defaults to.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-give-every-step-a-fresh-checkout.md`
+  summary: Call the mirror fetch, the checkout bundle, and the checkout from the loop when a Task starts a step, and delete the Task's bundles and mirror leftovers during cleanup.
+  evidence: Story 3.5 adds `IRepositoryMirrors` and `IWorkspaceRuntime.CheckoutAsync` and shows them with tests; the loop that sequences them with the step is Story 3.14, and the runtime deletes the bundle it consumes, but a bundle whose checkout was never asked for, and a `refs/hephaestus/bundle/*` name a crash left in a mirror, are Story 3.17's.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-give-every-step-a-fresh-checkout.md`
+  summary: Decide how a Project with git submodules or Git LFS files gets a complete checkout, and say it in the Project configuration.
+  evidence: The checkout resets the work tree with no network and no filter, so a submodule's directory is left empty and an LFS file stays a pointer, and a build that needs either fails in a way that looks like the Agent's fault (review of Story 3.5).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-give-every-step-a-fresh-checkout.md`
+  summary: Set a policy for the growth of the mirrors volume: prune what Projects no longer need and remove the mirror of a removed Project.
+  evidence: A mirror only grows with its repository, and a removed Project's mirror is never removed; the volume is a cache and can be emptied by hand, but nothing bounds it (review of Story 3.5).

@@ -24,8 +24,12 @@ public static class WorkspaceLabels
     public const string ProbeRole = "image-probe";
     public const string VolumeHelperRole = "volume-helper";
     public const string FillRole = "file-fill";
+    public const string CheckoutRole = "checkout";
 
     public static string TaskVolume(Guid taskId) => $"{StepContainerLayout.NamePrefix}ws-{taskId:D}";
+
+    /// <summary>The checkout container of one step run, named after it so that one a crash left is replaced and never collided with.</summary>
+    public static string Checkout(Guid stepRunId) => Helper(CheckoutRole, stepRunId);
 
     public static string StepContainer(Guid stepRunId) => $"{StepContainerLayout.NamePrefix}step-{stepRunId:D}";
 

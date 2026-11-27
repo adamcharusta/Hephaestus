@@ -98,6 +98,8 @@ internal sealed class DockerDouble
             Volumes.Add(parameters);
             return Task.FromResult(new VolumeResponse { Name = parameters.Name });
         });
+        Client.Volumes.InspectAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
+            TaskVolumeExists ? Task.FromResult(new VolumeResponse { Name = call.Arg<string>() }) : Task.FromException<VolumeResponse>(NotFound()));
         Client.Networks.InspectNetworkAsync(Arg.Any<string>(), Arg.Any<CancellationToken>()).Returns(call =>
             NetworkExists ? Task.FromResult(new NetworkResponse { Name = call.Arg<string>(), Internal = !call.Arg<string>().StartsWith("hephaestus-outbound", StringComparison.Ordinal) && NetworkInternal }) : Task.FromException<NetworkResponse>(NotFound()));
         Client.Networks.ConnectNetworkAsync(Arg.Any<string>(), Arg.Any<NetworkConnectParameters>(), Arg.Any<CancellationToken>()).Returns(call =>
@@ -224,6 +226,9 @@ internal sealed class DockerDouble
 
     /// <summary>The paths that exist in the image a container is created from.</summary>
     public HashSet<string> ImagePaths { get; } = [];
+
+    /// <summary>Whether the Engine holds a volume of the name that is asked for: the Task's volume, which is made before its first step.</summary>
+    public bool TaskVolumeExists { get; set; } = true;
 
     public bool NetworkExists { get; set; }
 

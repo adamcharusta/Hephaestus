@@ -309,4 +309,16 @@ public static class MessageIds
     public const string WorkspaceNetworkNotInternal = "workspace.network.not-internal";
     public const string WorkspaceEgressProxyNotReady = "workspace.egress-proxy.not-ready";
     public const string WorkspaceNetworkNotOutbound = "workspace.network.not-outbound";
+    public const string WorkspaceToolsImageUnavailable = "workspace.tools-image.unavailable";
+    public const string WorkspaceToolsImageMissing = "workspace.tools-image.missing";
+    public const string WorkspaceTaskVolumeMissing = "workspace.task-volume.missing";
+    public const string WorkspaceCheckoutBundleLocation = "workspace.checkout.bundle-location";
+    public const string WorkspaceCheckoutBundleFile = "workspace.checkout.bundle-file";
+    public const string WorkspaceCheckoutBundleSize = "workspace.checkout.bundle-size";
+    public const string WorkspaceCheckoutBundleChecksum = "workspace.checkout.bundle-checksum";
+    public const string WorkspaceCheckoutBundleNotVerified = "workspace.checkout.not-verified";
+    public const string WorkspaceCheckoutBundleHeads = "workspace.checkout.heads";
+    public const string WorkspaceCheckoutBundleTip = "workspace.checkout.tip";
+    public const string WorkspaceCheckoutFailed = "workspace.checkout.failed";
+    public const string WorkspaceCheckoutTimedOut = "workspace.checkout.timed-out";
 }

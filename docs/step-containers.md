@@ -88,6 +88,20 @@ tests that show this run against a real Docker Engine in CI: `DockerEngineTests`
 to the workspace as the step user, and try to reach a listener on the host, the paths of the sockets, another step container, and private addresses, directly and through the proxy. The Docker socket
 makes the orchestrator equivalent to root on the host, and the threat model says so.
 
+## The checkout before every step (AD-6, AD-9, Story 3.5)
+
+Only the committed tree survives a step. Before every step a container of the `hephaestus-tools` image, which holds git and nothing else, makes `/workspace` again from one bundle: the commit that is the Task's last pushed tip, or its start commit on the Base Branch when nothing was pushed yet.
+It runs as `10001:10001`, so that what it makes is the step user's, with no network, every capability dropped, `no-new-privileges`, and one mount, the Task volume with `volume-nocopy`. It receives no credential: its environment is the branch, the tip, and `HOME`. The bundle is the one file it is given, in
+its own file system, so it mounts neither the data volume nor the mirrors.
+
+What the checkout leaves is a fresh repository: made from an empty template, so it has no hook; with default configuration and no remote; the Task branch checked out at exactly the bundle's tip; no untracked or ignored file. A hook, a configuration entry, or an ignored fake test runner that
+the step before planted does not exist afterwards, nor does a directory the step made unreadable. The checkout refuses a bundle that does not verify, has more than one head, or has another tip than the one it was told, and ends with a failure that stops the step from being started. A container a crash left is
+replaced by name, and doing the checkout again makes the same workspace.
+
+The gateway keeps the repository the bundle is made from: one bare mirror per Project on the `hephaestus-mirrors` volume, with no hooks and no working tree, which only the `hephaestus` container mounts. The orchestrator runs git only against a mirror, through one runner that is the only code that starts a process,
+and never in a directory an Agent can write to. [ADR-0022](adr/0022-checkout-from-a-bundle.md) has the decision. The runtime fetches the `hephaestus-tools` image when the machine lacks it; `HEPHAESTUS_TOOLS_IMAGE` names it (Compose sets the image of the same release), and in a development checkout
+`docker compose -f deploy/compose.yaml --profile tools build` builds it. The loop calls the checkout when it starts a step (Story 3.14); until then the tests and the harness do.
+
 ## The egress proxy (AD-7, Story 3.4)
 
 A step container's only way to the network is its egress proxy, reached at **`http://hephaestus-egress:3128`**. That host name and port are part of the versioned public surface: a build tool that does not

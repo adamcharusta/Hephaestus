@@ -1,4 +1,5 @@
 using Hephaestus.Core.AgentBinaries;
+using Hephaestus.Core.Workspaces;
 
 namespace Hephaestus.Workspaces;
 
@@ -19,6 +20,26 @@ public sealed record WorkspaceRuntimeOptions(string InstallationId, AgentLock Ag
 
     /// <summary>The image the egress proxy of a step run is created from: the <c>hephaestus</c> image itself, whose <c>egress-proxy</c> command is the proxy (Story 3.4).</summary>
     public string EgressProxyImage { get; init; } = "ghcr.io/adamcharusta/hephaestus:latest";
+
+    /// <summary>The image of the checkout container of every step (AR-34, AR-38): <c>hephaestus-tools</c>, which holds git 2.48 or later and nothing else. It is the same release as the <c>hephaestus</c> image (Story 3.5).</summary>
+    public string ToolsImage { get; init; } = "ghcr.io/adamcharusta/hephaestus-tools:latest";
+
+    /// <summary>The directory of the data volume the gateway writes bundles to and the runtime reads them from (AD-9). The runtime reads nothing else from it.</summary>
+    public string BundlesDirectory { get; init; } = "/var/lib/hephaestus/data/bundles";
+
+    /// <summary>The largest bundle the runtime hands to a checkout container; the gateway's bound is the same.</summary>
+    public long MaximumBundleBytes { get; init; } = BundleReference.DefaultMaximumBytes;
+
+    /// <summary>How long a checkout may take before its container is stopped and the step is not started.</summary>
+    public TimeSpan CheckoutLimit { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>How often the runtime looks at a running checkout container.</summary>
+    public TimeSpan CheckoutPollInterval { get; init; } = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>The memory a checkout container may use, and its processor share in thousandths (AD-7): git needs little, and no repository can raise it.</summary>
+    public long CheckoutMemoryBytes { get; init; } = 1024L * 1024 * 1024;
+
+    public int CheckoutCpuMillis { get; init; } = 1000;
 
     /// <summary>How long a step may wait for its egress proxy to start listening before it is not started.</summary>
     public TimeSpan EgressProxyReadyLimit { get; init; } = TimeSpan.FromSeconds(60);

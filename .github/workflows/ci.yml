@@ -43,9 +43,14 @@ jobs:
         # The tests that start a real step container need the egress proxy, which is this image's `egress-proxy` command (Story 3.4).
         run: docker build -f deploy/Dockerfile -t hephaestus:ci .
 
+      - name: Build the hephaestus-tools image for the checkouts of the tests
+        # The tests that make a real checkout run the tools image, which holds git and nothing else (Story 3.5).
+        run: docker build -f deploy/tools.Dockerfile -t hephaestus-tools:ci deploy
+
       - name: Test with coverage
         env:
           HEPHAESTUS_TEST_PROXY_IMAGE: hephaestus:ci
+          HEPHAESTUS_TEST_TOOLS_IMAGE: hephaestus-tools:ci
         run: >
           dotnet test --solution Hephaestus.slnx --no-build --configuration Release
           --coverlet --coverlet-output-format cobertura --results-directory TestResults
@@ -85,7 +90,8 @@ jobs:
       - name: Build the image
         run: |
           docker version --format 'Docker Engine {{.Server.Version}}'
-          docker compose -f deploy/compose.yaml build
+          # The `tools` profile builds the hephaestus-tools image beside the hephaestus image (Story 3.5).
+          docker compose -f deploy/compose.yaml --profile tools build
 
       - name: Start with Compose and wait until healthy
         # The first start downloads the pinned Agent CLIs from the vendors, about a gigabyte, before the API answers (Story 3.1).
@@ -138,6 +144,15 @@ jobs:
           grep -q '403' <<< "$answer"
           docker logs ci-egress 2>&1 | grep -q '^refused 127.0.0.1 private-address$'
 
+      - name: Both images carry git 2.48 or later, the mirrors volume is the host's alone, and the image's git makes a bare repository with no hook
+        # The gateway keeps bare mirrors and makes the bundle of every checkout (Story 3.5, AD-9); the tools image makes the checkout. Both are held to git 2.48 or later (AR-3). That the gateway's runner starts git with an empty template and no hook is shown by GitHubMirrorsTests, and not here.
+        run: |
+          at_least_2_48() { awk '{ split($3, v, "."); exit !(v[1] > 2 || (v[1] == 2 && v[2] >= 48)) }'; }
+          docker exec hephaestus git --version | tee /dev/stderr | at_least_2_48
+          docker run --rm --entrypoint git ghcr.io/adamcharusta/hephaestus-tools:latest --version | tee /dev/stderr | at_least_2_48
+          test "$(docker ps -a --filter volume=hephaestus-mirrors --format '{{.Names}}')" = hephaestus
+          docker exec hephaestus sh -c 'git init --bare --quiet --template= /var/lib/hephaestus/mirrors/ci-probe.git && test -z "$(ls -A /var/lib/hephaestus/mirrors/ci-probe.git/hooks 2> /dev/null)" && test "$(git --git-dir=/var/lib/hephaestus/mirrors/ci-probe.git rev-parse --is-bare-repository)" = true; code=$?; rm -rf /var/lib/hephaestus/mirrors/ci-probe.git; exit $code'
+
       - name: The command line reaches the API
         run: |
           docker exec hephaestus hephaestus version
@@ -171,9 +186,9 @@ jobs:
           docker exec hephaestus test -S /var/run/docker.sock
           docker exec hephaestus test -r /var/run/docker.sock
           docker exec hephaestus test -w /var/run/docker.sock
-          # Its mounts are the socket and its own three volumes: no other host path and no Task volume (`hephaestus-ws-<task-id>`).
+          # Its mounts are the socket and its own four volumes: no other host path and no Task volume (`hephaestus-ws-<task-id>`).
           actual="$(docker inspect --format '{{range .Mounts}}{{.Type}}|{{.Name}}|{{.Destination}}{{println}}{{end}}' hephaestus | grep -v '^$' | sort)"
-          expected="$(printf '%s\n' 'bind||/var/run/docker.sock' 'volume|hephaestus-agents|/var/lib/hephaestus/agents' 'volume|hephaestus-data|/var/lib/hephaestus/data' 'volume|hephaestus-secrets|/var/lib/hephaestus/secrets' | sort)"
+          expected="$(printf '%s\n' 'bind||/var/run/docker.sock' 'volume|hephaestus-agents|/var/lib/hephaestus/agents' 'volume|hephaestus-data|/var/lib/hephaestus/data' 'volume|hephaestus-mirrors|/var/lib/hephaestus/mirrors' 'volume|hephaestus-secrets|/var/lib/hephaestus/secrets' | sort)"
           echo "mounts of the hephaestus container:"; echo "$actual"
           test "$actual" = "$expected"
 

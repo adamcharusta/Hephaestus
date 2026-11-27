@@ -37,6 +37,31 @@ public class WorkspaceRuntimeSetupTests
     }
 
     [Fact]
+    public void The_options_carry_the_tools_image_and_the_bundles_directory_the_settings_name()
+    {
+        using var installation = new TempSocket();
+        installation.PrepareAgents();
+
+        var options = WorkspaceRuntimeSetup.CreateOptions(installation.Settings() with { ToolsImage = "hephaestus-tools:dev" });
+
+        Assert.Equal("hephaestus-tools:dev", options.ToolsImage);
+        Assert.Equal(installation.Settings().BundlesDirectory, options.BundlesDirectory);
+    }
+
+    [Fact]
+    public async Task The_host_offers_the_mirrors_as_the_one_port_of_the_gateway()
+    {
+        using var installation = new TempSocket();
+        installation.PrepareAgents();
+        await using var host = await RunningHost.StartAsync(installation: installation);
+
+        var first = host.App.Services.GetRequiredService<IRepositoryMirrors>();
+
+        Assert.IsType<Hephaestus.GitHub.GitHubMirrors>(first);
+        Assert.Same(first, host.App.Services.GetRequiredService<IRepositoryMirrors>());
+    }
+
+    [Fact]
     public void A_lock_that_cannot_be_parsed_stops_the_build_of_the_runtime()
     {
         using var installation = new TempSocket();
