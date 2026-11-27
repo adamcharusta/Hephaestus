@@ -52,6 +52,10 @@ namespace Hephaestus.Persistence.Migrations
                     b.Property<long>("AppId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AppSlug")
+                        .HasMaxLength(39)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ConnectedAt")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -84,6 +88,43 @@ namespace Hephaestus.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_InstallationLimits_Single", "\"Id\" = 1");
                         });
+                });
+
+            modelBuilder.Entity("Hephaestus.Persistence.Model.IssueSnapshotEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SignalSequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TakenAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TaskId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId");
+
+                    b.ToTable("IssueSnapshots", (string)null);
                 });
 
             modelBuilder.Entity("Hephaestus.Persistence.Model.PollCursorEntry", b =>
@@ -216,12 +257,35 @@ namespace Hephaestus.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("IssueBody")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("IssueTitle")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("OccurredAt")
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProcessedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
                     b.Property<long>("RepositoryId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("pending");
+
+                    b.Property<string>("TaskId")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Source")
                         .IsRequired()
@@ -238,7 +302,46 @@ namespace Hephaestus.Persistence.Migrations
                     b.HasIndex("Source", "SourceEventId")
                         .IsUnique();
 
+                    b.HasIndex("Status", "Sequence");
+
                     b.ToTable("Signals", (string)null);
+                });
+
+            modelBuilder.Entity("Hephaestus.Persistence.Model.TaskEntry", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Branch")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("IssueNumber")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("RepositoryId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RepositoryId", "IssueNumber")
+                        .IsUnique();
+
+                    b.ToTable("Tasks", (string)null);
                 });
 
             modelBuilder.Entity("Hephaestus.Persistence.Model.TrustedUserEntry", b =>

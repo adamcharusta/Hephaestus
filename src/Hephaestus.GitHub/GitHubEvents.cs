@@ -51,6 +51,11 @@ internal static class GitHubEvents
         }
 
         var actor = Object(element, "actor");
+
+        // A labelled event carries the issue as GitHub showed it when the event was read. Which content a Trusted User vouched for is
+        // decided later, by the loop, from this and the actor; nothing is decided here (AD-15).
+        var title = kind == SignalKind.Labeled ? String(issue, "title") : null;
+        var body = kind == SignalKind.Labeled && title is not null ? String(issue, "body") ?? string.Empty : null;
         var signal = new Signal(
             Signal.GitHubSource,
             $"issue-event:{id.ToString(CultureInfo.InvariantCulture)}",
@@ -62,7 +67,9 @@ internal static class GitHubEvents
             label,
             CommentId: null,
             CommentAuthorId: null,
-            createdAt);
+            createdAt,
+            title,
+            body);
         return new IssueEventRead(id, createdAt, signal);
     }
 

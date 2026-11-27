@@ -5,6 +5,12 @@ namespace Hephaestus.Host.Api;
 /// <summary>The version document, the same shape on the API and in <c>--json</c> output.</summary>
 internal sealed record VersionDocument(string Version);
 
+/// <summary>The orchestrator loop as the API reports it (AR-42): whether it ticked recently, and when it last did; <c>lastTickAt</c> is null before its first tick.</summary>
+internal sealed record LoopHealthDocument(bool Alive, string? LastTickAt);
+
+/// <summary>The health document, the same shape on the API and in <c>--json</c> output.</summary>
+internal sealed record HealthDocument(LoopHealthDocument Loop);
+
 /// <summary>A secret, by name; the value is never part of any document.</summary>
 internal sealed record SecretNameDocument(string Name);
 
@@ -131,6 +137,7 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 /// <summary>Source-generated JSON: camelCase keys, as every Hephaestus document.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(VersionDocument))]
+[JsonSerializable(typeof(HealthDocument))]
 [JsonSerializable(typeof(SecretNameDocument))]
 [JsonSerializable(typeof(SecretListDocument))]
 [JsonSerializable(typeof(GitHubIdentityDocument))]

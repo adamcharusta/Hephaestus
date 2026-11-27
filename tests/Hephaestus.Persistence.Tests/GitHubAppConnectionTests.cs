@@ -23,10 +23,10 @@ public class GitHubAppConnectionTests
         using var installation = new TempInstallation();
         await installation.MigrateAsync();
 
-        await installation.Configuration.SetGitHubAppIdAsync(1_234_567, Token);
+        await installation.Configuration.SetGitHubAppIdAsync(1_234_567, "hephaestus-test", Token);
         Assert.Equal(1_234_567, await installation.Reads.GetGitHubAppIdAsync(Token));
 
-        await installation.Configuration.SetGitHubAppIdAsync(7_654_321, Token);
+        await installation.Configuration.SetGitHubAppIdAsync(7_654_321, "hephaestus-test", Token);
         Assert.Equal(7_654_321, await installation.Reads.GetGitHubAppIdAsync(Token));
         await using var context = installation.Database.OpenReader();
         Assert.Equal(1, await context.GitHubAppConnections.CountAsync(Token));
@@ -38,7 +38,7 @@ public class GitHubAppConnectionTests
         using var installation = new TempInstallation();
         await installation.MigrateAsync();
 
-        await Task.WhenAll(Enumerable.Range(1, 20).Select(id => installation.Configuration.SetGitHubAppIdAsync(id, Token)));
+        await Task.WhenAll(Enumerable.Range(1, 20).Select(id => installation.Configuration.SetGitHubAppIdAsync(id, "hephaestus-test", Token)));
 
         await using var context = installation.Database.OpenReader();
         Assert.Equal(1, await context.GitHubAppConnections.CountAsync(Token));
@@ -50,7 +50,7 @@ public class GitHubAppConnectionTests
     {
         using var installation = new TempInstallation();
         await installation.MigrateAsync();
-        await installation.Configuration.SetGitHubAppIdAsync(42, Token);
+        await installation.Configuration.SetGitHubAppIdAsync(42, "hephaestus-test", Token);
 
         await using var restarted = installation.Restart();
 
@@ -73,7 +73,7 @@ public class GitHubAppConnectionTests
     {
         using var installation = new TempInstallation();
         await installation.MigrateAsync();
-        await installation.Configuration.SetGitHubAppIdAsync(42, Token);
+        await installation.Configuration.SetGitHubAppIdAsync(42, "hephaestus-test", Token);
 
         await using var context = installation.Database.OpenWriter();
         await Assert.ThrowsAnyAsync<Exception>(async () =>

@@ -10,6 +10,10 @@ public static class MessageIds
 
     public const string CliRootDescription = "cli.root.description";
     public const string CliVersionDescription = "cli.version.description";
+    public const string CliHealthDescription = "cli.health.description";
+    public const string CliHealthAlive = "cli.health.alive";
+    public const string CliHealthStalled = "cli.health.stalled";
+    public const string CliHealthNeverTicked = "cli.health.never-ticked";
     public const string CliHelpUsage = "cli.help.usage";
     public const string CliHelpCommands = "cli.help.commands";
     public const string CliHelpOptions = "cli.help.options";

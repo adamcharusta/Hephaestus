@@ -74,14 +74,27 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
 
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => Task.FromResult(AppId);
 
-    public Task SetGitHubAppIdAsync(long appId, CancellationToken cancellationToken)
+    public string? AppSlug { get; set; }
+
+    /// <summary>How many times the App's id and slug were recorded.</summary>
+    public int AppIdWrites { get; private set; }
+
+    public Task<string?> GetGitHubAppSlugAsync(CancellationToken cancellationToken) => Task.FromResult(AppSlug);
+
+    public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task SetGitHubAppIdAsync(long appId, string slug, CancellationToken cancellationToken)
     {
         if (FailToRecordAppId is not null)
         {
             throw FailToRecordAppId;
         }
 
+        AppIdWrites++;
         AppId = appId;
+        AppSlug = slug;
         return Task.CompletedTask;
     }
 
@@ -154,6 +167,9 @@ internal sealed class FakeInbox : Hephaestus.Core.Ports.ISignalInbox
 
     public Task<IReadOnlyList<Hephaestus.Core.Signals.StoredSignal>> ReadAsync(long afterSequence, int limit, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Hephaestus.Core.Signals.StoredSignal>>([.. Stored.Where(s => s.Sequence > afterSequence).Take(limit)]);
+
+    public Task<IReadOnlyList<Hephaestus.Core.Signals.StoredSignal>> ReadPendingAsync(int limit, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Hephaestus.Core.Signals.StoredSignal>>([.. Stored.Where(s => s.Status == Hephaestus.Core.Signals.SignalStatus.Pending).Take(limit)]);
 }
 
 /// <summary>The poller's cursors in memory.</summary>

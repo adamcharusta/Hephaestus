@@ -26,6 +26,10 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<PollCursorEntry> PollCursors => Set<PollCursorEntry>();
 
+    public DbSet<TaskEntry> Tasks => Set<TaskEntry>();
+
+    public DbSet<IssueSnapshotEntry> IssueSnapshots => Set<IssueSnapshotEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -48,6 +52,7 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             app.ToTable("GitHubAppConnections", table => table.HasCheckConstraint("CK_GitHubAppConnections_Single", "\"Id\" = 1"));
             app.HasKey(c => c.Id);
             app.Property(c => c.Id).ValueGeneratedNever();
+            app.Property(c => c.AppSlug).HasMaxLength(Core.Trust.GitHubLogin.MaximumLength);
         });
 
         model.Entity<TrustedUserEntry>(user =>
@@ -111,7 +116,31 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             signal.Property(s => s.Kind).IsRequired().HasMaxLength(32);
             signal.Property(s => s.ActorLogin).HasMaxLength(Core.Trust.GitHubLogin.MaximumLength + Core.Trust.GitHubLogin.BotSuffix.Length);
             signal.Property(s => s.Label).HasMaxLength(100);
+            signal.Property(s => s.Status).IsRequired().HasMaxLength(16).HasDefaultValue("pending");
+            signal.Property(s => s.Reason).HasMaxLength(32);
             signal.HasIndex(s => new { s.Source, s.SourceEventId }).IsUnique();
+            signal.HasIndex(s => new { s.Status, s.Sequence });
+        });
+
+        model.Entity<TaskEntry>(task =>
+        {
+            task.ToTable("Tasks");
+            task.HasKey(t => t.Id);
+            task.Property(t => t.Id).ValueGeneratedNever();
+            task.Property(t => t.State).IsRequired().HasMaxLength(32);
+            task.Property(t => t.Branch).IsRequired().HasMaxLength(80);
+            task.HasIndex(t => new { t.RepositoryId, t.IssueNumber }).IsUnique();
+        });
+
+        model.Entity<IssueSnapshotEntry>(snapshot =>
+        {
+            snapshot.ToTable("IssueSnapshots");
+            snapshot.HasKey(s => s.Id);
+            snapshot.Property(s => s.Id).ValueGeneratedOnAdd();
+            snapshot.Property(s => s.Title).IsRequired();
+            snapshot.Property(s => s.Body).IsRequired();
+            snapshot.Property(s => s.Hash).IsRequired().HasMaxLength(64);
+            snapshot.HasIndex(s => s.TaskId);
         });
 
         model.Entity<PollCursorEntry>(cursor =>

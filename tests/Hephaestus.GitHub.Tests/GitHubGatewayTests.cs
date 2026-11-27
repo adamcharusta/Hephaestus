@@ -72,6 +72,49 @@ public class GitHubGatewayTests
     }
 
     [Fact]
+    public async Task Connecting_keeps_the_slug_of_the_App_beside_its_id_so_the_loop_can_tell_its_own_bot_account()
+    {
+        var stores = new FakeStores();
+
+        await GatewayOver(stores, new FakeGitHub()).ConnectIdentityAsync(AppId, NewKey(), Token);
+
+        Assert.Equal("hephaestus-test", stores.AppSlug);
+    }
+
+    [Fact]
+    public async Task Checking_an_App_connected_before_its_slug_was_kept_brings_the_slug_up_to_date()
+    {
+        var stores = new FakeStores { AppId = AppId, Secrets = { [KeyName] = NewKey() } };
+
+        await GatewayOver(stores, new FakeGitHub()).CheckIdentityAsync(Token);
+
+        Assert.Equal(("hephaestus-test", AppId, 1), (stores.AppSlug, stores.AppId, stores.AppIdWrites));
+    }
+
+    [Fact]
+    public async Task Checking_an_App_whose_slug_GitHub_has_changed_replaces_the_slug_and_one_that_is_current_writes_nothing()
+    {
+        var stores = new FakeStores { AppId = AppId, AppSlug = "the-old-name", Secrets = { [KeyName] = NewKey() } };
+        var gateway = GatewayOver(stores, new FakeGitHub());
+
+        await gateway.CheckIdentityAsync(Token);
+        await gateway.CheckIdentityAsync(Token);
+
+        Assert.Equal(("hephaestus-test", 1), (stores.AppSlug, stores.AppIdWrites));
+    }
+
+    [Fact]
+    public async Task Checking_a_credential_GitHub_refuses_writes_nothing()
+    {
+        var stores = new FakeStores { AppId = AppId, Secrets = { [KeyName] = NewKey() } };
+        var github = new FakeGitHub { AppStatus = HttpStatusCode.Unauthorized };
+
+        await GatewayOver(stores, github).CheckIdentityAsync(Token);
+
+        Assert.Equal((null, 0), (stores.AppSlug, stores.AppIdWrites));
+    }
+
+    [Fact]
     public async Task Checking_uses_the_stored_credential_and_reads_the_same_identity()
     {
         var stores = new FakeStores();

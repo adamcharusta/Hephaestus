@@ -1,6 +1,7 @@
 using System.Net.Sockets;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
+using Hephaestus.Core.Loop;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Protection;
@@ -51,6 +52,9 @@ internal static class ControlHost
             provider.GetRequiredService<TimeProvider>(),
             provider.GetRequiredService<GitHubRateLimit>()));
         builder.Services.AddHostedService<PollerService>();
+        builder.Services.TryAddSingleton<LoopHeartbeat>();
+        builder.Services.TryAddSingleton<OrchestratorLoop>();
+        builder.Services.AddHostedService<OrchestratorService>();
         builder.Services.TryAddSingleton<TrustedUserService>();
         builder.Services.TryAddSingleton<AliasService>();
         builder.Services.TryAddSingleton<LimitService>();

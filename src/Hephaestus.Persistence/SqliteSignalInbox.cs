@@ -24,8 +24,8 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             var occurredAt = UtcInstantConverter.ToText(signal.OccurredAt);
             appended += await context.Database.ExecuteSqlInterpolatedAsync(
                 $"""
-                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt")
-                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt})
+                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody")
+                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody})
                 ON CONFLICT ("Source", "SourceEventId") DO NOTHING
                 """,
                 cancellationToken);
@@ -42,6 +42,14 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
         return [.. entries.Select(ToStored)];
     }
 
+    public async Task<IReadOnlyList<StoredSignal>> ReadPendingAsync(int limit, CancellationToken cancellationToken)
+    {
+        var pending = SignalStatus.Pending.Tag();
+        await using var context = database.OpenReader();
+        var entries = await context.Signals.Where(s => s.Status == pending).OrderBy(s => s.Sequence).Take(limit).ToListAsync(cancellationToken);
+        return [.. entries.Select(ToStored)];
+    }
+
     private static StoredSignal ToStored(SignalEntry entry) => new(
         entry.Sequence,
         new Signal(
@@ -55,5 +63,10 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             entry.Label,
             entry.CommentId,
             entry.CommentAuthorId,
-            entry.OccurredAt));
+            entry.OccurredAt,
+            entry.IssueTitle,
+            entry.IssueBody),
+        SignalStatuses.TryParse(entry.Status, out var status) ? status : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown status '{entry.Status}'."),
+        entry.Reason,
+        entry.TaskId);
 }

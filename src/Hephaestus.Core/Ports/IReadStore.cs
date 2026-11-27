@@ -1,6 +1,7 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Core.Ports;
@@ -16,6 +17,9 @@ public interface IReadStore
 
     /// <summary>The id of Hephaestus's own GitHub App, or null when none was connected.</summary>
     Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken);
+
+    /// <summary>The slug of Hephaestus's own GitHub App, from which its bot account's login follows; null when none was connected, or when it was connected before the slug was kept.</summary>
+    Task<string?> GetGitHubAppSlugAsync(CancellationToken cancellationToken);
 
     /// <summary>The Trusted Users, ascending by login and then by id.</summary>
     Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken);
@@ -34,4 +38,10 @@ public interface IReadStore
 
     /// <summary>The Projects, ascending by name and then by repository id: those Hephaestus works on, and the removed ones too when asked.</summary>
     Task<IReadOnlyList<Project>> ListProjectsAsync(bool includeRemoved, CancellationToken cancellationToken);
+
+    /// <summary>The Task of the issue of the Project, or null when the issue is not a Task.</summary>
+    Task<TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken);
+
+    /// <summary>The newest snapshot of the Task's issue, or null when it has none.</summary>
+    Task<IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken);
 }

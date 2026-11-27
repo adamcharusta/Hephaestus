@@ -16,4 +16,7 @@ public interface ISignalInbox
 
     /// <summary>The Signals whose sequence is greater than <paramref name="afterSequence"/>, in inbox order, at most <paramref name="limit"/>.</summary>
     Task<IReadOnlyList<StoredSignal>> ReadAsync(long afterSequence, int limit, CancellationToken cancellationToken);
+
+    /// <summary>The Signals nobody has applied or rejected yet, in inbox order, at most <paramref name="limit"/>.</summary>
+    Task<IReadOnlyList<StoredSignal>> ReadPendingAsync(int limit, CancellationToken cancellationToken);
 }

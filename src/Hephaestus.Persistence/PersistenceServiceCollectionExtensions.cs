@@ -18,6 +18,7 @@ public static class PersistenceServiceCollectionExtensions
         services.AddSingleton<IInstallationConfiguration, SqliteInstallationConfiguration>();
         services.AddSingleton<ISignalInbox, SqliteSignalInbox>();
         services.AddSingleton<IPollCursorStore, SqlitePollCursorStore>();
+        services.AddSingleton<IUnitOfWork, SqliteUnitOfWork>();
         return services;
     }
 }

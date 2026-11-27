@@ -2,6 +2,7 @@ using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,12 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
     {
         await using var context = database.OpenReader();
         return await context.GitHubAppConnections.Select(c => (long?)c.AppId).FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<string?> GetGitHubAppSlugAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        return await context.GitHubAppConnections.Select(c => c.AppSlug).FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken)
@@ -70,6 +77,29 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
             .OrderBy(p => p.FullName, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.FullName, StringComparer.Ordinal).ThenBy(p => p.RepositoryId)
             .Select(ToProject)];
     }
+
+    public async Task<TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entry = await context.Tasks.FirstOrDefaultAsync(t => t.RepositoryId == repositoryId && t.IssueNumber == issueNumber, cancellationToken);
+        return entry is null ? null : ToTask(entry);
+    }
+
+    public async Task<IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entry = await context.IssueSnapshots.Where(s => s.TaskId == taskId).OrderByDescending(s => s.Id).FirstOrDefaultAsync(cancellationToken);
+        return entry is null ? null : new IssueSnapshot(entry.Title, entry.Body, entry.Hash, entry.SignalSequence, entry.TakenAt);
+    }
+
+    internal static TaskRecord ToTask(TaskEntry entry) => new(
+        entry.Id,
+        entry.RepositoryId,
+        entry.IssueNumber,
+        TaskStates.TryParse(entry.State, out var state) ? state : throw new InvalidOperationException($"The stored Task {entry.Id} has the unknown state '{entry.State}'."),
+        entry.Branch,
+        entry.CreatedAt,
+        entry.UpdatedAt);
 
     internal static Project ToProject(ProjectEntry entry) => new(entry.RepositoryId, entry.FullName, entry.BaseBranch, entry.RegisteredAt, entry.RemovedAt);
 

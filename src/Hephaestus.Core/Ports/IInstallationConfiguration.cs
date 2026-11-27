@@ -11,8 +11,8 @@ namespace Hephaestus.Core.Ports;
 /// </summary>
 public interface IInstallationConfiguration
 {
-    /// <summary>Records the id of Hephaestus's own GitHub App, replacing an earlier one.</summary>
-    Task SetGitHubAppIdAsync(long appId, CancellationToken cancellationToken);
+    /// <summary>Records the id of Hephaestus's own GitHub App and its slug, replacing an earlier pair. The slug gives the login of the App's bot account, which the loop never trusts (AD-15).</summary>
+    Task SetGitHubAppIdAsync(long appId, string slug, CancellationToken cancellationToken);
 
     /// <summary>
     /// Stores a Trusted User by GitHub's numeric id (AD-15). A user already stored keeps their id and the time they were added, and

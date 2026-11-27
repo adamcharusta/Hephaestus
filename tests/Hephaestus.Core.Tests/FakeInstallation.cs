@@ -58,7 +58,13 @@ internal sealed class FakeInstallation : IReadStore, IInstallationConfiguration
 
     public Task<IReadOnlyDictionary<string, string>> ListSettingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyDictionary<string, string>>(new Dictionary<string, string>(Settings));
 
-    public Task SetGitHubAppIdAsync(long appId, CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task SetGitHubAppIdAsync(long appId, string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<string?> GetGitHubAppSlugAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<TrustedUserWrite> AddTrustedUserAsync(long userId, string login, CancellationToken cancellationToken) => throw new NotSupportedException();
 

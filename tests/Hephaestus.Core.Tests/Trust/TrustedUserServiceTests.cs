@@ -80,7 +80,13 @@ public class TrustedUserServiceTests
 
         public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task SetGitHubAppIdAsync(long appId, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task SetGitHubAppIdAsync(long appId, string slug, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<string?> GetGitHubAppSlugAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
@@ -290,7 +296,7 @@ public class TrustedUserServiceTests
     /// <summary>A configuration whose removal finds the user already gone.</summary>
     private sealed class RacingConfiguration(Fixture inner) : IInstallationConfiguration
     {
-        public Task SetGitHubAppIdAsync(long appId, CancellationToken cancellationToken) => inner.SetGitHubAppIdAsync(appId, cancellationToken);
+        public Task SetGitHubAppIdAsync(long appId, string slug, CancellationToken cancellationToken) => inner.SetGitHubAppIdAsync(appId, slug, cancellationToken);
 
         public Task<TrustedUserWrite> AddTrustedUserAsync(long userId, string login, CancellationToken cancellationToken) => inner.AddTrustedUserAsync(userId, login, cancellationToken);
 

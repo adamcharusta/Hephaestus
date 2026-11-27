@@ -12,5 +12,8 @@ internal sealed class GitHubAppConnection
 
     public long AppId { get; set; }
 
+    /// <summary>The App's slug, from which the login of its bot account follows; null for an App connected before the slug was kept.</summary>
+    public string? AppSlug { get; set; }
+
     public DateTimeOffset ConnectedAt { get; set; }
 }

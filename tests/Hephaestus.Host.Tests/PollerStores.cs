@@ -23,11 +23,19 @@ internal sealed class PollerStores : IReadStore, ISecretStore, ISignalInbox, IPo
 
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => Task.FromResult<long?>(null);
 
+    public Task<string?> GetGitHubAppSlugAsync(CancellationToken cancellationToken) => Task.FromResult<string?>(null);
+
+    public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(long repositoryId, int issueNumber, CancellationToken cancellationToken) => Task.FromResult<Hephaestus.Core.Tasks.TaskRecord?>(null);
+
+    public Task<Hephaestus.Core.Tasks.IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => Task.FromResult<Hephaestus.Core.Tasks.IssueSnapshot?>(null);
+
     public Task<string?> ReadAsync(string name, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
 
     public Task<int> AppendAsync(IReadOnlyList<Signal> signals, CancellationToken cancellationToken) => Task.FromResult(0);
 
     public Task<IReadOnlyList<StoredSignal>> ReadAsync(long afterSequence, int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<StoredSignal>>([]);
+
+    public Task<IReadOnlyList<StoredSignal>> ReadPendingAsync(int limit, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<StoredSignal>>([]);
 
     public Task<PollCursor?> GetAsync(long repositoryId, string stream, CancellationToken cancellationToken) => Task.FromResult<PollCursor?>(null);
 
