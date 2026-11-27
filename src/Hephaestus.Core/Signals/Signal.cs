@@ -71,6 +71,7 @@ public static class SignalKinds
 /// <param name="OccurredAt">When GitHub says the event happened.</param>
 /// <param name="IssueTitle">For a <see cref="SignalKind.Labeled"/> event, the issue's title as GitHub's event data showed it when the poller read the event; null for the other kinds and for a Signal that carries none.</param>
 /// <param name="IssueBody">For a <see cref="SignalKind.Labeled"/> event, the issue's body as it was shown with <paramref name="IssueTitle"/>; empty when the issue has none.</param>
+/// <param name="CommentBody">For a <see cref="SignalKind.CommentCreated"/> event, the comment's text as GitHub showed it when the poller read the event; empty when the comment has none; null for the other kinds. Whether it is used is decided later, by the author's id (AD-15).</param>
 public sealed record Signal(
     string Source,
     string SourceEventId,
@@ -84,7 +85,8 @@ public sealed record Signal(
     long? CommentAuthorId,
     DateTimeOffset OccurredAt,
     string? IssueTitle = null,
-    string? IssueBody = null)
+    string? IssueBody = null,
+    string? CommentBody = null)
 {
     /// <summary>The one source of the Signals the GitHub gateway's poller appends.</summary>
     public const string GitHubSource = "github";

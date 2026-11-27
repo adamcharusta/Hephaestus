@@ -34,6 +34,8 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<EscalationEntry> Escalations => Set<EscalationEntry>();
 
+    public DbSet<AdmittedCommentEntry> AdmittedComments => Set<AdmittedCommentEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -145,6 +147,19 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             snapshot.Property(s => s.Body).IsRequired();
             snapshot.Property(s => s.Hash).IsRequired().HasMaxLength(64);
             snapshot.HasIndex(s => s.TaskId);
+        });
+
+        model.Entity<AdmittedCommentEntry>(comment =>
+        {
+            comment.ToTable("AdmittedComments");
+            comment.HasKey(c => c.Id);
+            comment.Property(c => c.Id).ValueGeneratedOnAdd();
+            comment.Property(c => c.AuthorLogin).HasMaxLength(Core.Trust.GitHubLogin.MaximumLength + Core.Trust.GitHubLogin.BotSuffix.Length);
+            comment.Property(c => c.Body).IsRequired();
+            comment.Property(c => c.Hash).IsRequired().HasMaxLength(64);
+
+            // A comment is admitted once for a Task; the database refuses a second.
+            comment.HasIndex(c => new { c.TaskId, c.CommentId }).IsUnique();
         });
 
         model.Entity<EffectJournalEntryEntity>(entry =>

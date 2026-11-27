@@ -74,6 +74,8 @@ internal sealed class FakeInstallation : IReadStore, IInstallationConfiguration
 
     public Task<IReadOnlyList<Hephaestus.Core.Escalations.Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<IReadOnlyList<Hephaestus.Core.Tasks.AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<TrustedUserWrite> AddTrustedUserAsync(long userId, string login, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<bool> RemoveTrustedUserAsync(long userId, CancellationToken cancellationToken) => throw new NotSupportedException();

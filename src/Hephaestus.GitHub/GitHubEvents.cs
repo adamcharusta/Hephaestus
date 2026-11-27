@@ -77,6 +77,7 @@ internal static class GitHubEvents
     /// Reads one element of <c>GET /repositories/{id}/issues/comments</c>. A comment made since <paramref name="watchedSince"/> gives a
     /// creation Signal even when it has been edited already, so that a creation is never lost; one that was edited gives an edit
     /// Signal for that update, when the update came after the Project was watched. The event data holds the comment's author and not who edited it, so an edit names no actor (AD-15).
+    /// For the same reason a comment that was edited already carries no text on its creation Signal: the text may be someone else's, and nothing is admitted from it until Story 2.11 settles who edited it.
     /// </summary>
     public static CommentRead? ReadComment(JsonElement element, long repositoryId, DateTimeOffset watchedSince)
     {
@@ -96,7 +97,7 @@ internal static class GitHubEvents
         if (createdAt >= watchedSince)
         {
             signals.Add(new Signal(
-                Signal.GitHubSource, $"comment:{id.ToString(CultureInfo.InvariantCulture)}:created", SignalKind.CommentCreated, repositoryId, issueNumber, authorId, authorLogin, Label: null, id, authorId, createdAt));
+                Signal.GitHubSource, $"comment:{id.ToString(CultureInfo.InvariantCulture)}:created", SignalKind.CommentCreated, repositoryId, issueNumber, authorId, authorLogin, Label: null, id, authorId, createdAt, CommentBody: updatedAt > createdAt ? null : String(element, "body") ?? string.Empty));
         }
 
         if (updatedAt > createdAt && updatedAt >= watchedSince)

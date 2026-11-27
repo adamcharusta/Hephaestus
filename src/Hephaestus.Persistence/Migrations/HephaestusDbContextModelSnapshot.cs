@@ -14,6 +14,53 @@ namespace Hephaestus.Persistence.Migrations
         {
             modelBuilder.HasAnnotation("ProductVersion", "10.0.15");
 
+            modelBuilder.Entity("Hephaestus.Persistence.Model.AdmittedCommentEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AdmittedAt")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnswersEscalationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("AuthorId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AuthorLogin")
+                        .HasMaxLength(45)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CommentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SignalSequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TaskId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TaskId", "CommentId")
+                        .IsUnique();
+
+                    b.ToTable("AdmittedComments", (string)null);
+                });
+
             modelBuilder.Entity("Hephaestus.Persistence.Model.AliasEntry", b =>
                 {
                     b.Property<string>("Name")
@@ -401,6 +448,9 @@ namespace Hephaestus.Persistence.Migrations
 
                     b.Property<long?>("CommentAuthorId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("CommentBody")
+                        .HasColumnType("TEXT");
 
                     b.Property<long?>("CommentId")
                         .HasColumnType("INTEGER");

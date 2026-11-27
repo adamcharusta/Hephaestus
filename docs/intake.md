@@ -27,7 +27,10 @@ the Signal is marked and the Task it causes is written together:
 | A state label (`hephaestus:<state>`) applied or removed on an issue that is a Task, by anyone but Hephaestus's own App | the issue is made to show the Task's state again (see [`state-labels.md`](state-labels.md)) | applied, and names the Task |
 | A state label on an issue that is not a Task, or applied or removed by Hephaestus's own App | nothing | applied, with no change |
 | A comment created by a user who is not a Trusted User, on an issue or a pull request of a registered Project, a `/hephaestus` command included | nothing, and no reply (see below) | rejected: `actor-not-trusted` (`actor-unknown` when GitHub names no author) |
-| A comment created by a Trusted User or by Hephaestus's own App, or a comment that was edited | nothing yet; later stories act on them | applied, with no change |
+| A comment created by a Trusted User on the issue of a Task that waits for the Owner with an open Escalation, later than the Escalation | the comment is admitted and recorded as the answer, the Escalation ends as `answered`, the Task returns to `queued`, and the issue shows it (see [`escalation.md`](escalation.md)) | applied, and names the Task |
+| A comment created by a Trusted User on the issue of any other Task, or earlier than the Escalation | the comment is admitted as context for later steps, with its hash; no state changes | applied, and names the Task |
+| A comment created by a Trusted User whose first line begins with `/hephaestus`, or one that carries no text because it was edited before it was read | nothing is admitted; a command is for the story that handles commands | applied, with no change |
+| A comment created by Hephaestus's own App, on an issue that is no Task, or in a repository that is not a Project, or a comment that was edited | nothing yet; later stories act on them | applied, with no change |
 | Any other label, a removed label, a close, a reopening | nothing yet; later stories act on them | applied, with no change |
 | A Signal that has failed to apply at least three times over five minutes | it is set aside, so that the Signals behind it are not held back; each failure is in the log | rejected: `apply-failed` |
 

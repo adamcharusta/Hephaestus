@@ -26,8 +26,8 @@ after the commit and are resolved after a crash by reading, as every effect is:
 | comment | the question is posted on the issue (below) |
 | notification | `INotifier` is called, once |
 
-The Escalation holds the decision, the options, the condition that ends the wait (`trusted-reply`: a reply from a Trusted User, which a later
-story handles), what caused it, and, for an effect that could not be completed, which effect and why. The database allows a Task one open
+The Escalation holds the decision, the options, the condition that ends the wait (`trusted-reply`: a reply from a Trusted User, below), what
+caused it, and, for an effect that could not be completed, which effect and why. The database allows a Task one open
 Escalation at a time.
 
 ## The comment
@@ -63,8 +63,25 @@ told**, and email or a phone push is a later release. What the notifier does, in
 journaled before it is made and is never made twice: after a restart, a notification that was started and has no result is ended as
 `gave-up` (`interrupted`), not sent again. A failing notifier is one error line in the log, with the effect's key.
 
+## Answering
+
+A reply on the issue from a Trusted User, made after the Escalation was raised, **is the answer**. In one transaction the loop admits the comment
+and records it with the id of the Escalation it answers, ends the Escalation as `answered`, moves the Task back to `queued`, and journals the
+intent of the label that shows it. The answer is then among the Task's admitted comments, which are what an Agent may be given as context.
+Nothing else is posted: the label on the issue is the acknowledgement.
+
+- **Anyone else's comment does nothing.** A comment from a user who is not a Trusted User is recorded as a rejected Signal with that user's
+  numeric id and gets no reply; the Task keeps waiting. The comments of Hephaestus's own account are never admitted.
+- **A Trusted User's comment on a Task that is not waiting** is admitted as context for later steps, with its hash, and changes no state.
+  So is one made before the Escalation was raised, which cannot answer it.
+- **A command is not an answer.** A comment whose first line begins with `/hephaestus` is neither an answer nor context; what a command does is
+  for the story that handles commands.
+- **An edited comment is not used.** The event data does not say who edited a comment, so a comment that had been edited by the time Hephaestus
+  read it carries no text and admits nothing. Reply again with a new comment. The next story of the epic decides which edits are accepted.
+- **The wait is one answer long.** The first reply that counts resumes the Task; a second reply while it is queued is context only.
+
 ## Ending the wait without an answer
 
 A Trusted User who removes the Marker Label from the issue of a Task in `waiting-for-owner` makes it `cancelled`; one who closes the issue
 makes it `closed`. The Escalation is closed with that outcome, and the issue shows the new state. The same actions by anyone else change
-nothing. Withdrawing and closing Tasks in other states, and answering an Escalation, are later stories.
+nothing. Withdrawing and closing Tasks in other states are later stories.

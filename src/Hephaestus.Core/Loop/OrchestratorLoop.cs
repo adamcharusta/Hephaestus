@@ -159,7 +159,7 @@ public sealed partial class OrchestratorLoop(
                             covered = showing.Contains(existing.Id);
                         }
 
-                        var application = Decide(stored, context, existing, covered);
+                        var application = Decide(stored, context, existing, covered, await FindOpenEscalationAsync(stored.Signal, existing, cancellationToken));
                         if (await work.ApplyAsync(application, cancellationToken) is false)
                         {
                             continue;
@@ -240,8 +240,14 @@ public sealed partial class OrchestratorLoop(
         $"Signal {stored.Sequence} of actor {stored.Signal.ActorId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"} rejected: {reason}";
 
     private async Task<TaskRecord?> FindTaskAsync(Signal signal, CancellationToken cancellationToken) =>
-        IsMarkerLabeled(signal) || IsStateLabelChange(signal) || IsLeaving(signal)
+        IsMarkerLabeled(signal) || IsStateLabelChange(signal) || IsLeaving(signal) || signal.Kind == SignalKind.CommentCreated
             ? await reads.FindTaskAsync(signal.RepositoryId, signal.IssueNumber, cancellationToken)
+            : null;
+
+    /// <summary>The Escalation a comment may answer: the open one of a Task that waits for the Owner. Only a comment is read against it.</summary>
+    private async Task<Escalation?> FindOpenEscalationAsync(Signal signal, TaskRecord? existing, CancellationToken cancellationToken) =>
+        signal.Kind == SignalKind.CommentCreated && existing is { State: TaskState.WaitingForOwner }
+            ? (await reads.ListEscalationsAsync(existing.Id, cancellationToken)).LastOrDefault(e => e.ClosedAt is null)
             : null;
 
     private static bool IsMarkerLabeled(Signal signal) => signal.Kind == SignalKind.Labeled && Labels.IsMarker(signal.Label);
@@ -266,7 +272,7 @@ public sealed partial class OrchestratorLoop(
             .Where(pending => pending.Effect.Kind == EffectKind.Label && pending.Task is { } task && task.State.Tag() == pending.Effect.Detail)
             .Select(pending => pending.Task!.Id)];
 
-    private SignalApplication Decide(StoredSignal stored, Context context, TaskRecord? existing, bool covered)
+    private SignalApplication Decide(StoredSignal stored, Context context, TaskRecord? existing, bool covered, Escalation? open)
     {
         var signal = stored.Signal;
 
@@ -277,7 +283,7 @@ public sealed partial class OrchestratorLoop(
 
         if (signal.Kind == SignalKind.CommentCreated)
         {
-            return DecideComment(stored, context);
+            return DecideComment(stored, context, existing, open);
         }
 
         if (IsLeaving(signal))
@@ -380,22 +386,49 @@ public sealed partial class OrchestratorLoop(
     /// <summary>
     /// A comment was created. One from a user who is not a Trusted User is recorded as rejected, with the actor's id the Signal holds, and
     /// changes no Task. Nothing is said in reply, whatever it holds, a command included: anyone can comment on a public repository, and a
-    /// reply for every account would let outsiders fill the thread (AD-15). Hephaestus's own comments, and those of a Trusted User, are
-    /// applied with no change; what a command or an answer does belongs to the stories that handle them.
+    /// reply for every account would let outsiders fill the thread (AD-15). Hephaestus's own comments are never admitted. A Trusted User's
+    /// comment on the issue of a Task is admitted, with its hash, as context for later steps (NFR-1); when it is a reply to the Escalation the
+    /// Task waits on, it is recorded as the answer, the Escalation ends as answered, and the Task returns to <c>Queued</c>, with the intent of
+    /// the label that shows it, in one transaction (FR-49). A command, whose first line begins with <c>/hephaestus</c>, is neither: what a command
+    /// does belongs to Story 2.11. A comment made before the Escalation was raised cannot answer it.
     /// </summary>
-    private static SignalApplication DecideComment(StoredSignal stored, Context context)
+    private SignalApplication DecideComment(StoredSignal stored, Context context, TaskRecord? existing, Escalation? open)
     {
         var signal = stored.Signal;
+        var unchanged = new SignalApplication(stored.Sequence, SignalStatus.Applied, TaskId: existing?.Id);
         if (!context.Projects.Contains(signal.RepositoryId))
         {
             return new SignalApplication(stored.Sequence, SignalStatus.Applied);
         }
 
-        return Admission.Decide(signal.ActorId, signal.ActorLogin, context.TrustedUserIds, context.OwnLogin) switch
+        switch (Admission.Decide(signal.ActorId, signal.ActorLogin, context.TrustedUserIds, context.OwnLogin))
         {
-            Admitted.NotTrusted => Reject(stored, SignalRejections.ActorNotTrusted),
-            Admitted.NoActor => Reject(stored, SignalRejections.ActorUnknown),
-            _ => new SignalApplication(stored.Sequence, SignalStatus.Applied),
+            case Admitted.NotTrusted:
+                return Reject(stored, SignalRejections.ActorNotTrusted);
+            case Admitted.NoActor:
+                return Reject(stored, SignalRejections.ActorUnknown);
+            case Admitted.OwnIdentity:
+                return unchanged;
+        }
+
+        if (existing is null || signal is not { CommentId: { } commentId, ActorId: { } authorId, CommentBody: { } body } || CommentContent.IsCommand(body))
+        {
+            return unchanged;
+        }
+
+        var now = time.GetUtcNow();
+        var comment = new AdmittedComment(existing.Id, commentId, authorId, signal.ActorLogin, body, CommentContent.Hash(body), stored.Sequence, now);
+        if (open is not { ResumeCondition: ResumeConditions.TrustedReply } || signal.OccurredAt < open.RaisedAt || TaskLifecycle.AfterAnswer(existing.State) is not { } to)
+        {
+            return unchanged with { AdmitComment = comment };
+        }
+
+        return unchanged with
+        {
+            AdmitComment = comment with { AnswersEscalationId = open.Id },
+            MoveTaskTo = to,
+            EndEscalation = EscalationOutcome.Answered,
+            NewEffects = [ShowState(existing with { State = to }, stored.Sequence)],
         };
     }
 

@@ -37,6 +37,8 @@ internal sealed class PollerStores : IReadStore, ISecretStore, ISignalInbox, IPo
 
     public Task<IReadOnlyList<Hephaestus.Core.Escalations.Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Hephaestus.Core.Escalations.Escalation>>([]);
 
+    public Task<IReadOnlyList<Hephaestus.Core.Tasks.AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Hephaestus.Core.Tasks.AdmittedComment>>([]);
+
     public Task<string?> ReadAsync(string name, CancellationToken cancellationToken) => Task.FromResult<string?>(null);
 
     public Task<int> AppendAsync(IReadOnlyList<Signal> signals, CancellationToken cancellationToken) => Task.FromResult(0);

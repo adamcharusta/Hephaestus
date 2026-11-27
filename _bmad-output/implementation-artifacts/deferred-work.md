@@ -63,3 +63,11 @@
   summary: Cut the cost of finding a comment by its marker, which reads every comment of the issue on each attempt.
   evidence: The search pages through the whole thread, and it runs before each post and on each retry; a long pull request thread costs several requests. A bounded read would need the comment's time or id, which the journal does not keep (review of Story 2.5).
 
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-10-answer-on-the-issue-to-resume-the-task.md`
+  summary: A Trusted User's reply that was edited before the poller read it is dropped with no word on the issue, so the Task keeps waiting.
+  evidence: Review found that `GitHubEvents.ReadComment` carries no text for an edited comment (AD-15: the editor is unknown), so nothing is admitted and nothing is said; Story 2.11 decides which edits are accepted and what is said, and should also tell the Owner to reply again.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-10-answer-on-the-issue-to-resume-the-task.md`
+  summary: The rule that a reply must be later than the Escalation compares GitHub's comment time with the host clock at the moment the Escalation was raised.
+  evidence: Review found that a host clock more than a human's reaction time ahead of GitHub's would demote a genuine answer to context; anchoring on the question comment's own GitHub creation time would remove the dependency, and needs that time to be recorded when the comment is found by its marker.

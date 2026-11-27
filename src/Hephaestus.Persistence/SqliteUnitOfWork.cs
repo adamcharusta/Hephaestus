@@ -82,6 +82,22 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
                 cancellationToken);
         }
 
+        if (application.AdmitComment is { } admitted)
+        {
+            context.AdmittedComments.Add(new AdmittedCommentEntry
+            {
+                TaskId = admitted.TaskId,
+                CommentId = admitted.CommentId,
+                AuthorId = admitted.AuthorId,
+                AuthorLogin = admitted.AuthorLogin,
+                Body = admitted.Body,
+                Hash = admitted.Hash,
+                SignalSequence = admitted.SignalSequence,
+                AdmittedAt = admitted.AdmittedAt,
+                AnswersEscalationId = admitted.AnswersEscalationId,
+            });
+        }
+
         if (application.NewEffects is { Count: > 0 } effects)
         {
             await AppendIntentsAsync(context, effects, processedAt, cancellationToken);

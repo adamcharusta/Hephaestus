@@ -19,7 +19,8 @@ public sealed record NewTask(TaskRecord Task, IssueSnapshot Snapshot);
 /// <param name="NewTask">The Task this Signal creates, if it does.</param>
 /// <param name="NewEffects">The effects this Signal causes, whose intents commit in the same transaction (AD-5); each is for the Task of <paramref name="NewTask"/> or <paramref name="TaskId"/>.</param>
 /// <param name="MoveTaskTo">The state the Task of <paramref name="TaskId"/> moves to in the same transaction, when the Signal takes it out of the state it is in.</param>
-/// <param name="EndEscalation">How the Task's open Escalation ends, when the move takes the Task out of <c>waiting-for-owner</c> without an answer.</param>
+/// <param name="EndEscalation">How the Task's open Escalation ends, when the move takes the Task out of <c>waiting-for-owner</c>: answered, or cancelled or closed without an answer.</param>
+/// <param name="AdmitComment">The comment of a Trusted User that is admitted to the Task's context in the same transaction; its <see cref="AdmittedComment.TaskId"/> is the Task of <paramref name="TaskId"/>.</param>
 public sealed record SignalApplication(
     long Sequence,
     SignalStatus Status,
@@ -28,7 +29,8 @@ public sealed record SignalApplication(
     NewTask? NewTask = null,
     IReadOnlyList<NewEffect>? NewEffects = null,
     TaskState? MoveTaskTo = null,
-    EscalationOutcome? EndEscalation = null);
+    EscalationOutcome? EndEscalation = null,
+    AdmittedComment? AdmitComment = null);
 
 /// <summary>
 /// The write side of Task state (AD-1). Task and step-run records are written only by the orchestrator loop through this port, and

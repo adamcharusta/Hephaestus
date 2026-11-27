@@ -24,8 +24,8 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             var occurredAt = UtcInstantConverter.ToText(signal.OccurredAt);
             appended += await context.Database.ExecuteSqlInterpolatedAsync(
                 $"""
-                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody")
-                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody})
+                INSERT INTO "Signals" ("Source", "SourceEventId", "Kind", "RepositoryId", "IssueNumber", "ActorId", "ActorLogin", "Label", "CommentId", "CommentAuthorId", "OccurredAt", "IssueTitle", "IssueBody", "CommentBody")
+                VALUES ({signal.Source}, {signal.SourceEventId}, {kind}, {signal.RepositoryId}, {signal.IssueNumber}, {signal.ActorId}, {signal.ActorLogin}, {signal.Label}, {signal.CommentId}, {signal.CommentAuthorId}, {occurredAt}, {signal.IssueTitle}, {signal.IssueBody}, {signal.CommentBody})
                 ON CONFLICT ("Source", "SourceEventId") DO NOTHING
                 """,
                 cancellationToken);
@@ -65,7 +65,8 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
             entry.CommentAuthorId,
             entry.OccurredAt,
             entry.IssueTitle,
-            entry.IssueBody),
+            entry.IssueBody,
+            entry.CommentBody),
         SignalStatuses.TryParse(entry.Status, out var status) ? status : throw new InvalidOperationException($"The stored Signal {entry.Sequence} has the unknown status '{entry.Status}'."),
         entry.Reason,
         entry.TaskId);
