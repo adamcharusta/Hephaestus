@@ -129,7 +129,7 @@ public sealed partial class DockerWorkspaceRuntime
         {
             using (var stream = archive.Stream ?? throw new WorkspaceRuntimeException(new Message(MessageIds.WorkspaceCheckpointResultArchive, CheckpointResultFile)))
             {
-                var (outcome, checksum, _) = TarFiles.ReadOneFile(stream, CheckpointResultFile, options.MaximumBundleBytes, temporary, cancellationToken);
+                var (outcome, checksum, _) = await TarFiles.ReadOneFileAsync(stream, CheckpointResultFile, options.MaximumBundleBytes, temporary, cancellationToken);
                 switch (outcome)
                 {
                     case TarFiles.ReadOutcome.TooLarge:

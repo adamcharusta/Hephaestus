@@ -108,14 +108,14 @@ internal static class TarFiles
     /// <summary>
     /// Reads the one file a container returns from a stopped container's archive (Docker's copy-from-container): the first entry must be a regular file called exactly <paramref name="name"/>, no larger than
     /// <paramref name="maximumBytes"/>, and there must be no second entry. A link entry, a name with a parent or a directory in it, or anything else makes it <see cref="ReadOutcome.NotOneRegularFile"/>, and a file that
-    /// was started is deleted: nothing from such an archive is used. The copy looks at <paramref name="cancellationToken"/> between reads, because the stream is read on the thread that asks. The size is the header's and the copy is bounded by it, so a stream that is longer than it says is never read past it.
+    /// was started is deleted: nothing from such an archive is used. It is read asynchronously, because the stream of a copy out of a container does not support a synchronous read, and the copy stops at <paramref name="cancellationToken"/>. The size is the header's and the copy is bounded by it, so a stream that is longer than it says is never read past it.
     /// </summary>
-    public static (ReadOutcome Outcome, string? Sha256, long Length) ReadOneFile(Stream archive, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
+    public static async Task<(ReadOutcome Outcome, string? Sha256, long Length)> ReadOneFileAsync(Stream archive, string name, long maximumBytes, string destination, CancellationToken cancellationToken)
     {
         try
         {
-            using var reader = new TarReader(archive, leaveOpen: true);
-            var entry = reader.GetNextEntry(copyData: false);
+            await using var reader = new TarReader(archive, leaveOpen: true);
+            var entry = await reader.GetNextEntryAsync(copyData: false, cancellationToken);
             if (entry is not { EntryType: TarEntryType.RegularFile or TarEntryType.V7RegularFile, DataStream: { } data } || !string.Equals(entry.Name, name, StringComparison.Ordinal))
             {
                 return (ReadOutcome.NotOneRegularFile, null, 0);
@@ -130,20 +130,19 @@ internal static class TarFiles
             try
             {
                 using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-                using (var file = new FileStream(destination, System.IO.FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan))
+                await using (var file = new FileStream(destination, System.IO.FileMode.Create, FileAccess.Write, FileShare.None, 81920, FileOptions.SequentialScan | FileOptions.Asynchronous))
                 {
                     var buffer = new byte[81920];
                     int read;
-                    while ((read = data.Read(buffer, 0, buffer.Length)) > 0)
+                    while ((read = await data.ReadAsync(buffer, cancellationToken)) > 0)
                     {
-                        cancellationToken.ThrowIfCancellationRequested();
                         hash.AppendData(buffer, 0, read);
-                        file.Write(buffer, 0, read);
+                        await file.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     }
                 }
 
                 // Whatever follows the file is an extra entry, unless it is the end of the archive.
-                if (reader.GetNextEntry(copyData: false) is not null)
+                if (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is not null)
                 {
                     File.Delete(destination);
                     return (ReadOutcome.NotOneRegularFile, null, 0);
