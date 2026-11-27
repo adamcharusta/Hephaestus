@@ -40,7 +40,7 @@ public class OrchestratorServiceTests
         var capture = new Capture();
         var stores = new PollerStores();
         var heartbeat = new LoopHeartbeat(TimeProvider.System);
-        var loop = new OrchestratorLoop(stores, stores, new NoWrites(), new FakeCodeHost(), TimeProvider.System, heartbeat, (_, token) => Task.Delay(Timeout.Infinite, token));
+        var loop = new OrchestratorLoop(stores, stores, new NoWrites(), new FakeCodeHost(), new NoOpNotifier(), TimeProvider.System, heartbeat, (_, token) => Task.Delay(Timeout.Infinite, token));
         return (new OrchestratorService(loop, capture), capture, heartbeat);
     }
 
@@ -49,6 +49,8 @@ public class OrchestratorServiceTests
         public Task<bool> ApplyAsync(SignalApplication application, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<bool> RecordEffectAsync(Hephaestus.Core.Effects.EffectRecording recording, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> EscalateAsync(Hephaestus.Core.Escalations.EscalationPlan plan, CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
     [Fact]

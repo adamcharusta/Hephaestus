@@ -1,5 +1,6 @@
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
@@ -33,6 +34,12 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     public FakeIssues Github { get; } = new();
 
     public Dictionary<string, string> Settings { get; } = [];
+
+    /// <summary>The notifier the loop calls when an Escalation is raised.</summary>
+    public RecordingNotifier Notifier { get; } = new();
+
+    /// <summary>The Escalations recorded on Tasks, in the order they were raised.</summary>
+    public List<Escalation> Escalations { get; } = [];
 
     /// <summary>The effect journal, in the order it was written, with the rules of the real one: an effect has one intent and at most one result.</summary>
     public List<JournalEntry> Journal { get; } = [];
@@ -114,8 +121,40 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             Snapshots[created.Task.Id] = [created.Snapshot];
         }
 
+        if (application.MoveTaskTo is { } to)
+        {
+            var moved = Tasks.FindIndex(t => t.Id == application.TaskId);
+            Tasks[moved] = Tasks[moved] with { State = to, UpdatedAt = TimeProvider.GetUtcNow() };
+        }
+
+        if (application.EndEscalation is { } outcome)
+        {
+            var open = Escalations.FindIndex(e => e.TaskId == application.TaskId && e.ClosedAt is null);
+            if (open >= 0)
+            {
+                Escalations[open] = Escalations[open] with { ClosedAt = TimeProvider.GetUtcNow(), Outcome = outcome };
+            }
+        }
+
         AppendIntents(application.NewEffects);
         return Task.FromResult(true);
+    }
+
+    public Task<bool> EscalateAsync(EscalationPlan plan, CancellationToken cancellationToken) => Task.FromResult(Write(plan));
+
+    /// <summary>The rule of the real unit of work: the move is made only while the Task is in the state the plan was made for.</summary>
+    private bool Write(EscalationPlan plan)
+    {
+        var index = Tasks.FindIndex(t => t.Id == plan.Escalation.TaskId && t.State == plan.From);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        Tasks[index] = Tasks[index] with { State = plan.To, UpdatedAt = TimeProvider.GetUtcNow() };
+        Escalations.Add(plan.Escalation);
+        AppendIntents(plan.Effects);
+        return true;
     }
 
     /// <summary>Runs when an effect is recorded, before anything is written; a test makes it throw at the recording it chooses.</summary>
@@ -145,13 +184,11 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             recording.Failures,
             recording.NextAttemptAt,
             now));
-        if (recording.MoveTaskTo is { } to)
+        if (recording.Escalation is { } plan)
         {
-            var index = Tasks.FindIndex(t => t.Id == recording.Effect.TaskId);
-            Tasks[index] = Tasks[index] with { State = to, UpdatedAt = now };
+            Write(plan);
         }
 
-        AppendIntents(recording.NewEffects);
         return Task.FromResult(true);
     }
 
@@ -188,6 +225,12 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             });
         return Task.FromResult<IReadOnlyList<PendingEffect>>([.. unfinished]);
     }
+
+    public Task<Escalation?> FindEscalationAsync(Guid escalationId, CancellationToken cancellationToken) =>
+        Task.FromResult(Escalations.FirstOrDefault(e => e.Id == escalationId));
+
+    public Task<IReadOnlyList<Escalation>> ListEscalationsAsync(Guid taskId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Escalation>>([.. Escalations.Where(e => e.TaskId == taskId)]);
 
     public Task<IReadOnlyList<JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<JournalEntry>>([.. Journal.Where(e => taskId is null || e.Effect.TaskId == taskId)]);

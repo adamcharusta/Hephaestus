@@ -1,4 +1,5 @@
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Identity;
 using Hephaestus.Core.Localization;
@@ -43,7 +44,8 @@ public sealed record EffectProblem(Guid? TaskId, string Key, EffectResult Result
 /// it. Each tick takes the Signals nobody has applied, in inbox order, and applies each in one transaction. Intent is read from
 /// actor-attributed Signals and never from the labels an issue has now (AD-2), and one admission function decides trust by numeric
 /// id (AD-15). Startup recovery is the first tick: a Signal appended and not yet applied when the host stopped is still pending, and
-/// so is an effect whose intent was journaled and whose result was not (AD-5).
+/// so is an effect whose intent was journaled and whose result was not (AD-5). The loop is also where an Escalation is raised
+/// (<see cref="RaiseEscalationAsync"/>), because it moves the Task.
 /// </summary>
 /// <param name="fallbackLanguage">The installation's language when the Owner has stored none: the one the environment names.</param>
 public sealed partial class OrchestratorLoop(
@@ -51,6 +53,7 @@ public sealed partial class OrchestratorLoop(
     IReadStore reads,
     IUnitOfWork work,
     ICodeHost host,
+    INotifier notifier,
     TimeProvider time,
     LoopHeartbeat heartbeat,
     Func<TimeSpan, CancellationToken, Task>? delay = null,
@@ -237,11 +240,14 @@ public sealed partial class OrchestratorLoop(
         $"Signal {stored.Sequence} of actor {stored.Signal.ActorId?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "none"} rejected: {reason}";
 
     private async Task<TaskRecord?> FindTaskAsync(Signal signal, CancellationToken cancellationToken) =>
-        IsMarkerLabeled(signal) || IsStateLabelChange(signal)
+        IsMarkerLabeled(signal) || IsStateLabelChange(signal) || IsLeaving(signal)
             ? await reads.FindTaskAsync(signal.RepositoryId, signal.IssueNumber, cancellationToken)
             : null;
 
     private static bool IsMarkerLabeled(Signal signal) => signal.Kind == SignalKind.Labeled && Labels.IsMarker(signal.Label);
+
+    /// <summary>The Marker Label was removed, or the issue was closed: the events that can take a Task out of the Queue by the Owner's hand.</summary>
+    private static bool IsLeaving(Signal signal) => signal.Kind == SignalKind.Closed || signal.Kind == SignalKind.Unlabeled && Labels.IsMarker(signal.Label);
 
     /// <summary>A state label that was applied or removed, by anyone: what the Task shows on its issue is a projection that is put back when it is changed by hand (AD-2).</summary>
     private static bool IsStateLabelChange(Signal signal) => signal.Kind is SignalKind.Labeled or SignalKind.Unlabeled && Labels.TryParseState(signal.Label, out _);
@@ -274,7 +280,12 @@ public sealed partial class OrchestratorLoop(
             return DecideComment(stored, context);
         }
 
-        // What the later stories of the epic act on (withdrawal, close, commands, edits) is applied with no change for now: the
+        if (IsLeaving(signal))
+        {
+            return DecideLeaving(stored, context, existing);
+        }
+
+        // What the later stories of the epic act on (the rest of withdrawal and close, commands, edits) is applied with no change for now: the
         // Signal is consumed, and nothing is inferred from it.
         if (!IsMarkerLabeled(signal))
         {
@@ -312,6 +323,37 @@ public sealed partial class OrchestratorLoop(
         var task = new TaskRecord(EntityId.New(time), signal.RepositoryId, signal.IssueNumber, TaskState.Queued, BranchName.For(signal.IssueNumber, title), now, now);
         var snapshot = new IssueSnapshot(title, body, IssueContent.Hash(title, body), stored.Sequence, now);
         return new SignalApplication(stored.Sequence, SignalStatus.Applied, TaskId: task.Id, NewTask: new NewTask(task, snapshot), NewEffects: [ShowState(task, stored.Sequence)]);
+    }
+
+    /// <summary>
+    /// The Marker Label was removed, or the issue closed. By a Trusted User it takes a Task that waits for the Owner out of the wait, to
+    /// <c>Cancelled</c> or <c>Closed</c> as the lifecycle table says, closes its open Escalation, and journals the intent of the label that shows
+    /// the new state, all in one transaction (AD-1). By anyone else it changes nothing (AD-2: intent is the Trusted User's). The rows for the
+    /// Task's other states belong to Story 2.3.
+    /// </summary>
+    private static SignalApplication DecideLeaving(StoredSignal stored, Context context, TaskRecord? existing)
+    {
+        var signal = stored.Signal;
+        var unchanged = new SignalApplication(stored.Sequence, SignalStatus.Applied, TaskId: existing?.Id);
+        if (existing is null
+            || !context.Projects.Contains(signal.RepositoryId)
+            || Admission.Decide(signal.ActorId, signal.ActorLogin, context.TrustedUserIds, context.OwnLogin) != Admitted.Trusted)
+        {
+            return unchanged;
+        }
+
+        var closed = signal.Kind == SignalKind.Closed;
+        if ((closed ? TaskLifecycle.AfterIssueClosed(existing.State) : TaskLifecycle.AfterMarkerRemoved(existing.State)) is not { } to)
+        {
+            return unchanged;
+        }
+
+        return unchanged with
+        {
+            MoveTaskTo = to,
+            EndEscalation = closed ? EscalationOutcome.Closed : EscalationOutcome.Cancelled,
+            NewEffects = [ShowState(existing with { State = to }, stored.Sequence)],
+        };
     }
 
     /// <summary>The effect that makes the issue show the Task's state, journaled in the same transaction as the Task is written (FR-11, AD-5).</summary>

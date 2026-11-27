@@ -27,7 +27,7 @@ public class OrchestratorLoopNoticeTests
         _stores.AppSlug = "hephaestus-test";
     }
 
-    private OrchestratorLoop NewLoop() => new(_stores, _stores, _stores, _stores.Github, _time, new LoopHeartbeat(_time));
+    private OrchestratorLoop NewLoop() => new(_stores, _stores, _stores, _stores.Github, _stores.Notifier, _time, new LoopHeartbeat(_time));
 
     private async Task<TickReport> TickWithAsync(OrchestratorLoop loop, params Signal[] signals)
     {
@@ -319,7 +319,7 @@ public class OrchestratorLoopNoticeTests
     [Fact]
     public async Task With_no_language_stored_the_one_the_environment_names_is_used()
     {
-        var loop = new OrchestratorLoop(_stores, _stores, _stores, _stores.Github, _time, new LoopHeartbeat(_time), fallbackLanguage: Hephaestus.Core.Localization.Language.Polish);
+        var loop = new OrchestratorLoop(_stores, _stores, _stores, _stores.Github, _stores.Notifier, _time, new LoopHeartbeat(_time), fallbackLanguage: Hephaestus.Core.Localization.Language.Polish);
 
         await TickWithAsync(loop, ByBob("issue-event:1"));
 

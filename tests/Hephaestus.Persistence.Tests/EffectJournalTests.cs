@@ -1,4 +1,5 @@
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Identity;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Signals;
@@ -130,12 +131,12 @@ public class EffectJournalTests
     public async Task A_result_ends_the_effect_and_a_second_result_is_left_out()
     {
         using var installation = await StartAsync();
-        await OptInAsync(installation);
+        var task = await OptInAsync(installation);
         var unit = installation.Provider.GetRequiredService<IUnitOfWork>();
         var effect = Assert.Single(await installation.Reads.ListUnfinishedEffectsAsync(Token)).Effect;
 
         Assert.True(await unit.RecordEffectAsync(new EffectRecording(effect, EffectResult.Applied, null, 0, null), Token));
-        Assert.False(await unit.RecordEffectAsync(new EffectRecording(effect, EffectResult.Refused, "rejected", 0, null, TaskState.WaitingForOwner, [new NewEffect(effect.TaskId, effect.Cause, EffectKind.Label, "waiting-for-owner")]), Token));
+        Assert.False(await unit.RecordEffectAsync(new EffectRecording(effect, EffectResult.Refused, "rejected", 0, null, EscalationPath.ForFailedEffect(task, effect, "rejected", new FixedTimeProvider(Noon))), Token));
         Assert.False(await unit.RecordEffectAsync(new EffectRecording(effect, null, "unreachable", 1, Noon), Token));
 
         Assert.Empty(await installation.Reads.ListUnfinishedEffectsAsync(Token));
@@ -153,17 +154,20 @@ public class EffectJournalTests
         var effect = Assert.Single(await installation.Reads.ListUnfinishedEffectsAsync(Token)).Effect;
 
         await installation.Provider.GetRequiredService<IUnitOfWork>().RecordEffectAsync(
-            new EffectRecording(effect, EffectResult.GaveUp, "unreachable", 6, null, TaskState.WaitingForOwner, [new NewEffect(task.Id, effect.Cause, EffectKind.Label, "waiting-for-owner")]),
+            new EffectRecording(effect, EffectResult.GaveUp, "unreachable", 6, null, EscalationPath.ForFailedEffect(task, effect, "unreachable", new FixedTimeProvider(Noon))),
             Token);
 
         var moved = (await installation.Reads.FindTaskAsync(101, 7, Token))!;
         Assert.Equal((TaskState.WaitingForOwner, Noon), (moved.State, moved.UpdatedAt));
         var journal = await installation.Reads.ListJournalAsync(task.Id, Token);
-        Assert.Equal([JournalEntryKind.Intent, JournalEntryKind.Result, JournalEntryKind.Intent], journal.Select(e => e.Entry));
+        
+        // The label that shows the move, and the comment and the notification of the Escalation the move raised.
+        Assert.Equal([JournalEntryKind.Intent, JournalEntryKind.Result, JournalEntryKind.Intent, JournalEntryKind.Intent, JournalEntryKind.Intent], journal.Select(e => e.Entry));
         Assert.Equal((EffectResult.GaveUp, "unreachable", 6), (journal[1].Result, journal[1].Reason, journal[1].Failures));
         Assert.Equal(($"{task.Id}:g1:label:1", "waiting-for-owner"), (journal[2].Effect.Key, journal[2].Effect.Detail));
-        var unfinished = Assert.Single(await installation.Reads.ListUnfinishedEffectsAsync(Token));
-        Assert.Equal(TaskState.WaitingForOwner, unfinished.Task!.State);
+        var unfinished = await installation.Reads.ListUnfinishedEffectsAsync(Token);
+        Assert.Equal([EffectKind.Label, EffectKind.Comment, EffectKind.Notification], unfinished.Select(e => e.Effect.Kind));
+        Assert.All(unfinished, pending => Assert.Equal(TaskState.WaitingForOwner, pending.Task!.State));
     }
 
     [Fact]

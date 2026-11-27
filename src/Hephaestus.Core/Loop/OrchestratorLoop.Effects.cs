@@ -1,4 +1,5 @@
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
@@ -68,9 +69,22 @@ public sealed partial class OrchestratorLoop
 
     /// <summary>Attempts one effect. Returns false when GitHub as a whole is not available, so that the tick stops attempting.</summary>
     private Task<bool> AttemptAsync(PendingEffect pending, int retries, Language language, EffectsRun run, CancellationToken cancellationToken) =>
-        pending.Effect.Kind == EffectKind.Comment
-            ? AttemptCommentAsync(pending, retries, language, run, cancellationToken)
-            : AttemptLabelAsync(pending, retries, run, cancellationToken);
+        pending.Effect.Kind switch
+        {
+            EffectKind.Comment => AttemptCommentAsync(pending, retries, language, run, cancellationToken),
+            EffectKind.Notification => AttemptNotificationAsync(pending, run, cancellationToken),
+            _ => AttemptLabelAsync(pending, retries, run, cancellationToken),
+        };
+
+    /// <summary>
+    /// Raises an Escalation for a Task (FR-48): the one path by which Hephaestus asks the Owner something. The Escalation, the Task's move to
+    /// <c>waiting-for-owner</c>, and the intents of its label, its comment, and its notification commit together (AD-1, AD-5); they are made after
+    /// that commit, by this or the next tick. Returns false, and writes nothing, when the Task is in no state that moves, which includes a Task that
+    /// waits already, so that one Escalation asks for one decision. Other Tasks are not held back by it (see <see cref="Tasks.DispatchPolicy"/>).
+    /// </summary>
+    /// <param name="cause">What caused it, as the journal names causes, for example the step run that returned the question.</param>
+    public async Task<bool> RaiseEscalationAsync(TaskRecord task, EscalationRequest request, string cause, CancellationToken cancellationToken) =>
+        EscalationPath.Raise(task, request, cause, time) is { } plan && await work.EscalateAsync(plan, cancellationToken);
 
     private async Task<bool> AttemptLabelAsync(PendingEffect pending, int retries, EffectsRun run, CancellationToken cancellationToken)
     {
@@ -119,7 +133,8 @@ public sealed partial class OrchestratorLoop
     private async Task<bool> AttemptCommentAsync(PendingEffect pending, int retries, Language language, EffectsRun run, CancellationToken cancellationToken)
     {
         var (effect, _, failures, _) = pending;
-        if (effect.RepositoryId is not { } repositoryId || effect.IssueNumber is not { } issueNumber || !IssueNotices.TryWrite(effect.Detail, language, out var text))
+        var text = await CommentTextAsync(effect, language, cancellationToken);
+        if (effect.RepositoryId is not { } repositoryId || effect.IssueNumber is not { } issueNumber || text is null)
         {
             // An intent that this version cannot make: it is never going to be, so it ends as a refusal and not as a loop that stops here.
             await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
@@ -145,6 +160,61 @@ public sealed partial class OrchestratorLoop
         }
 
         await EndAsync(effect, EffectResult.Applied, null, failures, run, cancellationToken);
+        return true;
+    }
+
+    /// <summary>The sentence of a comment: an Escalation's, or what Hephaestus ignored; null when the intent is of no kind this version knows.</summary>
+    private async Task<string?> CommentTextAsync(Effect effect, Language language, CancellationToken cancellationToken)
+    {
+        if (EscalationPath.TryParseDetail(effect.Detail, out var escalationId))
+        {
+            return await reads.FindEscalationAsync(escalationId, cancellationToken) is { } escalation ? EscalationComment.Compose(escalation, language) : null;
+        }
+
+        return IssueNotices.TryWrite(effect.Detail, language, out var text) ? text : null;
+    }
+
+    /// <summary>
+    /// Tells the Owner, off GitHub, that an Escalation was raised (AR-63). A notification is made at most once (AD-5): that it is being made is
+    /// journaled before the call, so a host that stopped in between does not send it again, and ends it as given up. Whatever the notifier does,
+    /// including nothing or failing, no Task changes (FR-51), and a failure is logged with the effect's key.
+    /// </summary>
+    private async Task<bool> AttemptNotificationAsync(PendingEffect pending, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var (effect, _, failures, _) = pending;
+        if (failures > 0)
+        {
+            await ConcludeAsync(pending, EffectResult.GaveUp, EffectReasons.Interrupted, failures, run, cancellationToken);
+            return true;
+        }
+
+        if (!EscalationPath.TryParseDetail(effect.Detail, out var escalationId)
+            || effect.RepositoryId is not { } repositoryId
+            || effect.IssueNumber is not { } issueNumber
+            || effect.TaskId is not { } taskId
+            || await reads.FindEscalationAsync(escalationId, cancellationToken) is not { } escalation)
+        {
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            return true;
+        }
+
+        if (!await work.RecordEffectAsync(new EffectRecording(effect, Result: null, EffectReasons.Notifying, Failures: 1, NextAttemptAt: null), cancellationToken))
+        {
+            return true;
+        }
+
+        try
+        {
+            await notifier.NotifyAsync(new EscalationNotification(taskId, repositoryId, issueNumber, escalationId, escalation.Kind), effect.Key, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            // The notifier is not GitHub, and what it does not do changes nothing: the tick has not failed, and the effect's record says so (FR-51).
+            await ConcludeAsync(pending, EffectResult.GaveUp, EffectReasons.NotifierFailed, 1, run, cancellationToken);
+            return true;
+        }
+
+        await EndAsync(effect, EffectResult.Applied, null, 1, run, cancellationToken);
         return true;
     }
 
@@ -228,8 +298,9 @@ public sealed partial class OrchestratorLoop
     }
 
     /// <summary>
-    /// Ends an effect that will not be made: the refusal or the give-up is journaled with its reason, and the Task moves to
-    /// <c>waiting-for-owner</c>, with the intent of the label that shows it, in the same transaction (AD-5). A Task that is not in a state
+    /// Ends an effect that will not be made: the refusal or the give-up is journaled with its reason, and a label that could not be made raises
+    /// an Escalation through the one path (<see cref="EscalationPath"/>), in the same transaction (AD-5): the Task moves to
+    /// <c>waiting-for-owner</c>, and the comment says which effect it was. A Task that is not in a state
     /// that moves stays as it is. So does a Task whose comment could not be made: the comment says something about someone else's action, it
     /// is not the Task's own effect, and an issue that is locked, or that an outage kept from being written to, is no reason to stop work
     /// that is going well. It is the log that tells the Owner, and an error is logged either way, with the Task's id when there is one, the
@@ -238,20 +309,13 @@ public sealed partial class OrchestratorLoop
     private async Task ConcludeAsync(PendingEffect pending, EffectResult result, string reason, int failures, EffectsRun run, CancellationToken cancellationToken)
     {
         var (effect, task, _, _) = pending;
-        var moves = effect.Kind == EffectKind.Label && (task?.State.MovesToWaitingForOwnerWhenAnEffectFails() ?? false);
-        var recording = new EffectRecording(
-            effect,
-            result,
-            reason,
-            failures,
-            NextAttemptAt: null,
-            moves ? TaskState.WaitingForOwner : null,
-            moves ? [new NewEffect(task!.Id, effect.Cause, EffectKind.Label, TaskState.WaitingForOwner.Tag())] : null);
+        var plan = effect.Kind == EffectKind.Label && task is not null ? EscalationPath.ForFailedEffect(task, effect, reason, time) : null;
+        var recording = new EffectRecording(effect, result, reason, failures, NextAttemptAt: null, plan);
         if (await work.RecordEffectAsync(recording, cancellationToken))
         {
             run.Ended++;
-            run.Problems.Add(new EffectProblem(task?.Id, effect.Key, result, reason, moves, effect.RepositoryId, effect.IssueNumber));
-            if (moves)
+            run.Problems.Add(new EffectProblem(task?.Id, effect.Key, result, reason, plan is not null, effect.RepositoryId, effect.IssueNumber));
+            if (plan is not null)
             {
                 run.Moved[task!.Id] = TaskState.WaitingForOwner;
             }

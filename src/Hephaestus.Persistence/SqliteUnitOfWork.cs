@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Signals;
 using Hephaestus.Persistence.Model;
@@ -64,6 +66,22 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
             });
         }
 
+        if (application.MoveTaskTo is { } to && taskIdText is not null)
+        {
+            var state = Core.Tasks.TaskStates.Tag(to);
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Tasks" SET "State" = {state}, "UpdatedAt" = {processedAt} WHERE "Id" = {taskIdText}""",
+                cancellationToken);
+        }
+
+        if (application.EndEscalation is { } outcome && taskIdText is not null)
+        {
+            var ended = outcome.Tag();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Escalations" SET "ClosedAt" = {processedAt}, "Outcome" = {ended} WHERE "TaskId" = {taskIdText} AND "ClosedAt" IS NULL""",
+                cancellationToken);
+        }
+
         if (application.NewEffects is { Count: > 0 } effects)
         {
             await AppendIntentsAsync(context, effects, processedAt, cancellationToken);
@@ -71,6 +89,58 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> EscalateAsync(EscalationPlan plan, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var at = UtcInstantConverter.ToText(time.GetUtcNow());
+        if (!await WriteEscalationAsync(context, plan, at, cancellationToken))
+        {
+            return false;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>
+    /// Records the Escalation, moves the Task, and journals the intents that show it, as one change. The move is made only while the Task is in the
+    /// state the plan was made for, so that one Escalation asks for one decision; otherwise nothing is written and false is returned.
+    /// </summary>
+    private static async Task<bool> WriteEscalationAsync(HephaestusDbContext context, EscalationPlan plan, string at, CancellationToken cancellationToken)
+    {
+        var escalation = plan.Escalation;
+        var taskId = EntityIdConverter.ToText(escalation.TaskId);
+        var to = Core.Tasks.TaskStates.Tag(plan.To);
+        var from = Core.Tasks.TaskStates.Tag(plan.From);
+        var moved = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Tasks" SET "State" = {to}, "UpdatedAt" = {at} WHERE "Id" = {taskId} AND "State" = {from}""",
+            cancellationToken);
+        if (moved == 0)
+        {
+            return false;
+        }
+
+        context.Escalations.Add(new EscalationEntry
+        {
+            Id = escalation.Id,
+            TaskId = escalation.TaskId,
+            Kind = escalation.Kind.Tag(),
+            Decision = escalation.Decision,
+            Options = JsonSerializer.Serialize(escalation.Options),
+            ResumeCondition = escalation.ResumeCondition,
+            Cause = escalation.Cause,
+            RaisedAt = escalation.RaisedAt,
+            EffectKey = escalation.Effect?.Key,
+            EffectKind = escalation.Effect?.Kind.Tag(),
+            EffectDetail = escalation.Effect?.Detail,
+            EffectReason = escalation.Effect?.Reason,
+        });
+        await AppendIntentsAsync(context, plan.Effects, at, cancellationToken);
         return true;
     }
 
@@ -101,17 +171,11 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
             return false;
         }
 
-        if (recording.MoveTaskTo is { } to)
+        // The Escalation is written with the result, in this transaction, or not at all: when the Task is no longer where the plan found it,
+        // the result still stands and the Task is left as it is.
+        if (recording.Escalation is { } plan)
         {
-            var state = Core.Tasks.TaskStates.Tag(to);
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"""UPDATE "Tasks" SET "State" = {state}, "UpdatedAt" = {at} WHERE "Id" = {taskId}""",
-                cancellationToken);
-        }
-
-        if (recording.NewEffects is { Count: > 0 } effects)
-        {
-            await AppendIntentsAsync(context, effects, at, cancellationToken);
+            await WriteEscalationAsync(context, plan, at, cancellationToken);
         }
 
         await context.SaveChangesAsync(cancellationToken);
