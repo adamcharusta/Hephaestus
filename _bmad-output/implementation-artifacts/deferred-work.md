@@ -147,3 +147,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
   summary: Give the reasons a push cannot be made for a reason that is not GitHub's their own message, so that a removed Project or a commit missing from the mirror is not reported as GitHub refusing the change.
   evidence: `CommitMissing`, `UnknownProject`, and `TooLarge` end as the reason `rejected`, which the comment words as GitHub's refusal; they are rare after the mirror was fetched, and the journal keeps the real cause (review of Story 3.7).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-10-choose-how-each-agent-signs-in-and-check-that-it-is-ready.md`
+  summary: Find and remove the container, egress proxy, and network of an Agent probe that a crash of the host left (role `agent-probe`, empty Task label).
+  evidence: A probe's container holds the credential in its environment and has no limit of its own once the host that would remove it is gone; AD-18 records that neither pinned CLI stopped within a minute without a network, so a leftover can run until someone removes it. It carries the installation label and the role, so this is the recovery by labels of Story 3.17 (review of Story 3.10).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-10-choose-how-each-agent-signs-in-and-check-that-it-is-ready.md`
+  summary: Read the log of a container run in chunks, or with a tail, instead of whole into memory (`ContainerLogs.ReadAsync`), for the probe and for the helpers that already use it.
+  evidence: A probe is bounded to two minutes and the log is cut to its last 256 KiB only after it was read and masked whole, so a CLI that prints without bound inside the limit costs host memory; the checkout and checkpoint helpers read their logs the same way, so the change is to the shared reader (review of Story 3.10, low).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-10-choose-how-each-agent-signs-in-and-check-that-it-is-ready.md`
+  summary: Tell a usage limit from a refused credential in the reason of an unavailable Agent, and record `ExhaustedUntil` from a probe that meets a limit.
+  evidence: `ClassifyExit` names `agent-error` for both and the adapter classifies no usage limit, so the reason of a probe says only that the CLI reported an error with an exit code; what a refused request under a subscription looks like is unrecorded and is Story 7.1's (review of Story 3.10, low).

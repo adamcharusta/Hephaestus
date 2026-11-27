@@ -1,11 +1,13 @@
 using System.Net.Sockets;
 using Docker.DotNet;
+using Hephaestus.Agents;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Loop;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Protection;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Secrets;
 using Hephaestus.Core.Settings;
 using Hephaestus.Core.Trust;
@@ -74,7 +76,9 @@ internal static class ControlHost
         builder.Services.TryAddSingleton(provider => WorkspaceRuntimeSetup.Create(
             provider.GetRequiredService<IDockerClient>(),
             provider.GetRequiredService<WorkspaceRuntimeOptions>(),
-            provider.GetRequiredService<IStepWatcher>()));
+            provider.GetRequiredService<IStepWatcher>(),
+            provider.GetRequiredService<ISecretStore>(),
+            provider.GetRequiredService<SecretMasker>()));
         builder.Services.TryAddSingleton<LoopHeartbeat>();
         builder.Services.TryAddSingleton<INotifier, NoOpNotifier>();
         // The loop takes the language the environment names, for the installation that has stored none.
@@ -82,6 +86,9 @@ internal static class ControlHost
         builder.Services.AddHostedService<OrchestratorService>();
         builder.Services.TryAddSingleton<TrustedUserService>();
         builder.Services.TryAddSingleton<AliasService>();
+        // The adapters of the Agents this release can drive (Story 3.10): who signs in how, and the probe of each, is decided from them. Codex CLI's comes with Story 3.9.
+        builder.Services.TryAddEnumerable(ServiceDescriptor.Singleton<IAgentAdapter, ClaudeCodeAgentAdapter>());
+        builder.Services.TryAddSingleton<AgentSignInService>();
         builder.Services.TryAddSingleton<LimitService>();
         builder.Services.TryAddSingleton<ProtectedPathService>();
         builder.Services.TryAddSingleton<SettingService>();

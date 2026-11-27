@@ -1,3 +1,5 @@
+using Hephaestus.Core.Readiness;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
@@ -56,6 +58,10 @@ internal sealed class PollerStores : IReadStore, ISecretStore, ISignalInbox, IPo
     public Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<TrustedUser>>([]);
 
     public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Alias>>([]);
+
+    public Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentSetting>>([]);
+
+    public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentCapacity>>([]);
 
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => Task.FromResult(InstallationLimits.None);
 

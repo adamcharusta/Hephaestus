@@ -20,6 +20,10 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<SettingEntry> Settings => Set<SettingEntry>();
 
+    public DbSet<AgentSettingEntry> AgentSettings => Set<AgentSettingEntry>();
+
+    public DbSet<AgentCapacityEntry> AgentCapacities => Set<AgentCapacityEntry>();
+
     public DbSet<ProjectEntry> Projects => Set<ProjectEntry>();
 
     public DbSet<SignalEntry> Signals => Set<SignalEntry>();
@@ -103,6 +107,25 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             setting.HasKey(s => s.Name);
             setting.Property(s => s.Name).HasMaxLength(64).ValueGeneratedNever();
             setting.Property(s => s.Value).IsRequired().HasMaxLength(200);
+        });
+
+        model.Entity<AgentSettingEntry>(agent =>
+        {
+            agent.ToTable("AgentSettings");
+            agent.HasKey(a => a.Agent);
+            agent.Property(a => a.Agent).HasMaxLength(16).ValueGeneratedNever();
+            agent.Property(a => a.Mode).IsRequired().HasMaxLength(16);
+        });
+
+        model.Entity<AgentCapacityEntry>(capacity =>
+        {
+            capacity.ToTable("AgentCapacities");
+            capacity.HasKey(c => new { c.Agent, c.Mode });
+            capacity.Property(c => c.Agent).HasMaxLength(16);
+            capacity.Property(c => c.Mode).HasMaxLength(16);
+            capacity.Property(c => c.Readiness).IsRequired().HasMaxLength(16);
+            capacity.Property(c => c.ReasonId).HasMaxLength(64);
+            capacity.Property(c => c.ReasonArguments).HasMaxLength(512);
         });
 
         model.Entity<ProjectEntry>(project =>

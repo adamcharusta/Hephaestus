@@ -1,7 +1,9 @@
 using Hephaestus.Core.Aliases;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Trust;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
@@ -89,6 +91,42 @@ internal sealed class SqliteInstallationConfiguration(HephaestusDatabase databas
         await context.Aliases.Where(a => a.Name == name).ExecuteDeleteAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return SqliteReadStore.ToAlias(stored);
+    }
+
+    public async Task SetAgentAuthenticationAsync(Agent agent, AuthenticationMode mode, DateTimeOffset chosenAt, bool credentialStored, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        var chosen = UtcInstantConverter.ToText(chosenAt);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+        // A write first, then the forgetting, and only when a credential was stored: the credential of the mode may be another since the last probe, while one that was kept is the one the probe and a usage limit are about.
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "AgentSettings" ("Agent", "Mode", "ChosenAt") VALUES ({agent.Tag()}, {mode.Tag()}, {chosen})
+            ON CONFLICT ("Agent") DO UPDATE SET "Mode" = excluded."Mode", "ChosenAt" = excluded."ChosenAt"
+            """,
+            cancellationToken);
+        if (credentialStored)
+        {
+            await context.AgentCapacities.Where(c => c.Agent == agent.Tag() && c.Mode == mode.Tag()).ExecuteDeleteAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task RecordAgentProbeAsync(Agent agent, AuthenticationMode mode, AgentReadiness readiness, string? reasonId, IReadOnlyList<string> reasonArguments, DateTimeOffset probedAt, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        var probed = UtcInstantConverter.ToText(probedAt);
+        var arguments = reasonArguments is { Count: > 0 } ? string.Join('\n', reasonArguments) : null;
+
+        // One statement, so that two probes cannot both find no row and both insert it; the time until which a usage limit holds the Agent is not the probe's to change.
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO "AgentCapacities" ("Agent", "Mode", "Readiness", "ReasonId", "ReasonArguments", "ProbedAt") VALUES ({agent.Tag()}, {mode.Tag()}, {readiness.Tag()}, {reasonId}, {arguments}, {probed})
+            ON CONFLICT ("Agent", "Mode") DO UPDATE SET "Readiness" = excluded."Readiness", "ReasonId" = excluded."ReasonId", "ReasonArguments" = excluded."ReasonArguments", "ProbedAt" = excluded."ProbedAt"
+            """,
+            cancellationToken);
     }
 
     public async Task<InstallationLimits> SetLimitsAsync(LimitsChange change, CancellationToken cancellationToken)

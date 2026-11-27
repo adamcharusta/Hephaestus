@@ -103,7 +103,18 @@ internal sealed class CommandTree
 
         Project.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Health, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project };
+        // The credential of an Agent is read from standard input like a secret's value, and is never an argument (UX "Command Line").
+        AgentSetAuthAgent = new Argument<string>("agent");
+        AgentCheckAgent = new Argument<string>("agent");
+        AgentMode = new Option<string>("--mode") { Description = Describe(MessageIds.CliAgentOptionMode), Required = true };
+        AgentSetAuth = new Command("set-auth", Describe(MessageIds.CliAgentSetAuthDescription)) { AgentSetAuthAgent, AgentMode, Json };
+        AgentCheck = new Command("check", Describe(MessageIds.CliAgentCheckDescription)) { AgentCheckAgent, Json };
+        AgentList = new Command("list", Describe(MessageIds.CliAgentListDescription)) { Json };
+        Agent = new Command("agent", Describe(MessageIds.CliAgentDescription)) { AgentSetAuth, AgentCheck, AgentList };
+
+        Agent.SetAction(_ => 0);
+
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Health, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project, Agent };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -211,6 +222,20 @@ internal sealed class CommandTree
     public Option<string> ProjectBaseBranch { get; }
 
     public Option<bool> ProjectAll { get; }
+
+    public Command Agent { get; }
+
+    public Command AgentSetAuth { get; }
+
+    public Command AgentCheck { get; }
+
+    public Command AgentList { get; }
+
+    public Argument<string> AgentSetAuthAgent { get; }
+
+    public Argument<string> AgentCheckAgent { get; }
+
+    public Option<string> AgentMode { get; }
 
     public Command Config { get; }
 

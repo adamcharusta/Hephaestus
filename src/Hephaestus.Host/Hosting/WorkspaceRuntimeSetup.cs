@@ -36,5 +36,5 @@ internal static class WorkspaceRuntimeSetup
         services.GetRequiredService<TimeProvider>(),
         (problem, exception) => services.GetRequiredService<ILoggerFactory>().CreateLogger("Hephaestus.Workspaces").LogWarning(exception, "{Problem}", problem));
 
-    public static IWorkspaceRuntime Create(IDockerClient docker, WorkspaceRuntimeOptions options, IStepWatcher watcher) => new DockerWorkspaceRuntime(docker, options, watcher);
+    public static IWorkspaceRuntime Create(IDockerClient docker, WorkspaceRuntimeOptions options, IStepWatcher watcher, ISecretStore secrets, SecretMasker masker) => new DockerWorkspaceRuntime(docker, options, watcher, secrets, masker);
 }

@@ -26,6 +26,7 @@ public static class WorkspaceLabels
     public const string FillRole = "file-fill";
     public const string CheckoutRole = "checkout";
     public const string CheckpointRole = "checkpoint";
+    public const string AgentProbeRole = "agent-probe";
 
     public static string TaskVolume(Guid taskId) => $"{StepContainerLayout.NamePrefix}ws-{taskId:D}";
 
@@ -34,6 +35,9 @@ public static class WorkspaceLabels
 
     /// <summary>The checkpoint container of one step run, named after it so that one a crash left is replaced and never collided with.</summary>
     public static string Checkpoint(Guid stepRunId) => Helper(CheckpointRole, stepRunId);
+
+    /// <summary>The container of one Agent probe, named after it (Story 3.10). A probe belongs to no Task and no step run, so its labels leave both empty.</summary>
+    public static string AgentProbe(Guid probeId) => Helper(AgentProbeRole, probeId);
 
     public static string StepContainer(Guid stepRunId) => $"{StepContainerLayout.NamePrefix}step-{stepRunId:D}";
 

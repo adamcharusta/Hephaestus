@@ -3,9 +3,11 @@ using System.Text.Json;
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
 using Hephaestus.Core.GitHub;
+using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
 using Hephaestus.Persistence.Model;
@@ -50,6 +52,20 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         await using var context = database.OpenReader();
         var entries = await context.Aliases.OrderBy(a => a.Name).ToListAsync(cancellationToken);
         return [.. entries.Select(ToAlias)];
+    }
+
+    public async Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.AgentSettings.OrderBy(a => a.Agent).ToListAsync(cancellationToken);
+        return [.. entries.Select(ToAgentSetting)];
+    }
+
+    public async Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.AgentCapacities.OrderBy(c => c.Agent).ThenBy(c => c.Mode).ToListAsync(cancellationToken);
+        return [.. entries.Select(ToAgentCapacity)];
     }
 
     public async Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken)
@@ -200,6 +216,16 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
 
     internal static InstallationLimits ToLimits(InstallationLimitsEntry entry) =>
         new(entry.TaskDurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null, entry.CpuMillis, entry.MemoryBytes);
+
+    internal static AgentSetting ToAgentSetting(AgentSettingEntry entry) =>
+        Agents.TryParse(entry.Agent, out var agent) && AuthenticationModes.TryParse(entry.Mode, out var mode)
+            ? new AgentSetting(agent, mode, entry.ChosenAt)
+            : throw new InvalidOperationException($"The stored authentication of '{entry.Agent}' names no known Agent or mode.");
+
+    internal static AgentCapacity ToAgentCapacity(AgentCapacityEntry entry) =>
+        Agents.TryParse(entry.Agent, out var agent) && AuthenticationModes.TryParse(entry.Mode, out var mode) && AgentReadinesses.TryParse(entry.Readiness, out var readiness)
+            ? new AgentCapacity(agent, mode, readiness, entry.ReasonId, entry.ReasonArguments is { Length: > 0 } arguments ? arguments.Split('\n') : [], entry.ProbedAt, entry.ExhaustedUntil)
+            : throw new InvalidOperationException($"The stored capacity of '{entry.Agent}' names no known Agent, mode, or readiness.");
 
     internal static Alias ToAlias(AliasEntry entry) =>
         Agents.TryParse(entry.Agent, out var agent) && entry.Model is { } model

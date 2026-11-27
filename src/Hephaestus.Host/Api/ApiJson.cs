@@ -73,6 +73,18 @@ internal sealed record SettingDocument(string Name, string Value, string Default
 /// <summary>The settings that have a default.</summary>
 internal sealed record SettingListDocument(IReadOnlyList<SettingDocument> Settings);
 
+/// <summary>Why an Agent is unavailable, as a message id with its parameters, which the reader resolves in its own language (AD-21).</summary>
+internal sealed record AgentReasonDocument(string Id, IReadOnlyList<string> Arguments);
+
+/// <summary>
+/// An Agent as the Owner sees it (FR-25, FR-26, AD-20). <c>mode</c> is null until the Owner chooses how it signs in; <c>secret</c> names the secret that holds the credential and is never its value;
+/// <c>status</c> is <c>ready</c> or <c>unavailable</c> and is null until the first probe; <c>checkedAt</c> is when that probe ended and <c>reason</c> why the Agent is unavailable. An unavailable Agent has no capacity.
+/// </summary>
+internal sealed record AgentDocument(string Agent, string? Mode, string? ChosenAt, string? Secret, bool? CredentialStored, string? Status, string? CheckedAt, AgentReasonDocument? Reason);
+
+/// <summary>The Agents, in the order of the Agents.</summary>
+internal sealed record AgentListDocument(IReadOnlyList<AgentDocument> Agents);
+
 /// <summary>The Installation Configuration as one document. Secrets are by name only; no value is ever read to make it.</summary>
 internal sealed record ConfigurationDocument(
     IReadOnlyList<TrustedUserDocument> TrustedUsers,
@@ -152,6 +164,8 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(ProtectedPathListDocument))]
 [JsonSerializable(typeof(SettingDocument))]
 [JsonSerializable(typeof(SettingListDocument))]
+[JsonSerializable(typeof(AgentDocument))]
+[JsonSerializable(typeof(AgentListDocument))]
 [JsonSerializable(typeof(ConfigurationDocument))]
 [JsonSerializable(typeof(ProjectDocument))]
 [JsonSerializable(typeof(ProjectListDocument))]

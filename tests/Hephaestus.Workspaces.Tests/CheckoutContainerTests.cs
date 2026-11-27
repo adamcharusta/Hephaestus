@@ -57,7 +57,7 @@ public sealed class CheckoutContainerTests : IDisposable
     }
 
     private Task CheckoutAsync(BundleReference bundle, WorkspaceRuntimeOptions? options = null) =>
-        new DockerWorkspaceRuntime(_docker.Client, options ?? Options(), new RecordingWatcher())
+        Runtimes.Of(_docker.Client, options ?? Options(), new RecordingWatcher())
             .CheckoutAsync(new CheckoutRequest(TaskId, StepRunId, Branch, bundle), Key, TestContext.Current.CancellationToken);
 
     private async Task<CreateContainerParameters> CheckedOutAsync()
@@ -415,7 +415,7 @@ public sealed class CheckoutContainerTests : IDisposable
     [Fact]
     public async Task The_runtime_makes_no_checkout_for_a_request_it_cannot_read()
     {
-        var runtime = new DockerWorkspaceRuntime(_docker.Client, Options(), new RecordingWatcher());
+        var runtime = Runtimes.Of(_docker.Client, Options(), new RecordingWatcher());
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => runtime.CheckoutAsync(null!, Key, TestContext.Current.CancellationToken));
     }

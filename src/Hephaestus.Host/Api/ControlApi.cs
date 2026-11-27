@@ -27,6 +27,7 @@ internal static class ControlApi
         GitHubApi.Map(routes);
         TrustedUserApi.Map(routes);
         AliasApi.Map(routes);
+        AgentApi.Map(routes);
         LimitApi.Map(routes);
         ProtectedPathApi.Map(routes);
         SettingApi.Map(routes);
@@ -70,7 +71,10 @@ internal static class ControlApi
     }
 
     /// <summary>The problem to answer when a secret value is not acceptable (<see cref="SecretPolicy.CheckValue"/>), or null when it is.</summary>
-    internal static IResult? RefuseValue(string value) => SecretPolicy.CheckValue(value) switch
+    internal static IResult? RefuseValue(string value) => Refuse(SecretPolicy.CheckValue(value));
+
+    /// <summary>The problem for a refusal of a secret value; null for <see cref="SecretValueRefusal.None"/>.</summary>
+    internal static ProblemResult? Refuse(SecretValueRefusal refusal) => refusal switch
     {
         SecretValueRefusal.Empty => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-empty", MessageIds.ProblemSecretValueEmptyTitle, new Message(MessageIds.ProblemSecretValueEmptyDetail)),
         SecretValueRefusal.TooShort => new ProblemResult(StatusCodes.Status400BadRequest, "secret-value-too-short", MessageIds.ProblemSecretValueTooShortTitle, new Message(MessageIds.ProblemSecretValueTooShortDetail, SecretPolicy.MinimumValueLength)),

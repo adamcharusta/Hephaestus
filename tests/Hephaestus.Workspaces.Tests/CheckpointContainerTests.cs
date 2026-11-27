@@ -112,7 +112,7 @@ public sealed class CheckpointContainerTests : IDisposable
     private static CheckpointRequest Request(BundleReference parent, StepKind kind = StepKind.Implementation) => new(TaskId, StepRunId, kind, Branch, parent, Commit);
 
     private Task<CheckpointResult> CheckpointAsync(BundleReference parent, WorkspaceRuntimeOptions? options = null) =>
-        new DockerWorkspaceRuntime(_docker.Client, options ?? Options(), new RecordingWatcher()).CheckpointAsync(Request(parent), Key, TestContext.Current.CancellationToken);
+        Runtimes.Of(_docker.Client, options ?? Options(), new RecordingWatcher()).CheckpointAsync(Request(parent), Key, TestContext.Current.CancellationToken);
 
     private async Task<Docker.DotNet.Models.CreateContainerParameters> CheckpointedAsync()
     {
@@ -334,7 +334,7 @@ public sealed class CheckpointContainerTests : IDisposable
             cancel.Cancel();
             return DockerDouble.Archive(ResultTar(ResultBundle()));
         };
-        var runtime = new DockerWorkspaceRuntime(_docker.Client, Options(), new RecordingWatcher());
+        var runtime = Runtimes.Of(_docker.Client, Options(), new RecordingWatcher());
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => runtime.CheckpointAsync(Request(WriteParent()), Key, cancel.Token));
 
@@ -614,7 +614,7 @@ public sealed class CheckpointContainerTests : IDisposable
     [Fact]
     public async Task The_runtime_makes_no_checkpoint_for_a_request_it_cannot_read()
     {
-        var runtime = new DockerWorkspaceRuntime(_docker.Client, Options(), new RecordingWatcher());
+        var runtime = Runtimes.Of(_docker.Client, Options(), new RecordingWatcher());
 
         await Assert.ThrowsAsync<ArgumentNullException>(() => runtime.CheckpointAsync(null!, Key, TestContext.Current.CancellationToken));
     }
