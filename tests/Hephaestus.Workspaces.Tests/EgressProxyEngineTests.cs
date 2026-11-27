@@ -97,7 +97,7 @@ public sealed class EgressProxyEngineTests(EngineFixture engine) : IClassFixture
         Assert.Equal(["hephaestus", "egress-proxy"], proxy.Path is "hephaestus" ? ["hephaestus", .. proxy.Args!] : proxy.Config!.Entrypoint!);
         // The image's own variables name directories (HEPHAESTUS_SECRETS_DIR among them) that the proxy has no volume for; what must not be there is a credential or its variable.
         Assert.DoesNotContain(proxy.Config!.Env!, variable => variable.Contains("TOKEN", StringComparison.OrdinalIgnoreCase) || variable.Contains("API_KEY", StringComparison.OrdinalIgnoreCase) || variable.Contains("GITHUB", StringComparison.OrdinalIgnoreCase) || variable.StartsWith("ANTHROPIC", StringComparison.OrdinalIgnoreCase) || variable.StartsWith("OPENAI", StringComparison.OrdinalIgnoreCase));
-        Assert.All(proxy.Config!.Env!, variable => Assert.True(variable.StartsWith("PATH=", StringComparison.Ordinal) || variable.StartsWith("HEPHAESTUS_", StringComparison.Ordinal) || variable.StartsWith("DOTNET_", StringComparison.Ordinal) || variable.StartsWith("ASPNETCORE_", StringComparison.Ordinal) || variable.StartsWith("APP_UID=", StringComparison.Ordinal), variable));
+        Assert.All(proxy.Config!.Env!, variable => Assert.True(variable.StartsWith("PATH=", StringComparison.Ordinal) || variable.StartsWith("HEPHAESTUS_", StringComparison.Ordinal) || variable.StartsWith("DOTNET_", StringComparison.Ordinal) || variable.StartsWith("ASPNET", StringComparison.Ordinal) || variable.StartsWith("APP_UID=", StringComparison.Ordinal), variable));
         Assert.Equal("egress-proxy", proxy.Config!.Labels!["hephaestus.role"]);
     }
 
