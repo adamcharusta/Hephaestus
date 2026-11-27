@@ -1,4 +1,5 @@
 using System.Formats.Tar;
+using System.Security.Cryptography;
 using Hephaestus.Core.Workspaces;
 
 namespace Hephaestus.Workspaces;
@@ -62,5 +63,83 @@ internal static class TarFiles
 
         archive.Position = 0;
         return archive;
+    }
+
+    /// <summary>
+    /// A directory and the one file in it, both owned by <paramref name="userId"/> and <paramref name="groupId"/> and readable by that user alone, written to a temporary file that is deleted when the
+    /// stream is closed, so that a bundle of any size is never held in memory. The SHA-256 of the file is taken while it is copied, so that the bytes that are checked are the bytes that are sent.
+    /// Extracted onto the root of a container that has not started, it is where the checkout reads the bundle from.
+    /// </summary>
+    public static (Stream Archive, string Sha256) OwnedFile(string directory, string name, string source, string temporaryPath, int userId, int groupId)
+    {
+        var archive = new FileStream(temporaryPath, System.IO.FileMode.Create, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose | FileOptions.Asynchronous);
+        try
+        {
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            using (var writer = new TarWriter(archive, TarEntryFormat.Pax, leaveOpen: true))
+            {
+                writer.WriteEntry(new PaxTarEntry(TarEntryType.Directory, directory) { Mode = UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, Uid = userId, Gid = groupId });
+                using var file = new HashingReadStream(new FileStream(source, System.IO.FileMode.Open, FileAccess.Read, FileShare.Read, 81920, FileOptions.SequentialScan), hash);
+                writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, $"{directory}/{name}") { Mode = UnixFileMode.UserRead, Uid = userId, Gid = groupId, DataStream = file });
+            }
+
+            archive.Position = 0;
+            return (archive, Convert.ToHexStringLower(hash.GetHashAndReset()));
+        }
+        catch
+        {
+            archive.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>A stream that feeds everything read through it to a hash.</summary>
+    private sealed class HashingReadStream(Stream inner, IncrementalHash hash) : Stream
+    {
+        public override bool CanRead => true;
+
+        public override bool CanSeek => false;
+
+        public override bool CanWrite => false;
+
+        public override long Length => inner.Length;
+
+        public override long Position
+        {
+            get => inner.Position;
+            set => throw new NotSupportedException();
+        }
+
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            var read = inner.Read(buffer, offset, count);
+            hash.AppendData(buffer, offset, read);
+            return read;
+        }
+
+        public override int Read(Span<byte> buffer)
+        {
+            var read = inner.Read(buffer);
+            hash.AppendData(buffer[..read]);
+            return read;
+        }
+
+        public override void Flush() => throw new NotSupportedException();
+
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+        public override void SetLength(long value) => throw new NotSupportedException();
+
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                inner.Dispose();
+            }
+
+            base.Dispose(disposing);
+        }
     }
 }

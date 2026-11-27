@@ -30,4 +30,12 @@ public interface IWorkspaceRuntime
     /// <exception cref="ArgumentException">The request cannot be carried out: no command, a limit that Docker would read as no limit, an environment name that cannot be one, or files that collide.</exception>
     /// <exception cref="WorkspaceRuntimeException">A network of the step run exists and is not an internal one, the outbound network exists and is an internal one, or the step run's egress proxy did not start (AD-7).</exception>
     Task<StartedStep> StartStepAsync(StepContainerRequest request, string idempotencyKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Makes <c>/workspace</c> of the Task's volume a fresh clone of the commit in the request's bundle, in a credential-free container of the <c>hephaestus-tools</c> image (AD-6, FR-17):
+    /// nothing a step left in the volume survives, not a hook, a configuration entry, or an ignored file. It returns when the container has ended and has been removed; the bundle's file is
+    /// deleted whatever came of it, because it is read once. The Task's volume exists already (<see cref="EnsureTaskVolumeAsync"/>), and a retry after a crash makes the same workspace.
+    /// </summary>
+    /// <exception cref="WorkspaceRuntimeException">The bundle is not the file the reference describes, the tools image cannot be fetched, or the checkout ended with a failure or did not end in time.</exception>
+    Task CheckoutAsync(CheckoutRequest request, string idempotencyKey, CancellationToken cancellationToken);
 }

@@ -56,6 +56,17 @@ public sealed class EngineFixture : IAsyncLifetime
 
     public const string ProxyImageVariable = "HEPHAESTUS_TEST_PROXY_IMAGE";
 
+    /// <summary>
+    /// The <c>hephaestus-tools</c> image the checkout containers are created from (Story 3.5): continuous integration builds it before the tests run and names it in <see cref="ToolsImageVariable"/>.
+    /// Where nothing names one, no checkout can be made and the tests that make one are skipped.
+    /// </summary>
+    public string? ToolsImage { get; } = Environment.GetEnvironmentVariable(ToolsImageVariable);
+
+    public const string ToolsImageVariable = "HEPHAESTUS_TEST_TOOLS_IMAGE";
+
+    /// <summary>The directory the bundles of the checkouts of the tests are written to and read from, as the data volume's is for the host.</summary>
+    public string BundlesDirectory { get; } = Path.Combine(Path.GetTempPath(), $"hephaestus-bundles-test-{Guid.NewGuid():N}");
+
     public IDockerClient Docker { get; private set; }
 
     internal FakeVendor Vendor { get; } = new();
@@ -75,7 +86,7 @@ public sealed class EngineFixture : IAsyncLifetime
         }
 
         Docker = new DockerClientBuilder().WithTimeout(TimeSpan.FromMinutes(10)).Build();
-        RuntimeOptions = new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, OutboundNetwork = OutboundNetwork, EgressProxyImage = ProxyImage ?? "hephaestus.invalid/none:0", EgressProxyPollInterval = TimeSpan.FromMilliseconds(100), StepPollInterval = TimeSpan.FromMilliseconds(250) };
+        RuntimeOptions = new WorkspaceRuntimeOptions(InstallationId, Vendor.Lock, HostArchitecture) { AgentsVolume = AgentsVolume, OutboundNetwork = OutboundNetwork, EgressProxyImage = ProxyImage ?? "hephaestus.invalid/none:0", ToolsImage = ToolsImage ?? "hephaestus.invalid/none:0", BundlesDirectory = BundlesDirectory, CheckoutPollInterval = TimeSpan.FromMilliseconds(100), EgressProxyPollInterval = TimeSpan.FromMilliseconds(100), StepPollInterval = TimeSpan.FromMilliseconds(250) };
         Runtime = new DockerWorkspaceRuntime(Docker, RuntimeOptions, new RecordingWatcher());
         var image = await Runtime.ResolveImageAsync(Musl, TestContext.Current.CancellationToken);
         await FillAgentsVolumeAsync(image.Reference, TestContext.Current.CancellationToken);
@@ -105,6 +116,10 @@ public sealed class EngineFixture : IAsyncLifetime
         }
 
         Docker.Dispose();
+        if (Directory.Exists(BundlesDirectory))
+        {
+            Directory.Delete(BundlesDirectory, recursive: true);
+        }
     }
 
     /// <summary>The agents volume as the host leaves it: every executable of this architecture at its place, and the certificate bundle.</summary>

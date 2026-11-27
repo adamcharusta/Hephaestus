@@ -77,4 +77,24 @@ public class HostSettingsTests
         Assert.Equal(HostSettings.DefaultEgressProxyImage, HostSettings.FromEnvironment(name => name == "HEPHAESTUS_EGRESS_PROXY_IMAGE" ? "" : null).EgressProxyImage);
         Assert.Equal("hephaestus:dev", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_EGRESS_PROXY_IMAGE" ? "hephaestus:dev" : null).EgressProxyImage);
     }
+
+    [Fact]
+    public void The_checkout_is_made_in_the_tools_image_unless_a_variable_names_another()
+    {
+        Assert.Equal("ghcr.io/adamcharusta/hephaestus-tools:latest", HostSettings.FromEnvironment(_ => null).ToolsImage);
+        Assert.Equal(HostSettings.DefaultToolsImage, HostSettings.FromEnvironment(name => name == "HEPHAESTUS_TOOLS_IMAGE" ? " " : null).ToolsImage);
+        Assert.Equal("hephaestus-tools:dev", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_TOOLS_IMAGE" ? "hephaestus-tools:dev" : null).ToolsImage);
+    }
+
+    [Fact]
+    public void The_mirrors_are_on_their_own_volume_and_the_bundles_are_in_the_data_directory()
+    {
+        var defaults = HostSettings.FromEnvironment(_ => null);
+        var named = HostSettings.FromEnvironment(name => name switch { "HEPHAESTUS_MIRRORS_DIR" => "/srv/mirrors", "HEPHAESTUS_DATA_DIR" => "/srv/data", _ => null });
+
+        Assert.Equal("/var/lib/hephaestus/mirrors", defaults.MirrorsDirectory);
+        Assert.Equal("/var/lib/hephaestus/data/bundles", defaults.BundlesDirectory);
+        Assert.Equal("/srv/mirrors", named.MirrorsDirectory);
+        Assert.Equal("/srv/data/bundles", named.BundlesDirectory);
+    }
 }

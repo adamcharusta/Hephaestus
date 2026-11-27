@@ -47,6 +47,14 @@ internal static class ControlHost
             provider.GetRequiredService<TimeProvider>(),
             rateLimit: provider.GetRequiredService<GitHubRateLimit>(),
             masker: provider.GetRequiredService<SecretMasker>()));
+        // The gateway also owns the bare mirrors and the bundles made from them (Story 3.5); git runs nowhere else.
+        builder.Services.TryAddSingleton<IRepositoryMirrors>(provider => new GitHubMirrors(
+            provider.GetRequiredService<IReadStore>(),
+            provider.GetRequiredService<ISecretStore>(),
+            provider.GetRequiredService<TimeProvider>(),
+            provider.GetRequiredService<GitHubRateLimit>(),
+            new GitMirrorOptions(settings.MirrorsDirectory, settings.BundlesDirectory),
+            masker: provider.GetRequiredService<SecretMasker>()));
         builder.Services.TryAddSingleton(provider => new GitHubPoller(
             provider.GetRequiredService<IReadStore>(),
             provider.GetRequiredService<ISecretStore>(),

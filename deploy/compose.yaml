@@ -11,6 +11,9 @@
 # root-equivalent on the host and the only container that is. A step container gets no socket, and no Task volume is ever mounted here. The process user
 # is not root, so it joins the group that owns the socket: set HEPHAESTUS_DOCKER_GID to the group id of /var/run/docker.sock
 # (`export HEPHAESTUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock)` on Linux); 999 is the usual one.
+# A fourth, `hephaestus-mirrors`, holds one bare git repository per Project (Story 3.5, AD-9): the gateway fetches into it and makes the bundle of a step's checkout from it. It is a cache that
+# GitHub can fill again, it holds no credential, and only this service mounts it. Every step starts from a fresh checkout made by a container of the `hephaestus-tools` image (git only, no network, no credential),
+# which the runtime fetches when the machine lacks it; the `tools` service below builds that image from this repository, and is not started by `up`: `docker compose --profile tools build`.
 # Every step run gets an internal Docker network of its own and an egress proxy on it (Story 3.4, AD-7): a container of this same image running
 # `hephaestus egress-proxy`, which the orchestrator creates and removes with the step. The proxy is the only way out of a step's network; it is attached to the
 # `hephaestus-outbound` network, which the orchestrator also creates. This service is on neither, so no step container can reach it.
@@ -36,6 +39,8 @@ services:
       HEPHAESTUS_INSTALLATION_ID: ${HEPHAESTUS_INSTALLATION_ID:-hephaestus}
       # The image the egress proxy of every step run is created from: this one, so that the proxy and the orchestrator are one release.
       HEPHAESTUS_EGRESS_PROXY_IMAGE: ghcr.io/adamcharusta/hephaestus:${HEPHAESTUS_IMAGE_TAG:-latest}
+      # The image of the checkout container of every step: the tools image of the same release.
+      HEPHAESTUS_TOOLS_IMAGE: ghcr.io/adamcharusta/hephaestus-tools:${HEPHAESTUS_IMAGE_TAG:-latest}
     logging:
       driver: json-file
       options:
@@ -45,6 +50,7 @@ services:
       - hephaestus-data:/var/lib/hephaestus/data
       - hephaestus-secrets:/var/lib/hephaestus/secrets
       - hephaestus-agents:/var/lib/hephaestus/agents
+      - hephaestus-mirrors:/var/lib/hephaestus/mirrors
       - /var/run/docker.sock:/var/run/docker.sock
     group_add:
       - "${HEPHAESTUS_DOCKER_GID:-999}"
@@ -59,6 +65,15 @@ services:
       # The API answers only after the first start has downloaded the Agent CLIs, about a gigabyte.
       start_period: 10m
 
+  # Never started: it only names the build of the tools image, so that `docker compose --profile tools build` makes it where the machine has none. The release story (1.13) publishes it beside `hephaestus`.
+  tools:
+    profiles: ["tools"]
+    image: ghcr.io/adamcharusta/hephaestus-tools:${HEPHAESTUS_IMAGE_TAG:-latest}
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: tools.Dockerfile
+
 volumes:
   hephaestus-data:
     name: hephaestus-data
@@ -66,3 +81,5 @@ volumes:
     name: hephaestus-secrets
   hephaestus-agents:
     name: hephaestus-agents
+  hephaestus-mirrors:
+    name: hephaestus-mirrors

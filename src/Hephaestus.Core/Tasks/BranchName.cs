@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Hephaestus.Core.Tasks;
 
@@ -8,7 +9,7 @@ namespace Hephaestus.Core.Tasks;
 /// Task is created. The slug holds lower-case ASCII letters, digits, and single hyphens only, and is at most
 /// <see cref="MaximumSlugLength"/> long; a title that gives none leaves the name <c>hephaestus/&lt;issue-number&gt;</c>.
 /// </summary>
-public static class BranchName
+public static partial class BranchName
 {
     public const string Prefix = "hephaestus/";
 
@@ -26,6 +27,12 @@ public static class BranchName
         var slug = Slug(title);
         return slug.Length == 0 ? Prefix + number : $"{Prefix}{number}-{slug}";
     }
+
+    /// <summary>Whether the name is one this class makes: the prefix, the issue number, and a slug of letters and digits in single-hyphen groups. Such a name is a valid branch name for git whatever its length, and holds nothing a shell or a refspec would read.</summary>
+    public static bool IsTaskBranch(string? name) => name is not null && TaskBranchPattern().IsMatch(name);
+
+    [GeneratedRegex(@"^hephaestus/[0-9]{1,10}(-[a-z0-9]{1,40}){0,20}\z", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
+    private static partial Regex TaskBranchPattern();
 
     public static string Slug(string title)
     {
