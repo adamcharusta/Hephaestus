@@ -62,6 +62,27 @@ public class WorkspaceRuntimeSetupTests
     }
 
     [Fact]
+    public async Task The_host_offers_the_same_gateway_as_the_port_that_pushes_so_that_a_fetch_and_a_push_share_one_gate_and_the_loop_has_it()
+    {
+        using var installation = new TempSocket();
+        installation.PrepareAgents();
+        await using var host = await RunningHost.StartAsync(installation: installation);
+
+        var mirrors = host.App.Services.GetRequiredService<IRepositoryMirrors>();
+        var branches = host.App.Services.GetRequiredService<ITaskBranches>();
+
+        Assert.Same(mirrors, branches);
+        Assert.Same(branches, host.App.Services.GetRequiredService<ITaskBranches>());
+        // The loop is built by the container and gets the port; without it every push intent would be refused.
+        var loop = host.App.Services.GetRequiredService<Hephaestus.Core.Loop.OrchestratorLoop>();
+        var held = typeof(Hephaestus.Core.Loop.OrchestratorLoop)
+            .GetFields(System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+            .Single(field => field.FieldType == typeof(ITaskBranches))
+            .GetValue(loop);
+        Assert.Same(branches, held);
+    }
+
+    [Fact]
     public void A_lock_that_cannot_be_parsed_stops_the_build_of_the_runtime()
     {
         using var installation = new TempSocket();

@@ -38,7 +38,7 @@ public class EffectTests
 
         Assert.Equal(["applied", "already-in-place", "superseded", "gave-up", "refused"], Enum.GetValues<EffectResult>().Select(EffectResults.Tag));
         Assert.Equal(["intent", "retry", "result"], Enum.GetValues<JournalEntryKind>().Select(JournalEntryKinds.Tag));
-        Assert.False(EffectKinds.TryParse("push", out _));
+        Assert.False(EffectKinds.TryParse("merge", out _));
         Assert.False(EffectResults.TryParse(null, out _));
         Assert.False(JournalEntryKinds.TryParse("", out _));
         Assert.Throws<ArgumentOutOfRangeException>(() => ((EffectKind)9).Tag());

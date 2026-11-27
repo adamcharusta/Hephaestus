@@ -34,6 +34,9 @@ internal sealed class EscalationEntry
 
     public string? EffectReason { get; set; }
 
+    /// <summary>For work that was not pushed: the tag of the check that failed.</summary>
+    public string? Check { get; set; }
+
     /// <summary>When the Task left <c>waiting-for-owner</c> without an answer; null while the Escalation is open.</summary>
     public DateTimeOffset? ClosedAt { get; set; }
 

@@ -243,7 +243,7 @@ public class EffectJournalTests
         await using (var context = installation.Database.OpenWriter())
         {
             await context.Database.ExecuteSqlRawAsync("DROP TRIGGER EffectJournal_NoUpdate", Token);
-            await context.Database.ExecuteSqlRawAsync("UPDATE EffectJournal SET Kind = 'push'", Token);
+            await context.Database.ExecuteSqlRawAsync("UPDATE EffectJournal SET Kind = 'merge'", Token);
         }
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => installation.Reads.ListJournalAsync(task.Id, Token));

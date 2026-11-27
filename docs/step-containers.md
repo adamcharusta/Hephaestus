@@ -113,8 +113,18 @@ that equals the tip's makes no commit and no bundle. The message and the identit
 exactly one regular file to leave, `/checkpoint/result.bundle`, a bundle of one head, `refs/heads/<Task branch>`, with the tip as its one prerequisite.
 
 The runtime copies that one file out of the stopped container and hands it on as a bundle reference with its path under the bundles directory, its SHA-256, its tip, and its prerequisite. It refuses, as an infrastructure error, an archive with a link entry, a parent path, an extra entry, another name, or a file over the bound of 2 GiB, and a bundle whose header is not
-that one head and that one prerequisite; nothing of a refused archive stays on the data volume. A step of another kind is not checkpointed: what it left in the tree is discarded by the next checkout. The gateway imports and checks the bundle before anything is pushed (Story 3.7); the loop asks for the checkpoint when a step has ended (Story 3.14), and until then the
+that one head and that one prerequisite; nothing of a refused archive stays on the data volume. A step of another kind is not checkpointed: what it left in the tree is discarded by the next checkout. The gateway imports and checks the bundle before anything is pushed (see below); the loop asks for the checkpoint when a step has ended (Story 3.14), and until then the
 tests and the harness do. [ADR-0023](adr/0023-checkpoint-as-one-commit.md) has the decision. `CheckpointScriptTests` run the script with the git of the machine; `CheckpointEngineTests` run it in the real tools image in CI.
+
+## The push after a checkpoint (AD-4, AD-9, AD-19, FR-4, FR-44, Story 3.7)
+
+Nothing a step container made reaches GitHub except as the bundle of its checkpoint, and the gateway is the only code that pushes it. It does so only after the checks below, in this order, and the first that fails blocks the push: the bundle's file is the file that was written (a regular file, its checksum, its size); the Task branch on GitHub is at the last pushed tip,
+or absent when nothing was pushed; the bundle has one head, the Task branch; the bundle imports into a quarantine ref with git's strict object checking, and into no other ref; the new tip is a fast-forward of the last pushed tip; no new commit, tree, or blob holds a stored secret value, in plain, base64, or URL-encoded form; and the diff against the Task's start commit touches no protected path
+(`.github/**` and `hephaestus.yml` unless the Owner changed the list), matched without regard to case. A branch that is already at the bundle's tip is not pushed to again: that is how a push that was made and not recorded is resolved after a crash.
+
+The push is one refspec from the quarantine ref to `refs/heads/hephaestus/<issue>-<slug>`, with no plus, no force, and no delete, so GitHub refuses what is not a fast-forward as well. The loop journals it as an effect whose intent names the step run, the bundle's checksum, the tip before and the tip after, and the start commit, makes it, and deletes the bundle's file once its result is journaled.
+A failed check ends the effect as refused and raises an Escalation that names the check; the Task waits for the Owner and its Workspace is kept. A Task branch that someone else pushed to is not pushed to or run on: the Escalation names the commits Hephaestus did not push, and a reply does not end the wait, only a Trusted User's `confirm` does (Story 3.18).
+[ADR-0024](adr/0024-push-through-the-gateways-checks.md) has the decision. `GitHubPushTests` push to a repository on the machine with real git; the loop calls the push when a step has ended (Story 3.14), and until then the tests and the harness do.
 
 ## The egress proxy (AD-7, Story 3.4)
 

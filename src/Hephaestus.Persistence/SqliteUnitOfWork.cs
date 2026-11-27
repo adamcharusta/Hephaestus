@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
+using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Signals;
 using Hephaestus.Persistence.Model;
@@ -155,6 +156,7 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
             EffectKind = escalation.Effect?.Kind.Tag(),
             EffectDetail = escalation.Effect?.Detail,
             EffectReason = escalation.Effect?.Reason,
+            Check = escalation.Check?.Tag(),
         });
         await AppendIntentsAsync(context, plan.Effects, at, cancellationToken);
         return true;

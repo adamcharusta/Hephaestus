@@ -124,3 +124,26 @@
   summary: Bound the disk a checkpoint container may write, and give the checkpoint its own memory and processor limits.
   evidence: The 2 GiB bound is enforced when the result is read back; inside the container `git add` and `git bundle` write to its layer with no quota, and `StorageOpt` works on some storage drivers only. The checkpoint shares the limits of the checkout, which read no tree (review of Story 3.6).
 
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
+  summary: Call the branch check before every step and the push after every checkpoint from the loop, record the Task's start commit, and give the step run a record of its own with the tip before and after.
+  evidence: Story 3.7 adds `ITaskBranches` and the loop's `Push` effect with its intent (`PushIntent`), and shows them with tests; journaling the intent in the transaction of the step-exited Signal, calling `CheckBranchAsync` before a step, holding the Task when the branch moved, and storing the commit a Task started from (the push needs it for the protected-path diff) are Story 3.14's, and the step run's record is Story 3.19's reading of the journal until then.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
+  summary: Adopt the commits on a Task branch that Hephaestus did not push with the `confirm` command, and resume the Task from the remote tip.
+  evidence: A branch that moved raises an Escalation whose resume condition is `confirm`, which a reply does not meet, so the Task stays held until Story 3.18 delivers the command; today the Owner can only cancel the Task by removing the Marker Label.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
+  summary: Say, in the comment of an Escalation for a blocked push, which stored secret was found, by its name, and scan the forms the masker does not know (UTF-16, split lines).
+  evidence: The scan finds the masker's forms in UTF-8 text and says the path of the object and never the value; the secret's name is not known to the masker, and a secret in UTF-16 or split over lines is not found (review of Story 3.7).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
+  summary: Delete the bundle files that a crash left, and the `refs/hephaestus/quarantine/*` names that a crash left in a mirror.
+  evidence: The loop deletes a push's bundle once its result is journaled and the gateway removes the quarantine ref in a `finally`, but a host that stops between the import and the removal leaves both, and a bundle whose push was never journaled stays on the data volume; this is Story 3.17's cleanup, with the leftovers of Stories 3.5 and 3.6.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
+  summary: Tell the Owner that the work of a step was not pushed when its check fails on a Task that already waits for the Owner for another reason.
+  evidence: One Escalation asks for one decision, so a blocked push on a Task in `WaitingForOwner` ends the effect as refused (the journal names the check, the host logs an error with the Task and the key) and the bundle is deleted, but nothing is said on the issue; whether to hold the effect until the Task can be escalated again, or to add the finding to the open Escalation, is not in any criterion and changes how waiting works (review of Story 3.7, unverified intent).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-push-task-branches-through-the-gateway-s-checks.md`
+  summary: Give the reasons a push cannot be made for a reason that is not GitHub's their own message, so that a removed Project or a commit missing from the mirror is not reported as GitHub refusing the change.
+  evidence: `CommitMissing`, `UnknownProject`, and `TooLarge` end as the reason `rejected`, which the comment words as GitHub's refusal; they are rare after the mirror was fetched, and the journal keeps the real cause (review of Story 3.7).

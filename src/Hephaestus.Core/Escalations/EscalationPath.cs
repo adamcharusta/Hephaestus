@@ -1,4 +1,5 @@
 using Hephaestus.Core.Effects;
+using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Identity;
 using Hephaestus.Core.Tasks;
 
@@ -18,20 +19,28 @@ public static class EscalationPath
 
     /// <summary>The plan for a question Hephaestus cannot answer. Null when the Task is in no state that moves to <c>WaitingForOwner</c>, which includes a Task that waits already: one Escalation asks for one decision.</summary>
     public static EscalationPlan? Raise(TaskRecord task, EscalationRequest request, string cause, TimeProvider time) =>
-        Plan(task, EscalationKind.Decision, request.Decision, request.Options, cause, effect: null, time);
+        Plan(task, EscalationKind.Decision, request.Decision, request.Options, cause, effect: null, check: null, ResumeConditions.TrustedReply, time);
 
     /// <summary>The plan for an effect that cannot be completed. Null when the Task is in no state that moves.</summary>
     public static EscalationPlan? ForFailedEffect(TaskRecord task, Effect effect, string reason, TimeProvider time) =>
-        Plan(task, EscalationKind.EffectFailed, string.Empty, [], effect.Cause, new FailedEffect(effect.Key, effect.Kind, effect.Detail, reason), time);
+        Plan(task, EscalationKind.EffectFailed, string.Empty, [], effect.Cause, new FailedEffect(effect.Key, effect.Kind, effect.Detail, reason), check: null, ResumeConditions.TrustedReply, time);
 
-    private static EscalationPlan? Plan(TaskRecord task, EscalationKind kind, string decision, IReadOnlyList<string> options, string cause, FailedEffect? effect, TimeProvider time)
+    /// <summary>
+    /// The plan for work that was not pushed (AD-9, AD-19): the check that failed, and what it found, as facts the gateway gives. A Task branch that is not where Hephaestus left it waits for a Trusted User's <c>confirm</c>, which a
+    /// reply does not replace; any other check waits for a reply. Null when the Task is in no state that moves.
+    /// </summary>
+    /// <param name="cause">What caused it: the push effect's cause, or the step run that found the branch moved.</param>
+    public static EscalationPlan? ForBlockedPush(TaskRecord task, PushCheck check, string? detail, string cause, TimeProvider time) =>
+        Plan(task, EscalationKind.PushBlocked, EscalationRequest.OneLine(detail, EscalationRequest.MaximumDecisionLength), [], cause, effect: null, check, check == PushCheck.RemoteMoved ? ResumeConditions.Confirm : ResumeConditions.TrustedReply, time);
+
+    private static EscalationPlan? Plan(TaskRecord task, EscalationKind kind, string decision, IReadOnlyList<string> options, string cause, FailedEffect? effect, PushCheck? check, string resumeCondition, TimeProvider time)
     {
         if (!task.State.MovesToWaitingForOwnerWhenItCannotGoOn())
         {
             return null;
         }
 
-        var escalation = new Escalation(EntityId.New(time), task.Id, kind, decision, options, ResumeConditions.TrustedReply, cause, time.GetUtcNow(), effect);
+        var escalation = new Escalation(EntityId.New(time), task.Id, kind, decision, options, resumeCondition, cause, time.GetUtcNow(), effect, Check: check);
         var detail = DetailPrefix + escalation.Id.ToString("D");
         return new EscalationPlan(
             escalation,

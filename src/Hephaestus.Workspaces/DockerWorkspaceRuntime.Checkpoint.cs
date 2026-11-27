@@ -34,7 +34,7 @@ public sealed partial class DockerWorkspaceRuntime
     {
         ArgumentNullException.ThrowIfNull(request);
         var directory = Path.TrimEndingDirectorySeparator(Path.GetFullPath(options.BundlesDirectory));
-        var relative = $"{request.TaskId:D}/{request.StepRunId:D}-checkpoint{BundleReference.Extension}";
+        var relative = BundleReference.CheckpointPath(request.TaskId, request.StepRunId);
         var final = Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar));
         var plan = new HelperPlan(request.TaskId, request.StepRunId, request.Parent, CheckpointDirectory, CheckpointBaseFile, WorkspaceLabels.Checkpoint(request.StepRunId), CheckpointContainer(request, idempotencyKey), CheckpointMessages, options.CheckpointLimit, [0, CheckpointScript.Unchanged])
         {

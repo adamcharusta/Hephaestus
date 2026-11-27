@@ -73,6 +73,7 @@ public sealed partial class OrchestratorLoop
         {
             EffectKind.Comment => AttemptCommentAsync(pending, retries, language, run, cancellationToken),
             EffectKind.Notification => AttemptNotificationAsync(pending, run, cancellationToken),
+            EffectKind.Push => AttemptPushAsync(pending, retries, run, cancellationToken),
             _ => AttemptLabelAsync(pending, retries, run, cancellationToken),
         };
 
@@ -218,6 +219,80 @@ public sealed partial class OrchestratorLoop
         return true;
     }
 
+    /// <summary>
+    /// Pushes the bundle of a checkpoint to the Task's branch through the gateway's checks (AD-9, FR-20, FR-30). The intent names the tip before and the tip after, and the gateway reads the branch first, so a push that
+    /// was made and not recorded is found and recorded, not made again (NFR-9). A check that fails ends the effect as refused, with the check as the reason, and raises an Escalation that names it; the Task's Workspace is not touched,
+    /// which keeps it. Whatever the result, the bundle's file is deleted once the result is journaled, because nothing reads it again.
+    /// </summary>
+    private async Task<bool> AttemptPushAsync(PendingEffect pending, int retries, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var (effect, found, failures, _) = pending;
+        if (found is not { } task || branches is null || !PushIntent.TryParse(effect.Detail, out var intent))
+        {
+            // An intent that this version cannot make, or a host with no gateway for it: it is never going to be, so it ends as a refusal.
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            return true;
+        }
+
+        var bundle = intent.Bundle(task.Id);
+        if (task.State is TaskState.Failed or TaskState.Cancelled or TaskState.Withdrawn or TaskState.Merged or TaskState.Closed)
+        {
+            // A Task that has ended is pushed nothing; its Workspace is removed by the cleanup of an ended Task.
+            await EndAsync(effect, EffectResult.Superseded, null, failures, run, cancellationToken);
+            branches.DeleteBundle(bundle);
+            return true;
+        }
+
+        PushResult result;
+        try
+        {
+            var request = new PushRequest(task.RepositoryId, task.Id, intent.StepRunId, task.Branch, bundle, intent.StartCommit);
+            result = await CallAsync(() => branches.PushAsync(request, effect.Key, cancellationToken), (_, _) => PushResult.Failed(MirrorFailure.Unreachable), run);
+        }
+        catch (ArgumentException)
+        {
+            // A branch that is not a Task branch, which the Task record never holds, or a bundle that names no prerequisite.
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            branches.DeleteBundle(bundle);
+            return true;
+        }
+
+        switch (result.Outcome)
+        {
+            case PushOutcome.Failed:
+                // A retry keeps the bundle for the next attempt; an attempt that gave up, or was refused for good, is a result like any other.
+                var ended = run.Ended;
+                var goOn = await FailedAsync(pending, ToIssueFailure(result.Failure), waitUntil: null, retries, run, cancellationToken);
+                if (run.Ended > ended)
+                {
+                    branches.DeleteBundle(bundle);
+                }
+
+                return goOn;
+
+            case PushOutcome.Blocked:
+                await ConcludeAsync(pending, EffectResult.Refused, result.Check!.Value.Tag(), failures, run, cancellationToken, EscalationPath.ForBlockedPush(task, result.Check.Value, result.Detail, effect.Cause, time));
+                break;
+
+            default:
+                await EndAsync(effect, result.Outcome == PushOutcome.Pushed ? EffectResult.Applied : EffectResult.AlreadyInPlace, null, failures, run, cancellationToken);
+                break;
+        }
+
+        branches.DeleteBundle(bundle);
+        return true;
+    }
+
+    /// <summary>How the loop treats a push that could not be made for a reason that is not the work's: the same way as any effect on GitHub.</summary>
+    private static GitHubIssueFailure ToIssueFailure(MirrorFailure failure) => failure switch
+    {
+        MirrorFailure.NotConnected => GitHubIssueFailure.NotConnected,
+        MirrorFailure.KeyUnreadable => GitHubIssueFailure.KeyUnreadable,
+        MirrorFailure.NotInstalled => GitHubIssueFailure.NotInstalled,
+        MirrorFailure.Unreachable or MirrorFailure.GitFailed => GitHubIssueFailure.Unreachable,
+        _ => GitHubIssueFailure.Rejected,
+    };
+
     /// <summary>A gateway that throws is treated as one that did not answer: the attempt counts, and the exception is reported with the tick.</summary>
     private static async Task<T> CallAsync<T>(Func<Task<T>> call, Func<GitHubIssueFailure, DateTimeOffset?, T> failed, EffectsRun run)
     {
@@ -306,10 +381,10 @@ public sealed partial class OrchestratorLoop
     /// that is going well. It is the log that tells the Owner, and an error is logged either way, with the Task's id when there is one, the
     /// effect's key, and the repository and issue of a comment.
     /// </summary>
-    private async Task ConcludeAsync(PendingEffect pending, EffectResult result, string reason, int failures, EffectsRun run, CancellationToken cancellationToken)
+    private async Task ConcludeAsync(PendingEffect pending, EffectResult result, string reason, int failures, EffectsRun run, CancellationToken cancellationToken, EscalationPlan? blocked = null)
     {
         var (effect, task, _, _) = pending;
-        var plan = effect.Kind == EffectKind.Label && task is not null ? EscalationPath.ForFailedEffect(task, effect, reason, time) : null;
+        var plan = blocked ?? (effect.Kind is EffectKind.Label or EffectKind.Push && task is not null ? EscalationPath.ForFailedEffect(task, effect, reason, time) : null);
         var recording = new EffectRecording(effect, result, reason, failures, NextAttemptAt: null, plan);
         if (await work.RecordEffectAsync(recording, cancellationToken))
         {

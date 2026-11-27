@@ -108,7 +108,7 @@ namespace Hephaestus.Persistence.Migrations
 
                     b.Property<string>("Detail")
                         .IsRequired()
-                        .HasMaxLength(128)
+                        .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Entry")
@@ -190,6 +190,10 @@ namespace Hephaestus.Persistence.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Check")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ClosedAt")
                         .HasColumnType("TEXT");
 
@@ -198,7 +202,7 @@ namespace Hephaestus.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EffectDetail")
-                        .HasMaxLength(128)
+                        .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("EffectKey")

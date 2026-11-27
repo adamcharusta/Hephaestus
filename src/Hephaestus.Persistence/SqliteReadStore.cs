@@ -2,6 +2,7 @@ using Hephaestus.Core.Aliases;
 using System.Text.Json;
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
+using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
@@ -183,7 +184,8 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         entry.RaisedAt,
         entry.EffectKey is { } key && EffectKinds.TryParse(entry.EffectKind, out var effectKind) ? new FailedEffect(key, effectKind, entry.EffectDetail ?? string.Empty, entry.EffectReason ?? string.Empty) : null,
         entry.ClosedAt,
-        EscalationOutcomes.TryParse(entry.Outcome, out var outcome) ? outcome : null);
+        EscalationOutcomes.TryParse(entry.Outcome, out var outcome) ? outcome : null,
+        PushChecks.TryParse(entry.Check, out var check) ? check : null);
 
     internal static TaskRecord ToTask(TaskEntry entry) => new(
         entry.Id,
