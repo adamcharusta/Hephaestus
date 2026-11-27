@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fail the build unless `deploy/agents.lock` matches what the vendors publish and sign (Story 3.1, AD-8).
 
-Usage: verify-agents-lock.py [lock-file]   (default: deploy/agents.lock; needs `gpg` and `cosign` on the PATH)
+Usage: verify-agents-lock.py   (reads deploy/agents.lock; needs `gpg` and `cosign` on the PATH)
 
 This is the check that runs when a pin changes; the host does not repeat it at start, where the digest in the lock is the authority.
   * Claude Code: the release manifest is signed by Anthropic's release key. The check verifies the signature with the key whose
@@ -14,7 +14,6 @@ Every url in the lock must be on the vendor's official channel, at the pinned ve
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import io
 import json
@@ -41,6 +40,8 @@ CODEX_IDENTITY = "https://github.com/openai/codex/.github/workflows/rust-release
 OIDC_ISSUER = "https://token.actions.githubusercontent.com"
 CODEX_TRIPLES = {"x64": "x86_64-unknown-linux-musl", "arm64": "aarch64-unknown-linux-musl"}
 CODEX_ASSETS = {"codex": "codex", "codex-code-mode-host": "codex-code-mode-host"}
+MANIFEST = "manifest.json"
+MANIFEST_SIGNATURE = "manifest.json.sig"
 DIGEST = re.compile(r"^[0-9a-f]{64}$")
 
 
@@ -65,51 +66,54 @@ class Entry:
         return f"{self.agent}/{self.arch}-{self.libc}/{self.file}"
 
 
+def parse_line(number: int, line: str) -> Entry:
+    columns = line.split()
+    if len(columns) not in (7, 8):
+        raise LockError(f"line {number}: expected 7 or 8 columns, found {len(columns)}")
+    agent, version, arch, libc, file, sha256, url, *archive = columns
+    for label, digest in [("sha256", sha256), *[("archive-sha256", a) for a in archive]]:
+        if not DIGEST.match(digest):
+            raise LockError(f"line {number}: {label} is not a lower-case SHA-256")
+    if not url.startswith("https://"):
+        raise LockError(f"line {number}: url is not https")
+    return Entry(agent, version, arch, libc, file, sha256, url, archive[0] if archive else None, number)
+
+
 def parse_lock(text: str) -> list[Entry]:
-    entries = []
-    for number, raw in enumerate(text.splitlines(), start=1):
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        columns = line.split()
-        if len(columns) not in (7, 8):
-            raise LockError(f"line {number}: expected 7 or 8 columns, found {len(columns)}")
-        agent, version, arch, libc, file, sha256, url, *archive = columns
-        for label, digest in [("sha256", sha256), *[("archive-sha256", a) for a in archive]]:
-            if not DIGEST.match(digest):
-                raise LockError(f"line {number}: {label} is not a lower-case SHA-256")
-        if not url.startswith("https://"):
-            raise LockError(f"line {number}: url is not https")
-        entries.append(Entry(agent, version, arch, libc, file, sha256, url, archive[0] if archive else None, number))
+    lines = [(number, raw.strip()) for number, raw in enumerate(text.splitlines(), start=1)]
+    entries = [parse_line(number, line) for number, line in lines if line and not line.startswith("#")]
     if not entries:
         raise LockError("the lock pins nothing")
     return entries
 
 
+def claude_problem(entry: Entry) -> str | None:
+    if entry.libc == "static" or entry.file != "claude" or entry.archive_sha256 is not None:
+        return f"{entry.name}: Claude Code is one plain executable per C library"
+    platform = f"linux-{entry.arch}" + ("-musl" if entry.libc == "musl" else "")
+    return url_problem(entry, f"{CLAUDE_RELEASES}{entry.version}/{platform}/claude")
+
+
+def codex_problem(entry: Entry) -> str | None:
+    triple = CODEX_TRIPLES.get(entry.arch)
+    asset = CODEX_ASSETS.get(entry.file)
+    if triple is None or asset is None or entry.libc != "static":
+        return f"{entry.name}: not a Codex CLI executable"
+    if entry.archive_sha256 is None:
+        return f"{entry.name}: Codex CLI is an archive and the lock must pin its digest"
+    return url_problem(entry, f"{CODEX_DOWNLOADS.format(version=entry.version)}{asset}-{triple}.tar.gz")
+
+
+def url_problem(entry: Entry, expected: str) -> str | None:
+    return None if entry.url == expected else f"{entry.name}: the url is {entry.url}, the vendor's channel is {expected}"
+
+
 def check_channels(entries: list[Entry]) -> list[str]:
     """The urls of the lock must be the vendor's official ones at the pinned version, so a pin cannot point somewhere else."""
-    problems = []
-    for entry in entries:
-        if entry.agent == "claude-code":
-            platform = f"linux-{entry.arch}" + ("-musl" if entry.libc == "musl" else "")
-            expected = f"{CLAUDE_RELEASES}{entry.version}/{platform}/claude"
-            if entry.libc == "static" or entry.file != "claude" or entry.archive_sha256 is not None:
-                problems.append(f"{entry.name}: Claude Code is one plain executable per C library")
-        elif entry.agent == "codex-cli":
-            triple = CODEX_TRIPLES.get(entry.arch)
-            asset = CODEX_ASSETS.get(entry.file)
-            if triple is None or asset is None or entry.libc != "static":
-                problems.append(f"{entry.name}: not a Codex CLI executable")
-                continue
-            expected = f"{CODEX_DOWNLOADS.format(version=entry.version)}{asset}-{triple}.tar.gz"
-            if entry.archive_sha256 is None:
-                problems.append(f"{entry.name}: Codex CLI is an archive and the lock must pin its digest")
-        else:
-            problems.append(f"{entry.name}: unknown agent")
-            continue
-        if entry.url != expected:
-            problems.append(f"{entry.name}: the url is {entry.url}, the vendor's channel is {expected}")
-    for agent in {entry.agent for entry in entries}:
+    checks = {"claude-code": claude_problem, "codex-cli": codex_problem}
+    found = [checks[entry.agent](entry) if entry.agent in checks else f"{entry.name}: unknown agent" for entry in entries]
+    problems = [problem for problem in found if problem]
+    for agent in sorted({entry.agent for entry in entries}):
         if len({entry.version for entry in entries if entry.agent == agent}) != 1:
             problems.append(f"{agent}: more than one version is pinned")
     return problems
@@ -136,8 +140,8 @@ class Tools:
             env = {**os.environ, "GNUPGHOME": home}
             base = Path(home)
             (base / "key.asc").write_bytes(key)
-            (base / "manifest.json").write_bytes(manifest)
-            (base / "manifest.json.sig").write_bytes(signature)
+            (base / MANIFEST).write_bytes(manifest)
+            (base / MANIFEST_SIGNATURE).write_bytes(signature)
             try:
                 subprocess.run(["gpg", "--batch", "--import", "key.asc"], cwd=home, env=env, check=True, capture_output=True)
                 fingerprints = subprocess.run(
@@ -148,7 +152,7 @@ class Tools:
             if not any(line.startswith("fpr:") and line.split(":")[9] == CLAUDE_KEY_FINGERPRINT for line in fingerprints.splitlines()):
                 raise LockError(f"the key at {CLAUDE_KEY_URL} does not have the pinned fingerprint {CLAUDE_KEY_FINGERPRINT}")
             result = subprocess.run(
-                ["gpg", "--batch", "--status-fd", "1", "--verify", "manifest.json.sig", "manifest.json"],
+                ["gpg", "--batch", "--status-fd", "1", "--verify", MANIFEST_SIGNATURE, MANIFEST],
                 cwd=home, env=env, capture_output=True, text=True,
             )
             statuses = [line.split() for line in result.stdout.splitlines() if line.startswith("[GNUPG:]")]
@@ -184,9 +188,9 @@ def verify_claude(entries: list[Entry], tools: Tools) -> list[str]:
         return ["claude-code: nothing is pinned"]
     version = mine[0].version
     base = f"{CLAUDE_RELEASES}{version}/"
-    manifest_bytes = tools.fetch(base + "manifest.json")
+    manifest_bytes = tools.fetch(base + MANIFEST)
     try:
-        signer = tools.gpg_verify(tools.fetch(CLAUDE_KEY_URL), tools.fetch(base + "manifest.json.sig"), manifest_bytes)
+        signer = tools.gpg_verify(tools.fetch(CLAUDE_KEY_URL), tools.fetch(base + MANIFEST_SIGNATURE), manifest_bytes)
     except LockError as error:
         return [f"claude-code {version}: {error}"]
     problems = []
@@ -254,15 +258,13 @@ def verify(entries: list[Entry], tools: Tools, report=print) -> list[str]:
     return problems
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("lock", nargs="?", default=str(REPOSITORY_ROOT / LOCK_FILE))
-    arguments = parser.parse_args(argv)
+def main() -> int:
     try:
-        entries = parse_lock(Path(arguments.lock).read_text(encoding="utf-8"))
+        entries = parse_lock((REPOSITORY_ROOT / LOCK_FILE).read_text(encoding="utf-8"))
         problems = verify(entries, Tools())
-    except (LockError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
-        problems = [f"{type(error).__name__}: {error}" if not isinstance(error, LockError) else str(error)]
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        # A LockError is a ValueError; anything else is named, so that a failure of the check is not mistaken for a bad pin.
+        problems = [str(error) if isinstance(error, LockError) else f"{type(error).__name__}: {error}"]
     for problem in problems:
         print(f"error: {problem}", file=sys.stderr)
     if not problems:

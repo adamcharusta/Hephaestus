@@ -18,9 +18,16 @@ case "$(uname -m)" in
   *) echo "unsupported architecture $(uname -m)" >&2; exit 1 ;;
 esac
 
-version_of() { awk -v agent="$1" '$1 == agent { print $2; exit }' deploy/agents.lock; }
+version_of() {
+  local agent="$1"
+  awk -v agent="$agent" '$1 == agent { print $2; exit }' deploy/agents.lock
+}
 claude_version="$(version_of claude-code)"
 codex_version="$(version_of codex-cli)"
+
+# Pulled first, so that the output of a check is the executable's own and not Docker's progress.
+docker pull --quiet debian:13-slim > /dev/null
+docker pull --quiet alpine:3.23 > /dev/null
 
 failed=0
 

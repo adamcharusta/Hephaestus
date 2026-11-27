@@ -305,11 +305,13 @@ class Cosign(unittest.TestCase):
 
     def test_a_failure_is_reported_with_what_cosign_said(self):
         with self.assertRaisesRegex(verify.LockError, "no matching signatures"):
-            self.run_with(1, "no matching signatures")
+            self.run_with(1, "no matching signatures")  # the one call that raises
 
     def test_a_missing_cosign_is_reported(self):
-        with mock.patch.object(shutil, "which", return_value=None), self.assertRaisesRegex(verify.LockError, "cosign is not installed"):
-            verify.Tools().cosign_verify(b"", b"", "identity")
+        tools = verify.Tools()
+        with mock.patch.object(shutil, "which", return_value=None):
+            with self.assertRaisesRegex(verify.LockError, "cosign is not installed"):
+                tools.cosign_verify(b"", b"", "identity")
 
 
 class WholeRun(unittest.TestCase):
@@ -321,7 +323,8 @@ class WholeRun(unittest.TestCase):
         self.assertEqual(lines, [])
 
     def test_main_reports_a_lock_that_cannot_be_read(self):
-        self.assertEqual(verify.main([str(LOCK.with_name("nothing-here.lock"))]), 1)
+        with mock.patch.object(verify, "REPOSITORY_ROOT", LOCK.parent.parent / "no-such-directory"):
+            self.assertEqual(verify.main(), 1)
 
 
 if __name__ == "__main__":
