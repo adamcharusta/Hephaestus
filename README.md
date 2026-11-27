@@ -12,7 +12,8 @@ channels arrive with Epic 1.
 
 ## Run
 
-You need Docker Engine 29 or later with Compose v2, and nothing else: no other server, paid service, or cloud service. The first start
+You need Docker Engine 29 or later with Compose v2, and nothing else: no other server, paid service, or cloud service. The `hephaestus` container holds the Docker socket, which is how it creates the
+containers that Tasks run in; it runs as a user that is not root, so name the group that owns the socket first (`export HEPHAESTUS_DOCKER_GID=$(stat -c %g /var/run/docker.sock)`; the default, 999, is the usual one). The first start
 downloads the Agent CLIs this release was tested with (about a gigabyte) from Anthropic's and OpenAI's own download hosts, so the machine needs
 to reach `downloads.claude.ai` and `github.com` then; see [Agent CLIs](#agent-clis).
 
@@ -39,6 +40,14 @@ Projects' images: `deploy/agents.lock` pins one version of each and the SHA-256 
 Nothing unverified is kept in the volume, and a volume that already holds the verified files downloads nothing. A CA certificate bundle copied from the image's own
 certificate store is placed beside them at every start. The first start needs access to `downloads.claude.ai` and `github.com`; the volume is a cache, not installation
 state, and `docker compose down --volumes` deletes it with the rest. [`docs/agent-clis.md`](docs/agent-clis.md) says how the lock is written and how a pin is changed.
+
+## Step containers
+
+Every step of a Task will run in a container that cannot touch your files, your other Projects, or Docker itself: it runs as user `10001:10001` with every capability dropped, `no-new-privileges`,
+Docker's default seccomp profile, a process limit, the Task's processor and memory limits (never above `hephaestus limit show`), no published port, and no route to the host. Its only mounts are the Task's volume,
+the context and Methodology read-only, the Agent CLIs read-only, and a temporary `HOME`. Only the `hephaestus` container holds the Docker socket, so the orchestrator is equivalent to root on the host,
+and no Task volume is ever mounted into it. The runtime that creates these containers is in place and tested against a real Docker Engine; nothing starts a step yet. [`docs/step-containers.md`](docs/step-containers.md)
+has the definition, how the C library of a Project's image is established, and the checks.
 
 ## Secrets
 

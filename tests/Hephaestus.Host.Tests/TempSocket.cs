@@ -24,7 +24,7 @@ internal sealed class TempSocket : IDisposable
 
     public string CaBundleFile => System.IO.Path.Combine(_directory, "image-ca.crt");
 
-    public HostSettings Settings(Language language = Language.English) => new(Path, language, DataDirectory, SecretsDirectory, AgentsDirectory, AgentsLockFile, CaBundleFile);
+    public HostSettings Settings(Language language = Language.English) => new(Path, language, DataDirectory, SecretsDirectory, AgentsDirectory, AgentsLockFile, CaBundleFile, HostSettings.DefaultInstallationId);
 
     /// <summary>
     /// A lock, a certificate bundle, and a volume that already holds the executables the lock pins for this machine, so that a start downloads

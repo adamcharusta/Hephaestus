@@ -61,4 +61,12 @@ public class HostSettingsTests
         Assert.Equal("/tmp/agents.lock", settings.AgentsLockFile);
         Assert.Equal("/tmp/ca.crt", settings.CaBundleFile);
     }
+
+    [Fact]
+    public void The_installation_is_named_hephaestus_unless_a_variable_names_another()
+    {
+        Assert.Equal("hephaestus", HostSettings.FromEnvironment(_ => null).InstallationId);
+        Assert.Equal("hephaestus", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_INSTALLATION_ID" ? " " : null).InstallationId);
+        Assert.Equal("dev-1", HostSettings.FromEnvironment(name => name == "HEPHAESTUS_INSTALLATION_ID" ? "dev-1" : null).InstallationId);
+    }
 }
