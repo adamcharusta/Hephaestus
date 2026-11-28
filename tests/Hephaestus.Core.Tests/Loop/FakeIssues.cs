@@ -175,5 +175,15 @@ internal sealed class FakeIssues : ICodeHost
 
     public Task<GitHubRepositoryResult> FindRepositoryAsync(string fullName, string? branch, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken) => throw new NotSupportedException();
+    /// <summary>What reading <c>hephaestus.yml</c> of a Project answers, by repository id; a Project with none answers that the file is not there.</summary>
+    public Dictionary<long, GitHubFileResult> ConfigurationFiles { get; } = [];
+
+    /// <summary>How many times the file of a Project was read.</summary>
+    public int FileReads { get; private set; }
+
+    public Task<GitHubFileResult> ReadFileAsync(long repositoryId, string branch, string path, int maximumLength, CancellationToken cancellationToken)
+    {
+        FileReads++;
+        return Task.FromResult(ConfigurationFiles.TryGetValue(repositoryId, out var result) ? result : GitHubFileResult.Failed(GitHubFileFailure.NotFound, new string('a', 40)));
+    }
 }
