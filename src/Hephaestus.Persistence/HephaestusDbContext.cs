@@ -167,6 +167,9 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             task.Property(t => t.Id).ValueGeneratedNever();
             task.Property(t => t.State).IsRequired().HasMaxLength(32);
             task.Property(t => t.Branch).IsRequired().HasMaxLength(80);
+
+            // The time in running is kept by a trigger the migration creates, where the state changes (NFR-5).
+            task.Property(t => t.RunningMillis).HasDefaultValue(0L);
             task.HasIndex(t => new { t.RepositoryId, t.IssueNumber }).IsUnique();
 
             // At most one Task runs in the whole installation (FR-14, AD-1): the database refuses a second.
@@ -211,6 +214,7 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             step.Property(s => s.Outcome).HasMaxLength(16);
             step.Property(s => s.TipBefore).IsRequired().HasMaxLength(40);
             step.Property(s => s.TipAfter).HasMaxLength(40);
+            step.Property(s => s.Attempt).HasDefaultValue(1);
             step.HasIndex(s => new { s.TaskId, s.Sequence }).IsUnique();
         });
 

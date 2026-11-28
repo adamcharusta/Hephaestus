@@ -28,6 +28,9 @@ internal sealed class ScriptedGitHub : ICodeHost, IRepositoryMirrors, ITaskBranc
 
     public List<IReadOnlyList<string>> LabelHistory { get; } = [];
 
+    /// <summary>The comments posted on issues, as the text that was posted.</summary>
+    public List<(int Issue, string Text)> Comments { get; } = [];
+
     public void Opted(long repository, int issue) => _labels[(repository, issue)] = ["hephaestus"];
 
     public IReadOnlyList<string> LabelsOf(long repository, int issue)
@@ -69,7 +72,15 @@ internal sealed class ScriptedGitHub : ICodeHost, IRepositoryMirrors, ITaskBranc
 
     public Task<GitHubCommentResult> FindIssueCommentAsync(long repositoryId, int issueNumber, string idempotencyKey, CancellationToken cancellationToken) => Task.FromResult(GitHubCommentResult.Absent);
 
-    public Task<GitHubCommentResult> PostIssueCommentAsync(long repositoryId, int issueNumber, string text, string idempotencyKey, CancellationToken cancellationToken) => Task.FromResult(GitHubCommentResult.Present(1));
+    public Task<GitHubCommentResult> PostIssueCommentAsync(long repositoryId, int issueNumber, string text, string idempotencyKey, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+        {
+            Comments.Add((issueNumber, text));
+        }
+
+        return Task.FromResult(GitHubCommentResult.Present(1));
+    }
 
     public Task<GitHubIdentityResult> ConnectIdentityAsync(long appId, string privateKey, CancellationToken cancellationToken) => throw new NotSupportedException();
 

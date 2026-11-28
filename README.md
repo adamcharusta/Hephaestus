@@ -172,6 +172,7 @@ docker exec hephaestus hephaestus setting list
 docker exec hephaestus hephaestus setting set language pl
 docker exec hephaestus hephaestus setting set pollingInterval 120                                 # how often GitHub is polled, in seconds
 docker exec hephaestus hephaestus setting set effectRetries 8                                     # how often a change on GitHub is tried again, 0 to 20
+docker exec hephaestus hephaestus setting set stepRetries 3                                       # how often a failed step is attempted again, 0 to 10; the default is 2
 docker exec hephaestus hephaestus config show                                                     # all of it; secrets by name only
 ```
 
@@ -247,8 +248,15 @@ Each command appends a Signal, prints its id, waits up to ten seconds to see whe
 
 When a Task starts, Hephaestus reads `hephaestus.yml` from the Base Branch once, checks it as `project check` does, and keeps it with the commit it was read at and the image it resolved to, with its digest: every later step of that Task uses what was kept, even if the file changes. The Primary Agent your Project
 names then implements the Task on a fresh checkout, its work is kept as one commit and pushed to the Task branch, each Validation command runs on the pushed tip, and when all pass the pull request is opened and the Task is `pull-request-open`. A Task that cannot be started because its file is missing or invalid, or because its
-Agent is not signed in or has no capacity, stays `queued` and the log says why; a step that fails, a Validation command that does not pass, or an Agent that changes nothing ends the Task as `failed` with its work on its branch, until bounded retries and a comment on the issue arrive ([`docs/dispatch.md`](docs/dispatch.md),
+Agent is not signed in or has no capacity, stays `queued` and the log says why ([`docs/dispatch.md`](docs/dispatch.md),
 [ADR-0030](docs/adr/0030-start-a-project-on-demand-and-drive-a-task-from-its-records.md)).
+
+### When a step fails
+
+Every step that fails is recorded with exactly one class: `usage-limit`, `timeout`, `agent-error`, `validation-failure`, `infrastructure-error`, `cancelled`, or `unknown`; what Hephaestus cannot positively identify is `unknown`, and in this release a real usage limit is `unknown` too. A step that fails as a `timeout`, an `agent-error`, an
+`infrastructure-error`, or `unknown` is attempted again, as a new step run on a fresh checkout of the last pushed tip, up to `stepRetries` times (two by default); the work it left is pushed to the Task branch first. A failed Validation command is not attempted again. A step is stopped no later than the moment the Task's time in `running` reaches the Project's `taskDuration`,
+held to your `limit`, and the Task then ends without another attempt. When a bound is spent the Task is `failed`, the issue shows `hephaestus:failed`, and one comment says which class ended it, which step or command failed, how many attempts were made, and which branch holds the work. A Trusted User who applies the `hephaestus` label to the issue again returns the same Task to the Queue, and it
+continues on the same branch once its Project's window is open ([`docs/failures.md`](docs/failures.md), [ADR-0031](docs/adr/0031-classify-every-failure-and-bound-every-retry.md)).
 
 ### When Hephaestus needs a decision
 

@@ -66,6 +66,9 @@ public static class TaskLifecycle
     /// <summary>The state a Trusted User's answer on the issue takes a Task in <paramref name="state"/> to, or null when it takes it nowhere (FR-49).</summary>
     public static TaskState? AfterAnswer(TaskState state) => state == TaskState.WaitingForOwner ? TaskState.Queued : null;
 
+    /// <summary>The state a Trusted User's applying the Marker Label again takes a Task in <paramref name="state"/> to, or null when it takes it nowhere: a <c>Failed</c> Task returns to the Queue as the same Task (AD-2).</summary>
+    public static TaskState? AfterMarkerApplied(TaskState state) => state == TaskState.Failed ? TaskState.Queued : null;
+
     /// <summary>The state a Trusted User's removal of the Marker Label takes a Task in <paramref name="state"/> to, or null when it takes it nowhere.</summary>
     public static TaskState? AfterMarkerRemoved(TaskState state) => state == TaskState.WaitingForOwner ? TaskState.Cancelled : null;
 

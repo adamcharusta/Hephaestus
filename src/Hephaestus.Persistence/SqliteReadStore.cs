@@ -178,7 +178,8 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         entry.Failure,
         entry.Outcome,
         entry.Result,
-        entry.TipAfter);
+        entry.TipAfter,
+        entry.Attempt);
 
     private static StepKind StepKindOf(string tag, Guid id) =>
         Enum.GetValues<StepKind>().Cast<StepKind?>().FirstOrDefault(kind => kind!.Value.Tag() == tag) ?? throw new InvalidOperationException($"The stored step run {id} has the unknown kind '{tag}'.");
@@ -289,7 +290,9 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         TaskStates.TryParse(entry.State, out var state) ? state : throw new InvalidOperationException($"The stored Task {entry.Id} has the unknown state '{entry.State}'."),
         entry.Branch,
         entry.CreatedAt,
-        entry.UpdatedAt);
+        entry.UpdatedAt,
+        TimeSpan.FromMilliseconds(entry.RunningMillis),
+        entry.RunningSince);
 
     internal static Project ToProject(ProjectEntry entry) => new(entry.RepositoryId, entry.FullName, entry.BaseBranch, entry.RegisteredAt, entry.RemovedAt);
 

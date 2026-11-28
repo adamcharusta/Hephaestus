@@ -17,6 +17,7 @@ public static class InstallationSettings
     public const string LanguageName = "language";
     public const string PollingIntervalName = "pollingInterval";
     public const string EffectRetriesName = "effectRetries";
+    public const string StepRetriesName = "stepRetries";
 
     /// <summary>The polling cycle in seconds (AD-1): how often each registered Project is asked for what happened on GitHub.</summary>
     public const int DefaultPollingIntervalSeconds = 60;
@@ -27,6 +28,11 @@ public static class InstallationSettings
     public const int DefaultEffectRetries = 5;
     public const int MinimumEffectRetries = 0;
     public const int MaximumEffectRetries = 20;
+
+    /// <summary>How many times a step that failed in a class that spends the step retry bound is attempted again, for each step, before the Task fails (AD-11, NFR-10).</summary>
+    public const int DefaultStepRetries = 2;
+    public const int MinimumStepRetries = 0;
+    public const int MaximumStepRetries = 10;
 
     public static SettingDefinition Language { get; } = new(
         LanguageName,
@@ -54,8 +60,18 @@ public static class InstallationSettings
         $"{MinimumEffectRetries}-{MaximumEffectRetries}",
         text => TryParseEffectRetries(text, out var retries) ? retries.ToString(CultureInfo.InvariantCulture) : null);
 
+    /// <summary>
+    /// How many times a step is attempted again after a <c>timeout</c>, an <c>agent-error</c>, an <c>infrastructure-error</c>, or an <c>unknown</c> failure, each on a fresh checkout of the last pushed tip, before the Task fails. 0 fails the Task at the
+    /// first such failure. A failed Validation, and the time of the Task, are bounded by their own limits and never spend it.
+    /// </summary>
+    public static SettingDefinition StepRetries { get; } = new(
+        StepRetriesName,
+        DefaultStepRetries.ToString(CultureInfo.InvariantCulture),
+        $"{MinimumStepRetries}-{MaximumStepRetries}",
+        text => TryParseStepRetries(text, out var retries) ? retries.ToString(CultureInfo.InvariantCulture) : null);
+
     /// <summary>Every setting, in the order the Owner sees them.</summary>
-    public static IReadOnlyList<SettingDefinition> All { get; } = [Language, PollingInterval, EffectRetries];
+    public static IReadOnlyList<SettingDefinition> All { get; } = [Language, PollingInterval, EffectRetries, StepRetries];
 
     public static SettingDefinition? Find(string? name) => All.FirstOrDefault(setting => setting.Name == name);
 
@@ -70,6 +86,19 @@ public static class InstallationSettings
     /// <summary>The bound of retries of an effect now: the stored value, or the default when none was stored or the stored one is no value of the setting.</summary>
     public static int EffectRetriesFrom(IReadOnlyDictionary<string, string> stored) =>
         stored.TryGetValue(EffectRetriesName, out var text) && TryParseEffectRetries(text, out var retries) ? retries : DefaultEffectRetries;
+
+    /// <summary>The bound of attempts again at a step now: the stored value, or the default when none was stored or the stored one is no value of the setting.</summary>
+    public static int StepRetriesFrom(IReadOnlyDictionary<string, string> stored) =>
+        stored.TryGetValue(StepRetriesName, out var text) && TryParseStepRetries(text, out var retries) ? retries : DefaultStepRetries;
+
+    private static bool TryParseStepRetries(string? text, out int retries)
+    {
+        retries = 0;
+        return text is { Length: > 0 and <= 2 }
+            && text.All(character => character is >= '0' and <= '9')
+            && int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out retries)
+            && retries is >= MinimumStepRetries and <= MaximumStepRetries;
+    }
 
     private static bool TryParseEffectRetries(string? text, out int retries)
     {

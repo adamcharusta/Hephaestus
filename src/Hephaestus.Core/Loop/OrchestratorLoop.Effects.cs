@@ -1,5 +1,6 @@
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
+using Hephaestus.Core.Failures;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
@@ -172,12 +173,17 @@ public sealed partial class OrchestratorLoop
         return true;
     }
 
-    /// <summary>The sentence of a comment: an Escalation's, or what Hephaestus ignored; null when the intent is of no kind this version knows.</summary>
+    /// <summary>The sentence of a comment: an Escalation's, a failed Task's, or what Hephaestus ignored; null when the intent is of no kind this version knows.</summary>
     private async Task<string?> CommentTextAsync(Effect effect, Language language, CancellationToken cancellationToken)
     {
         if (EscalationPath.TryParseDetail(effect.Detail, out var escalationId))
         {
             return await reads.FindEscalationAsync(escalationId, cancellationToken) is { } escalation ? EscalationComment.Compose(escalation, language) : null;
+        }
+
+        if (TaskFailureNotice.TryWrite(effect, language, out var failure))
+        {
+            return failure;
         }
 
         return IssueNotices.TryWrite(effect.Detail, language, out var text) ? text : null;

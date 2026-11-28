@@ -44,4 +44,11 @@ public static class FailureClasses
         failure = default;
         return false;
     }
+
+    /// <summary>
+    /// Whether a step run that failed in this class is attempted again: <c>timeout</c>, <c>agent-error</c>, <c>infrastructure-error</c>, and <c>unknown</c> spend the step retry bound (AD-11, NFR-10). A failed Validation spends
+    /// a round of the Correction Loop, which this release does not have, and a usage limit and a cancel spend neither bound.
+    /// </summary>
+    public static bool SpendsStepRetry(this FailureClass failure) =>
+        failure is FailureClass.Timeout or FailureClass.AgentError or FailureClass.InfrastructureError or FailureClass.Unknown;
 }

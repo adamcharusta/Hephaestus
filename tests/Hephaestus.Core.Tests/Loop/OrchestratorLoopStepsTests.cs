@@ -162,20 +162,22 @@ public class OrchestratorLoopStepsTests
     [InlineData(0, StepExitCause.Timeout, "timeout")]
     [InlineData(0, StepExitCause.OutOfMemory, "infrastructure-error")]
     [InlineData(0, StepExitCause.Lost, "infrastructure-error")]
-    public async Task A_step_that_does_not_end_well_ends_the_Task_with_the_class_the_runtime_and_the_adapter_name_and_keeps_its_branch_unpushed(int exitCode, StepExitCause cause, string failure)
+    public async Task A_step_that_does_not_end_well_and_has_no_retry_left_ends_the_Task_with_the_class_the_runtime_and_the_adapter_name_and_its_work_is_on_the_branch(int exitCode, StepExitCause cause, string failure)
     {
         var rig = new RunRig();
+        rig.NoRetries();
         await rig.QueueAsync();
         await rig.StartAsync();
         await rig.TickAsync();
 
         await rig.ExitAsync(rig.LastStep().Id, exitCode, cause, RunRig.Completed());
-        await rig.TickAsync();
+        await rig.TickAsync(2);
 
         var step = rig.LastStep();
-        Assert.Equal((TaskState.Failed, StepRunStatus.Ended, failure), (rig.Task().State, step.Status, step.Failure));
-        Assert.Empty(rig.Runtime.Checkpoints);
-        Assert.Empty(rig.Branches.Pushes);
+        Assert.Equal((TaskState.Failed, StepRunStatus.Concluded, failure, rig.Runtime.NextTip), (rig.Task().State, step.Status, step.Failure, step.TipAfter));
+        Assert.Single(rig.Runtime.Checkpoints);
+        Assert.Equal(rig.Runtime.NextTip, Assert.Single(rig.Branches.Pushes).Request.Bundle.Tip);
+        Assert.Empty(rig.Runtime.Validations);
     }
 
     [Fact]
@@ -203,15 +205,17 @@ public class OrchestratorLoopStepsTests
     public async Task A_result_that_is_missing_or_not_whole_is_an_agent_error_and_is_never_interpreted(string? result)
     {
         var rig = new RunRig();
+        rig.NoRetries();
         await rig.QueueAsync();
         await rig.StartAsync();
         await rig.TickAsync();
 
         await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, result is null ? ["no result here"] : ["RESULT:" + result]);
-        await rig.TickAsync();
+        await rig.TickAsync(2);
 
         Assert.Equal((TaskState.Failed, "agent-error", null), (rig.Task().State, rig.LastStep().Failure, rig.LastStep().Outcome));
-        Assert.Empty(rig.Runtime.Checkpoints);
+        Assert.Empty(rig.Runtime.Validations);
+        Assert.Empty(rig.Pulls.Publications);
     }
 
     [Fact]
@@ -234,9 +238,10 @@ public class OrchestratorLoopStepsTests
     }
 
     [Fact]
-    public async Task A_tree_the_Agent_left_as_it_found_it_with_nothing_pushed_ends_the_Task_and_runs_no_Validation()
+    public async Task A_tree_the_Agent_left_as_it_found_it_with_nothing_pushed_ends_the_Task_says_so_on_the_issue_and_runs_no_Validation()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         rig.Runtime.Unchanged = true;
 
         await rig.ImplementAsync();
@@ -247,12 +252,29 @@ public class OrchestratorLoopStepsTests
         Assert.Empty(rig.Runtime.Validations);
         Assert.Empty(rig.Pulls.Publications);
         Assert.Empty(rig.Branches.Pushes);
+        Assert.Contains("hephaestus:failed", rig.Stores.Github.LabelsOf(RunRig.RepositoryId, RunRig.Issue));
+        var comment = Assert.Single(rig.Stores.Github.Comments).Text;
+        Assert.Contains("**Failed:** `agent-error` in `implementation`.", comment, StringComparison.Ordinal);
+        Assert.Contains("Attempts: 1. The Agent made no changes, so there is nothing to publish.", comment, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task A_tree_the_Agent_left_as_it_found_it_is_not_attempted_again_whatever_the_bound_is()
+    {
+        var rig = new RunRig();
+        rig.Runtime.Unchanged = true;
+
+        await rig.ImplementAsync();
+        await rig.TickAsync(2);
+
+        Assert.Equal((TaskState.Failed, 1), (rig.Task().State, rig.Steps().Count));
     }
 
     [Fact]
     public async Task A_runtime_that_cannot_make_the_checkout_ends_the_step_and_the_Task_instead_of_leaving_the_slot_held()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         rig.Runtime.Throws[nameof(FakeRuntime.CheckoutAsync)] = new WorkspaceRuntimeException(new Hephaestus.Core.Localization.Message("workspace.probe.docker"));
         await rig.QueueAsync();
         await rig.StartAsync();
@@ -260,7 +282,7 @@ public class OrchestratorLoopStepsTests
         var report = await rig.TickAsync();
 
         var step = rig.LastStep();
-        Assert.Equal((TaskState.Failed, StepRunStatus.Ended, "infrastructure-error"), (rig.Task().State, step.Status, step.Failure));
+        Assert.Equal((TaskState.Failed, StepRunStatus.Concluded, "infrastructure-error"), (rig.Task().State, step.Status, step.Failure));
         Assert.Empty(rig.Runtime.Steps);
         Assert.Contains(report.TaskProblems!, line => line.Contains("infrastructure-error", StringComparison.Ordinal));
     }
@@ -271,6 +293,7 @@ public class OrchestratorLoopStepsTests
     public async Task A_commit_that_cannot_be_bundled_ends_the_step_as_an_infrastructure_error(MirrorFailure failure, bool bundle)
     {
         var rig = new RunRig();
+        rig.NoRetries();
         if (bundle)
         {
             rig.Mirrors.BundleFails = failure;
@@ -322,6 +345,7 @@ public class OrchestratorLoopStepsTests
     public async Task A_branch_that_cannot_be_read_ends_the_step_as_an_infrastructure_error()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         rig.Branches.Check = BranchCheckResult.Unavailable(MirrorFailure.Unreachable);
         await rig.QueueAsync();
         await rig.StartAsync();
@@ -358,6 +382,7 @@ public class OrchestratorLoopStepsTests
     public async Task A_command_that_the_runtime_stopped_or_lost_ends_the_Task_with_the_class_of_the_runtimes_cause(StepExitCause cause, string failure, string outcome)
     {
         var rig = new RunRig();
+        rig.NoRetries();
         await rig.ImplementAsync();
         await rig.TickAsync();
 
@@ -411,6 +436,7 @@ public class OrchestratorLoopStepsTests
     public async Task A_stored_stream_that_cannot_be_read_is_an_agent_error_and_not_a_Signal_that_fails_to_apply()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         rig.Adapter.ParseThrows = new InvalidDataException("not what the CLI prints");
         await rig.QueueAsync();
         await rig.StartAsync();
@@ -418,6 +444,7 @@ public class OrchestratorLoopStepsTests
 
         await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, RunRig.Completed());
         var report = await rig.TickAsync();
+        await rig.TickAsync();
 
         Assert.Null(report.Failure);
         Assert.Equal((TaskState.Failed, "agent-error"), (rig.Task().State, rig.LastStep().Failure));
@@ -427,6 +454,7 @@ public class OrchestratorLoopStepsTests
     public async Task A_result_that_asks_for_a_decision_and_cannot_be_read_back_ends_the_Task_instead_of_holding_the_slot_in_silence()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         await rig.QueueAsync();
         await rig.StartAsync();
         await rig.TickAsync();
@@ -439,26 +467,53 @@ public class OrchestratorLoopStepsTests
     }
 
     [Fact]
-    public async Task A_checkpoint_the_runtime_cannot_make_ends_the_Task_and_the_step_that_ended_well_is_concluded_with_the_failure()
+    public async Task A_checkpoint_the_runtime_cannot_make_is_tried_again_by_each_tick_and_then_ends_the_Task_and_the_step_that_ended_well_is_concluded_with_the_failure()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         rig.Runtime.Throws[nameof(FakeRuntime.CheckpointAsync)] = new WorkspaceRuntimeException(new Hephaestus.Core.Localization.Message("workspace.probe.docker"));
         await rig.QueueAsync();
         await rig.StartAsync();
         await rig.TickAsync();
 
         await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, RunRig.Completed());
+        for (var attempt = 1; attempt < Hephaestus.Core.Loop.OrchestratorLoop.MaximumStartAttempts; attempt++)
+        {
+            await rig.TickAsync();
+            Assert.Equal((TaskState.Running, StepRunStatus.Ended), (rig.Task().State, rig.LastStep().Status));
+        }
+
         await rig.TickAsync();
 
         var step = rig.LastStep();
         Assert.Equal((TaskState.Failed, StepRunStatus.Concluded, "infrastructure-error", "completed"), (rig.Task().State, step.Status, step.Failure, step.Outcome));
+        Assert.Equal(Hephaestus.Core.Loop.OrchestratorLoop.MaximumStartAttempts, rig.Runtime.Checkpoints.Count);
         Assert.Empty(rig.Branches.Pushes);
+    }
+
+    [Fact]
+    public async Task A_checkpoint_the_runtime_could_not_make_for_a_moment_is_made_by_the_next_tick_and_the_work_goes_on_to_Validation()
+    {
+        var rig = new RunRig();
+        rig.Runtime.Throws[nameof(FakeRuntime.CheckpointAsync)] = new WorkspaceRuntimeException(new Hephaestus.Core.Localization.Message("workspace.probe.docker"));
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+        await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, RunRig.Completed());
+        await rig.TickAsync();
+
+        rig.Runtime.Throws.Clear();
+        await rig.TickAsync(3);
+
+        Assert.Equal((TaskState.Running, StepKind.Validation, 1), (rig.Task().State, rig.LastStep().Kind, rig.Steps().Count(step => step.Kind == StepKind.Implementation)));
+        Assert.Single(rig.Branches.Pushes);
     }
 
     [Fact]
     public async Task A_step_that_cannot_be_started_tick_after_tick_ends_as_an_infrastructure_error_at_the_bound()
     {
         var rig = new RunRig();
+        rig.NoRetries();
         rig.Runtime.Throws[nameof(FakeRuntime.StartStepAsync)] = new IOException("the Docker socket is gone");
         await rig.QueueAsync();
         await rig.StartAsync();

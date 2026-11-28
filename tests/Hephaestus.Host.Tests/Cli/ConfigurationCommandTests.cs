@@ -184,13 +184,27 @@ public class ConfigurationCommandTests
     }
 
     [Fact]
-    public async Task Settings_list_the_language_the_polling_interval_and_the_effect_retries_with_their_defaults_and_a_new_installation_is_in_English()
+    public async Task Settings_list_the_language_the_polling_interval_and_the_retries_with_their_defaults_and_a_new_installation_is_in_English()
     {
         await using var host = await RunningHost.StartAsync();
 
         var list = await RunAsync(host, "setting", "list");
 
-        Assert.Equal($"Setting          Value  Default{Nl}language         en     en{Nl}pollingInterval  60     60{Nl}effectRetries    5      5{Nl}", list.Output);
+        Assert.Equal($"Setting          Value  Default{Nl}language         en     en{Nl}pollingInterval  60     60{Nl}effectRetries    5      5{Nl}stepRetries      2      2{Nl}", list.Output);
+    }
+
+    [Fact]
+    public async Task The_bound_of_attempts_again_at_a_step_is_set_by_name_within_its_range_and_listed_with_its_default()
+    {
+        await using var host = await RunningHost.StartAsync();
+
+        var set = await RunAsync(host, "setting", "set", "stepRetries", "4");
+        var tooMany = await RunAsync(host, "setting", "set", "stepRetries", "11");
+        var list = await RunAsync(host, "setting", "list");
+
+        Assert.Equal($"Set stepRetries to 4.{Nl}", set.Output);
+        Assert.Equal(1, tooMany.ExitCode);
+        Assert.Contains($"stepRetries      4      2{Nl}", list.Output, StringComparison.Ordinal);
     }
 
     [Fact]

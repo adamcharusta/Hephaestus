@@ -150,7 +150,7 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         if (application.MoveTaskTo is { } to)
         {
             var moved = Tasks.FindIndex(t => t.Id == application.TaskId);
-            Tasks[moved] = Tasks[moved] with { State = to, UpdatedAt = TimeProvider.GetUtcNow() };
+            Tasks[moved] = Moved(Tasks[moved], to);
         }
 
         if (application.EndEscalation is { } outcome)
@@ -202,7 +202,7 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             return false;
         }
 
-        Tasks[index] = Tasks[index] with { State = plan.To, UpdatedAt = TimeProvider.GetUtcNow() };
+        Tasks[index] = Moved(Tasks[index], plan.To);
         Escalations.Add(plan.Escalation);
         AppendIntents(plan.Effects);
         return true;
@@ -243,7 +243,7 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         // The rule of the real unit of work: the move is made only while the Task is in the state it leaves, and its intents with it.
         if (recording.Move is { } move && Tasks.FindIndex(t => t.Id == recording.Effect.TaskId && t.State == move.From) is var index and >= 0)
         {
-            Tasks[index] = Tasks[index] with { State = move.To, UpdatedAt = TimeProvider.GetUtcNow() };
+            Tasks[index] = Moved(Tasks[index], move.To);
             AppendIntents(move.Effects);
         }
 
@@ -325,6 +325,14 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         return Task.FromResult((long)Signals.Count);
     }
 
+    /// <summary>The rule of the trigger of the real database: leaving <c>running</c> adds the time since the Task entered it, entering it starts a stretch, and a <c>failed</c> Task that moves on begins with no time.</summary>
+    private TaskRecord Moved(TaskRecord task, TaskState to)
+    {
+        var now = TimeProvider.GetUtcNow();
+        var time = task.State == TaskState.Failed ? TimeSpan.Zero : task.State == TaskState.Running && task.RunningSince is { } since ? task.RunningTime + (now - since) : task.RunningTime;
+        return task with { State = to, UpdatedAt = now, RunningTime = time, RunningSince = to == TaskState.Running ? now : null };
+    }
+
     /// <summary>The rule of the real unit of work: the Task moves to Running only from Queued, and only while no Task is Running; its snapshot is kept, its first step run planned, and the intents journaled.</summary>
     public Task<bool> DispatchAsync(TaskDispatch dispatch, CancellationToken cancellationToken)
     {
@@ -334,7 +342,7 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             return Task.FromResult(false);
         }
 
-        Tasks[index] = Tasks[index] with { State = TaskState.Running, UpdatedAt = TimeProvider.GetUtcNow() };
+        Tasks[index] = Moved(Tasks[index], TaskState.Running);
         if (dispatch.Snapshot is { } snapshot)
         {
             TaskSnapshots[snapshot.TaskId] = snapshot;
@@ -371,7 +379,8 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         Effort: run.Effort,
         Methodology: run.Methodology,
         Template: run.Template,
-        CommandIndex: run.CommandIndex));
+        CommandIndex: run.CommandIndex,
+        Attempt: run.Attempt));
 
     public Task<bool> ChangeStepRunAsync(StepRunChange change, CancellationToken cancellationToken) => Task.FromResult(Change(change));
 
@@ -403,11 +412,16 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
         StepRuns[index] = run;
         if (change.Move is { } move && Tasks.FindIndex(t => t.Id == run.TaskId && t.State == move.From) is var moved and >= 0)
         {
-            Tasks[moved] = Tasks[moved] with { State = move.To, UpdatedAt = TimeProvider.GetUtcNow() };
+            Tasks[moved] = Moved(Tasks[moved], move.To);
             AppendIntents(move.Effects);
         }
 
         AppendIntents(change.Effects);
+        if (change.Retry is { } retry && Tasks.Any(t => t.Id == run.TaskId && t.State == TaskState.Running))
+        {
+            Plan(retry);
+        }
+
         return true;
     }
 

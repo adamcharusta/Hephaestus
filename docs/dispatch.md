@@ -50,11 +50,11 @@ Before every step the Task branch is fetched, as the gateway's checks need (ADR-
 
 A step run is `planned`, `started`, `ended`, `checkpointed`, or `concluded`; it records the Agent, Model, and Effort that performed it, the Methodology and template, the tips before and after, how its container ended, and the class of its failure.
 
-What does not end well ends the Task as `failed`, with its label, and keeps its branch: an Agent's step that exits with an error, runs past its deadline, runs out of memory, or returns no result or one that is not whole (`agent-error`); a Validation command that does not pass; a tree the Agent left as it found
-it, with nothing pushed earlier; and a step that could not be carried out because the runtime could not make the checkout, or the mirror could not bundle the commit (`infrastructure-error`). Classes, retries, and the comment on the issue are Stories 3.15 and 3.16; until them, a failed Task is opted in again by a Trusted User and continues on its branch.
+A step that does not end well is classified and, in the classes that spend the step retry bound, attempted again; when a bound is spent the Task ends as `failed`, with its label and a comment on its issue, and keeps its branch ([`failures.md`](failures.md), Story 3.16). A tree the Agent left as it found
+it, with nothing pushed earlier, ends the Task at once: there is nothing to publish.
 A result that needs a decision raises an Escalation with the question and its options (one question is the decision with its options; several are one numbered decision with none), and the Task continues from your reply as a new step.
 
 ## What is not here yet
 
-Recovery of a step whose container was lost with the host (Story 3.17), the refusal comments and the `Queued` Task that already has a step run and is dispatched with no window (Story 3.15), the retry and Task-duration bounds (Story 3.16), Review and Correction (Epic 4),
-Schedules and the other windows (Epic 6), and cancel (Epic 9).
+Recovery of a step whose container was lost with the host (Story 3.17), the refusal comments and the `Queued` Task that already has a step run and is dispatched with no window (Story 3.15), Review and Correction (Epic 4),
+Schedules and the other windows (Epic 6), and cancel (Epic 9). Until Story 3.15, a Task that returns to `queued`, after an answer or because a Trusted User opted a failed Task in again, is dispatched only while its Project has a window open.

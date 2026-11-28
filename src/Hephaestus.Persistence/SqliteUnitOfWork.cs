@@ -248,6 +248,7 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
         Template = run.Template,
         CommandIndex = run.CommandIndex,
         TipBefore = run.TipBefore,
+        Attempt = run.Attempt,
     };
 
     /// <summary>
@@ -303,6 +304,16 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
         if (change.Effects is { Count: > 0 } effects)
         {
             await AppendIntentsAsync(context, effects, at, cancellationToken);
+        }
+
+        if (change.Retry is { } retry)
+        {
+            // The step is attempted again only while the Task still runs: a Task that an Escalation or an answer has taken out of Running is not given a step nobody asked for.
+            var running = Core.Tasks.TaskStates.Tag(Core.Tasks.TaskState.Running);
+            if (await context.Tasks.AsNoTracking().AnyAsync(t => t.Id == taskId && t.State == running, cancellationToken))
+            {
+                context.StepRuns.Add(await NewEntryAsync(context, retry, cancellationToken));
+            }
         }
 
         return true;
