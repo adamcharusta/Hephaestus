@@ -16,6 +16,7 @@ namespace Hephaestus.Core.Workspaces;
 /// <param name="AllowedEgressHosts">The host names the step container may reach through the egress proxy, or null for any public host (AD-7); <see cref="EgressPolicy.AllowedHosts"/> makes it from the Project's list and the invocation's. Either way the address of a private network is refused.</param>
 /// <param name="Deadline">When the runtime stops the container if it still runs (FR-19, AD-18). The loop records it on the step run before it asks for the container, so a restart knows it too; the runtime alone acts on it.</param>
 /// <param name="SecretReferences">The secrets of the invocation that this container runs, which are the credential of the Agent performing the step and nothing else (FR-18); null for a container that runs no invocation. Only an environment variable can be the target.</param>
+/// <param name="IsValidation">Whether the container runs a Validation command (AD-6, AD-13): it mounts the Task volume and nothing else of a step, so it has no context, Methodology, Agent CLI, or secret, and a request that holds one is refused.</param>
 public sealed record StepContainerRequest(
     Guid TaskId,
     Guid StepRunId,
@@ -27,7 +28,8 @@ public sealed record StepContainerRequest(
     IReadOnlyList<WorkspaceFile> Methodology,
     DateTimeOffset Deadline,
     IReadOnlyList<string>? AllowedEgressHosts,
-    IReadOnlyList<SecretReference>? SecretReferences = null);
+    IReadOnlyList<SecretReference>? SecretReferences = null,
+    bool IsValidation = false);
 
 /// <summary>A step container that exists: its id and name, and whether this call made it (false when a restart found it already made).</summary>
 public sealed record StartedStep(string ContainerId, string Name, bool Created);

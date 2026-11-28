@@ -78,7 +78,12 @@ public sealed partial class DockerWorkspaceRuntime(IDockerClient docker, Workspa
         await EnsureNetworkAsync(options.OutboundNetwork, isInternal: false, WorkspaceLabels.For(options.InstallationId, null, null, idempotencyKey), cancellationToken);
         await EnsureNetworkAsync(WorkspaceLabels.StepNetwork(request.StepRunId), isInternal: true, WorkspaceLabels.For(options.InstallationId, TaskLabel(request), request.StepRunId, idempotencyKey), cancellationToken);
         await StartEgressProxyAsync(request, idempotencyKey, cancellationToken);
-        await PlaceFilesAsync(request, idempotencyKey, cancellationToken);
+
+        // A Validation command is given no context and no Methodology (AD-6), so there are no volumes of them to make.
+        if (!request.IsValidation)
+        {
+            await PlaceFilesAsync(request, idempotencyKey, cancellationToken);
+        }
 
         string id;
         try

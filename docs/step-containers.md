@@ -154,6 +154,37 @@ HTTPS. These replace any variable of the same name an invocation sets. Nothing s
 **Refused hosts are recorded.** When the step ends, the runtime reads the proxy's log and carries the refused hosts on the step-exited Signal (`refusedHosts`), before the proxy and the network are removed. A
 host an Agent's CLI needs that its adapter does not declare therefore shows up there, not as an obscure failure.
 
+## Validation (AD-6, AD-13, FR-31, Story 3.12)
+
+Whether work is acceptable is decided by the exit status of the Project's `validation` commands and by the Reviewer's Findings, and by nothing an Agent reported ([ADR-0028](adr/0028-validation-decided-by-exit-status.md)). The call is `IWorkspaceRuntime.StartValidationAsync`; the sequence of
+commands and the decision are `ValidationRun` in Core. Nothing calls them in a Task's life yet: the loop does that in Story 3.14.
+
+**One container for each command.** A command is `bash -c "<command>"` as the container's entry point, in the image the Task started with (`name@sha256:...`), as user `10001:10001` with the same hardening as any step container. It is its own container run with its own step run id, so it has one output file, a name
+of its own, and its own step-exited Signal, and the runtime stops it at its own deadline. The deadline is the Task duration the Project asks for within the installation's, never more than 30 minutes (`ValidationRun.CommandLimit`).
+
+**A fresh checkout first.** `StartValidationAsync` makes `/workspace` again from the bundle of the pushed tip, exactly as before any step ([above](#the-checkout-before-every-step-ad-6-ad-9-story-35)), and only then starts the command, so that a command never sees what an earlier command or step left in the tree.
+When a restart finds the command's container, the tree is not made again beneath it.
+
+**What it has and has not.**
+
+| | Validation container | Agent step container |
+| --- | --- | --- |
+| Mounts | the Task volume, read-write, and the `HOME` tmpfs | the Task volume, the context, the Methodology, the Agent CLIs, and the `HOME` tmpfs |
+| Credential | none | the credential of the Agent performing the step |
+| Egress | the Project's `allowedEgressHosts` alone | the Project's list plus the hosts of the Agent's invocation |
+| Environment | the proxy variables, git's rewrite, and `HOME` | the invocation's, besides those |
+
+A request for a Validation container that holds a context file, a Methodology file, or a secret is refused before anything is created.
+
+**Deciding.** `ValidationCommandResult.Ended` takes the exit status and the cause the runtime saw. Validation passes only if every command exited with status 0 (`passed`). A command that exits with another status ends it as `validation-failure`
+and the commands after it are recorded as `not-run`. A command the runtime stopped at its deadline ends it as `timeout`, whatever status the stop gave it, and its output so far is kept. A command whose container was killed for using more memory, or was gone when the runtime
+looked, ends it as `infrastructure-error` (AD-11): no exit status of the command is known, so it is neither a pass nor a failure of the Project's code. The first three are the classes `validation-failure`, `timeout`, and `infrastructure-error` of a failed step run.
+
+**What is recorded.** For each command: its position, the command, its status (`passed`, `failed`, `timeout`, `interrupted`, or `not-run`), its exit status, its duration, and the step run whose output file holds what it printed (masked, as every container's output is). `ValidationRun.ToJson` writes it as `validation.json`, which a later step's
+context carries ([Methodologies](methodologies.md)); there is no table for step runs yet (Story 3.14), so until then the results are what the caller keeps.
+
+**Nothing is kept.** Validation is not a step kind that is checkpointed: no `CheckpointRequest` is made for it, so what a command wrote, built, or installed in the tree is not a commit and is not pushed. The tree is made anew by the next checkout.
+
 ## The Docker socket in Compose
 
 `deploy/compose.yaml` mounts `/var/run/docker.sock` into the `hephaestus` service. The host runs as a user that is not root, so the service joins the group that owns the socket:

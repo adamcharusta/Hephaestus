@@ -70,6 +70,11 @@ again; only the `hephaestus` container mounts it). The `hephaestus` container ru
 and in a checkout of this repository `docker compose -f deploy/compose.yaml --profile tools build` builds it. The `hephaestus` image is built on Ubuntu 26.04 so that it carries git 2.53. After a step that changes code, a container of the same image keeps the work as one commit on the last pushed commit, without using the repository the Agent worked in, and leaves it as one bundle file. Only the gateway pushes that bundle, to the Task's branch, as a fast-forward and only after it has found no stored secret value in what is new, no change to a protected path, and nothing but the Task branch in the bundle; a branch that someone else pushed to is never pushed to. Nothing starts a step yet, so nothing makes a
 checkout, a checkpoint, or a push yet; the runtime and the gateway do it when asked ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0022](docs/adr/0022-checkout-from-a-bundle.md), [ADR-0024](docs/adr/0024-push-through-the-gateways-checks.md)).
 
+Your Project's own commands decide whether work is acceptable; nothing an Agent says does. Each command in `validation` is run through `bash`, one container each, in the Project's image at the digest recorded when the Task started, on a fresh
+checkout of the pushed commit, with no credential and with the Project's `allowedEgressHosts` alone (an Agent vendor's host is not added). Validation passes only if every command exited with status 0. The first command that does not ends it as a
+`validation-failure`, the commands after it are recorded as not run, and a command still running at its deadline is stopped and ends it as a `timeout` with the output it had printed kept. Each command's exit status, duration, and output are recorded, and what a command
+changed in the tree is thrown away: Validation is never kept as a commit. Nothing starts a step yet, so nothing runs Validation yet ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0028](docs/adr/0028-validation-decided-by-exit-status.md)).
+
 ## Secrets
 
 A credential is handed to Hephaestus on standard input; a value given as an argument is refused. It is stored as a file on the `hephaestus-secrets` volume, which only the `hephaestus` container mounts;

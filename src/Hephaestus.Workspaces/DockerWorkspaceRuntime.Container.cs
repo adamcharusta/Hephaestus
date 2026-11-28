@@ -34,6 +34,11 @@ public sealed partial class DockerWorkspaceRuntime
             throw new ArgumentException("A step needs a processor limit above zero and a memory limit of at least 6 MiB.", nameof(request));
         }
 
+        if (request.IsValidation && (request.Context.Count > 0 || request.Methodology.Count > 0 || request.SecretReferences is { Count: > 0 }))
+        {
+            throw new ArgumentException("A Validation command is given no context, no Methodology, and no secret.", nameof(request));
+        }
+
         // The proxy variables and git's rewrite are the runtime's, and replace any of the same name an invocation or an image sets; HOME likewise (AD-7).
         ValidateHosts(request.AllowedEgressHosts);
         ValidateSecretReferences(request.SecretReferences);
@@ -144,12 +149,18 @@ public sealed partial class DockerWorkspaceRuntime
             : $"{name}={value}";
 
     /// <summary>
-    /// Exactly these, and no other: the Task volume, the context and the Methodology, the build of each Agent CLI that matches the image's C
+    /// Exactly these, and no other, for a step an Agent performs: the Task volume, the context and the Methodology, the build of each Agent CLI that matches the image's C
     /// library together with the CA bundle, and nothing of the host. Every named volume is mounted with <c>volume-nocopy</c>, so that what an image holds at a mount point
     /// can neither enter the volume nor change the owner of its root (AD-6).
     /// </summary>
     private List<Mount> StepMounts(StepContainerRequest request)
     {
+        // A Validation command is the Project's own, run to decide whether work is acceptable: it sees the tree and nothing of Hephaestus, neither what an Agent is told nor an Agent CLI (AD-6, AD-13).
+        if (request.IsValidation)
+        {
+            return [VolumeMount(WorkspaceLabels.TaskVolume(request.TaskId), StepContainerLayout.Workspace, readOnly: false)];
+        }
+
         var mounts = new List<Mount>
         {
             VolumeMount(WorkspaceLabels.TaskVolume(request.TaskId), StepContainerLayout.Workspace, readOnly: false),

@@ -90,6 +90,8 @@ internal sealed class ProbeRuntime : IWorkspaceRuntime
     public Task CheckoutAsync(CheckoutRequest request, string idempotencyKey, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<CheckpointResult> CheckpointAsync(CheckpointRequest request, string idempotencyKey, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<StartedStep> StartValidationAsync(Hephaestus.Core.Validation.ValidationCommandRequest request, string idempotencyKey, CancellationToken cancellationToken) => throw new NotSupportedException();
 }
 
 /// <summary>A secret store that keeps its values in memory and notes every call, so that a test can show what the service stored and that it never read a value back.</summary>
