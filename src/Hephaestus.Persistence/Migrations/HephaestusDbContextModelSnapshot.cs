@@ -197,6 +197,9 @@ namespace Hephaestus.Persistence.Migrations
                     b.Property<int>("Ordinal")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Payload")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("Reason")
                         .HasMaxLength(32)
                         .HasColumnType("TEXT");

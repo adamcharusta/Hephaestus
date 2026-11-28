@@ -208,6 +208,7 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             entry.Property(e => e.Cause).IsRequired().HasMaxLength(32);
             entry.Property(e => e.Kind).IsRequired().HasMaxLength(16);
             entry.Property(e => e.Detail).IsRequired().HasMaxLength(256);
+            entry.Property(e => e.Payload);
             entry.Property(e => e.NoticeKey).HasMaxLength(64);
             entry.Property(e => e.Result).HasMaxLength(16);
             entry.Property(e => e.Reason).HasMaxLength(32);

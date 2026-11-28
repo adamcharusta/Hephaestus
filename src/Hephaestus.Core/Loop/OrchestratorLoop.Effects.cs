@@ -3,6 +3,7 @@ using Hephaestus.Core.Escalations;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.PullRequests;
 using Hephaestus.Core.Settings;
 using Hephaestus.Core.Tasks;
 
@@ -74,6 +75,7 @@ public sealed partial class OrchestratorLoop
             EffectKind.Comment => AttemptCommentAsync(pending, retries, language, run, cancellationToken),
             EffectKind.Notification => AttemptNotificationAsync(pending, run, cancellationToken),
             EffectKind.Push => AttemptPushAsync(pending, retries, run, cancellationToken),
+            EffectKind.PullRequest => AttemptPullRequestAsync(pending, retries, language, run, cancellationToken),
             _ => AttemptLabelAsync(pending, retries, run, cancellationToken),
         };
 
@@ -283,6 +285,58 @@ public sealed partial class OrchestratorLoop
         return true;
     }
 
+    /// <summary>
+    /// Publishes the pull request of a Task (FR-36, AD-5): one from the Task branch to the Base Branch, under Hephaestus's own identity, whose description Core composes from the facts the intent was journaled with. It is an effect of the loop and
+    /// not a step run, so it holds no slot. The gateway looks for the branch's open pull request first, so one opened before a crash and not recorded is found and updated, never opened twice (FR-21), and a Task that is published again after further work
+    /// has the same pull request updated. In the transaction that records the result the Task moves from <c>running</c> to <c>pull-request-open</c> and the intent of its state label is journaled; a Task that is already there only has its pull request
+    /// brought up to date.
+    /// </summary>
+    private async Task<bool> AttemptPullRequestAsync(PendingEffect pending, int retries, Language language, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var (effect, found, failures, _) = pending;
+        if (found is not { } task || pullRequests is null || !PullRequestIntent.TryParse(effect.Detail, out _) || !PullRequestFacts.TryParse(effect.Payload, out var facts) || !BranchName.IsTaskBranch(task.Branch))
+        {
+            // An intent that this version cannot make, or a host with no gateway for it: it is never going to be, so it ends as a refusal.
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            return true;
+        }
+
+        if (task.State is not (TaskState.Running or TaskState.PullRequestOpen))
+        {
+            // The Task has ended, or waits for something: it is published when it gets there again, by an intent of its own.
+            await EndAsync(effect, EffectResult.Superseded, null, failures, run, cancellationToken);
+            return true;
+        }
+
+        var project = (await reads.ListProjectsAsync(includeRemoved: true, cancellationToken)).FirstOrDefault(p => p.RepositoryId == task.RepositoryId);
+        if (project is null)
+        {
+            await ConcludeAsync(pending, EffectResult.Refused, EffectReasons.UnknownEffect, failures, run, cancellationToken);
+            return true;
+        }
+
+        var request = new PullRequestPublication(task.RepositoryId, task.Branch, project.BaseBranch, PullRequestDescription.Title(facts), PullRequestDescription.Compose(facts, task.IssueNumber, language));
+        var result = await CallAsync(() => pullRequests.PublishAsync(request, effect.Key, cancellationToken), PullRequestResult.Failed, run);
+        if (result.Failure != GitHubIssueFailure.None)
+        {
+            return await FailedAsync(pending, result.Failure, result.WaitUntil, retries, run, cancellationToken);
+        }
+
+        var move = task.State == TaskState.Running
+            ? new TaskMove(TaskState.Running, TaskState.PullRequestOpen, [new NewEffect(task.Id, effect.Cause, EffectKind.Label, TaskState.PullRequestOpen.Tag())])
+            : null;
+        if (await work.RecordEffectAsync(new EffectRecording(effect, EffectResult.Applied, null, failures, NextAttemptAt: null, Move: move), cancellationToken))
+        {
+            run.Ended++;
+            if (move is not null)
+            {
+                run.Moved[task.Id] = TaskState.PullRequestOpen;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>How the loop treats a push that could not be made for a reason that is not the work's: the same way as any effect on GitHub.</summary>
     private static GitHubIssueFailure ToIssueFailure(MirrorFailure failure) => failure switch
     {
@@ -384,7 +438,7 @@ public sealed partial class OrchestratorLoop
     private async Task ConcludeAsync(PendingEffect pending, EffectResult result, string reason, int failures, EffectsRun run, CancellationToken cancellationToken, EscalationPlan? blocked = null)
     {
         var (effect, task, _, _) = pending;
-        var plan = blocked ?? (effect.Kind is EffectKind.Label or EffectKind.Push && task is not null ? EscalationPath.ForFailedEffect(task, effect, reason, time) : null);
+        var plan = blocked ?? (effect.Kind is EffectKind.Label or EffectKind.Push or EffectKind.PullRequest && task is not null ? EscalationPath.ForFailedEffect(task, effect, reason, time) : null);
         var recording = new EffectRecording(effect, result, reason, failures, NextAttemptAt: null, plan);
         if (await work.RecordEffectAsync(recording, cancellationToken))
         {

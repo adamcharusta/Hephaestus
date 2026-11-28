@@ -180,7 +180,8 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         entry.Detail,
         entry.Ordinal,
         entry.RepositoryId,
-        entry.IssueNumber);
+        entry.IssueNumber,
+        entry.Payload);
 
     public async Task<IReadOnlyList<AdmittedComment>> ListAdmittedCommentsAsync(Guid taskId, CancellationToken cancellationToken)
     {

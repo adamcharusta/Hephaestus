@@ -289,6 +289,8 @@ Sections, in this order; a section with nothing to say is left out.
 
 A draft pull request for a failed Task opens with one line before the sections: **This Task did not pass.** followed by what was attempted.
 
+`[ASSUMPTION]` The **Task** section names the issue by its number alone (`Issue #7`) and never with a closing keyword, so GitHub links the pull request and the issue and merging the pull request does not close the issue. Settled in Story 3.13 without the Owner's answer, for the safer default: a closing keyword would close the issue on a merge into the default branch and not on a merge into another Task's branch, so the same Task would behave differently by where its pull request is merged; and Hephaestus itself never closes an issue, which stays the Owner's. To change it, say so on the pull request of Story 3.13: the keyword is one line in `PullRequestDescription` and one test.
+
 ### Labels
 
 State labels are `hephaestus:<state>`, as the architecture fixes them. The Dashboard's state chip uses the same names.

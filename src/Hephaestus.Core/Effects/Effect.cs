@@ -18,6 +18,9 @@ public enum EffectKind
 
     /// <summary>Pushes the bundle of a checkpoint to the Task's branch through the gateway's checks (AD-9); resolved after a crash by reading the branch, so that it is never pushed twice.</summary>
     Push,
+
+    /// <summary>Opens the Task's pull request, or updates the one its branch has, and moves the Task to <c>PullRequestOpen</c>; found after a crash by its head branch, so that it is never opened twice.</summary>
+    PullRequest,
 }
 
 public static class EffectKinds
@@ -29,6 +32,7 @@ public static class EffectKinds
         EffectKind.Comment => "comment",
         EffectKind.Notification => "notification",
         EffectKind.Push => "push",
+        EffectKind.PullRequest => "pull-request",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -155,7 +159,8 @@ public static class EffectKeys
 /// <param name="RepositoryId">The repository of the issue, for an effect that is for no Task, and for a comment.</param>
 /// <param name="IssueNumber">The issue a comment is for.</param>
 /// <param name="NoticeKey">What makes a comment the same one again: once an intent with this key was journaled for the issue, no other is; null for an effect that may repeat.</param>
-public sealed record NewEffect(Guid? TaskId, string Cause, EffectKind Kind, string Detail, long? RepositoryId = null, int? IssueNumber = null, string? NoticeKey = null)
+/// <param name="Payload">The recorded data the effect is composed from when it is made, kept with its intent so that a restart composes the same text; null for an effect whose detail says it all.</param>
+public sealed record NewEffect(Guid? TaskId, string Cause, EffectKind Kind, string Detail, long? RepositoryId = null, int? IssueNumber = null, string? NoticeKey = null, string? Payload = null)
 {
     /// <summary>The scope of the key: the Task, or the Project when the issue is no Task.</summary>
     public string Scope => EffectKeys.Scope(TaskId, RepositoryId);
@@ -166,7 +171,8 @@ public sealed record NewEffect(Guid? TaskId, string Cause, EffectKind Kind, stri
 /// <param name="Ordinal">How many effects of this kind the cause had in the scope before this one.</param>
 /// <param name="RepositoryId">The repository of the issue of a comment.</param>
 /// <param name="IssueNumber">The issue of a comment.</param>
-public sealed record Effect(string Key, Guid? TaskId, string Cause, EffectKind Kind, string Detail, int Ordinal, long? RepositoryId = null, int? IssueNumber = null);
+/// <param name="Payload">The recorded data the effect is composed from; see <see cref="NewEffect.Payload"/>.</param>
+public sealed record Effect(string Key, Guid? TaskId, string Cause, EffectKind Kind, string Detail, int Ordinal, long? RepositoryId = null, int? IssueNumber = null, string? Payload = null);
 
 /// <summary>An effect with an intent and no result yet, with the Task it is for (none for an effect on an issue that is no Task) and how its attempts went.</summary>
 /// <param name="Failures">How many attempts failed so far; a wait for a rate limit is not one.</param>
@@ -177,13 +183,21 @@ public sealed record PendingEffect(Effect Effect, TaskRecord? Task, int Failures
 /// <param name="Result">How the effect ended; null for a retry.</param>
 /// <param name="Reason">Why, for a refusal, a give-up, or a retry.</param>
 /// <param name="Escalation">The Escalation the Task raises in the same transaction, when the effect could not be completed: the Task moves to <c>waiting-for-owner</c> and the intents of what shows it are journaled (AD-5).</param>
+/// <param name="Move">The move the Task makes in the same transaction because the effect was made, with the intents of what shows it.</param>
 public sealed record EffectRecording(
     Effect Effect,
     EffectResult? Result,
     string? Reason,
     int Failures,
     DateTimeOffset? NextAttemptAt,
-    EscalationPlan? Escalation = null);
+    EscalationPlan? Escalation = null,
+    TaskMove? Move = null);
+
+/// <summary>
+/// The move of a Task that the end of an effect causes (AD-1, AD-5): the Task leaves <paramref name="From"/> for <paramref name="To"/> in the transaction that records the result, and the intents of <paramref name="Effects"/> are journaled
+/// with it. It is made only while the Task is in <paramref name="From"/>; a Task that is elsewhere is left as it is, and so are the intents.
+/// </summary>
+public sealed record TaskMove(TaskState From, TaskState To, IReadOnlyList<NewEffect> Effects);
 
 /// <summary>The kinds of entry the journal holds; it is append-only, and an effect has one intent, any retries, and at most one result.</summary>
 public enum JournalEntryKind

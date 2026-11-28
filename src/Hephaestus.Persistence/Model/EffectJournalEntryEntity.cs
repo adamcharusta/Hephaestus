@@ -37,6 +37,9 @@ internal sealed class EffectJournalEntryEntity
 
     public int Ordinal { get; set; }
 
+    /// <summary>On an intent, the recorded data the effect is composed from when it is made (the facts of a pull request); null when the detail says it all.</summary>
+    public string? Payload { get; set; }
+
     /// <summary>For a <c>result</c> entry, how the effect ended.</summary>
     public string? Result { get; set; }
 

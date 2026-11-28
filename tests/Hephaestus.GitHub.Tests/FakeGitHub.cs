@@ -86,6 +86,15 @@ internal sealed class FakeGitHub : HttpMessageHandler
     /// <summary>The comments posted, in order: the path and the body of each.</summary>
     public List<(string Path, string Body)> CommentWrites { get; } = [];
 
+    /// <summary>The open pull requests of repositories, by repository id, as GitHub holds them: the number, the head branch, the title, and the description.</summary>
+    public Dictionary<long, List<(int Number, string Head, string Title, string Body)>> Pulls { get; } = [];
+
+    /// <summary>The login of the owner of every repository, as GitHub answers <c>GET /repositories/{id}</c>.</summary>
+    public string RepositoryOwner { get; set; } = "acme";
+
+    /// <summary>The pull requests asked for, opened, and changed, in order: the method, the path, the query, and the body that came with it.</summary>
+    public List<(HttpMethod Method, string Path, string Query, string Body)> PullRequests { get; } = [];
+
     public Func<HttpRequestMessage, HttpResponseMessage?>? Override { get; set; }
 
     public HttpStatusCode? AppStatus { get; set; }
@@ -116,6 +125,17 @@ internal sealed class FakeGitHub : HttpMessageHandler
         if (path.StartsWith("/repositories/", StringComparison.Ordinal) && path.EndsWith("/comments", StringComparison.Ordinal) && path.Contains("/issues/", StringComparison.Ordinal) && !path.EndsWith("/issues/comments", StringComparison.Ordinal))
         {
             return await CommentsAtAsync(request, path);
+        }
+
+        if (path.StartsWith("/repositories/", StringComparison.Ordinal) && path.Contains("/pulls", StringComparison.Ordinal))
+        {
+            return await PullsAtAsync(request, path);
+        }
+
+        if (path.StartsWith("/repositories/", StringComparison.Ordinal) && path.IndexOf('/', "/repositories/".Length) < 0)
+        {
+            var id = path["/repositories/".Length..];
+            return Json(HttpStatusCode.OK, $$$"""{"id":{{{id}}},"name":"web","full_name":"{{{RepositoryOwner}}}/web","owner":{"login":"{{{RepositoryOwner}}}","id":2,"type":"Organization"}}""");
         }
 
         if (path == "/app" && AppStatus is { } status)
@@ -255,6 +275,53 @@ internal sealed class FakeGitHub : HttpMessageHandler
 
         return Json(HttpStatusCode.OK, "[" + string.Join(',', comments.Select(CommentJson)) + "]");
     }
+
+    /// <summary>GitHub's pull requests of a repository: the open ones of a head branch (<c>GET</c>), a new one (<c>POST</c>), and a change of the title and the description (<c>PATCH</c>).</summary>
+    private async Task<HttpResponseMessage> PullsAtAsync(HttpRequestMessage request, string path)
+    {
+        Assert.Equal(InstallationToken, request.Headers.Authorization!.Parameter);
+        var rest = path["/repositories/".Length..].Split("/pulls", 2);
+        var repository = long.Parse(rest[0], System.Globalization.CultureInfo.InvariantCulture);
+        var body = request.Content is null ? string.Empty : await request.Content.ReadAsStringAsync();
+        PullRequests.Add((request.Method, path, request.RequestUri!.Query, body));
+        var pulls = Pulls.TryGetValue(repository, out var held) ? held : Pulls[repository] = [];
+        if (request.Method == HttpMethod.Get)
+        {
+            var head = System.Web.HttpUtility.ParseQueryString(request.RequestUri.Query)["head"];
+            return Json(HttpStatusCode.OK, "[" + string.Join(',', pulls.Where(p => head is null || head == RepositoryOwner + ":" + p.Head).Select(PullJson)) + "]");
+        }
+
+        if (request.Method == HttpMethod.Post)
+        {
+            var document = System.Text.Json.JsonDocument.Parse(body).RootElement;
+            var pull = (100 + pulls.Count, document.GetProperty("head").GetString()!, document.GetProperty("title").GetString()!, document.GetProperty("body").GetString()!);
+            pulls.Add(pull);
+            return Json(HttpStatusCode.Created, PullJson(pull));
+        }
+
+        var number = int.Parse(rest[1].TrimStart('/'), System.Globalization.CultureInfo.InvariantCulture);
+        var index = pulls.FindIndex(p => p.Number == number);
+        if (index < 0)
+        {
+            return Json(HttpStatusCode.NotFound, """{"message":"Not Found"}""");
+        }
+
+        var changed = System.Text.Json.JsonDocument.Parse(body).RootElement;
+        pulls[index] = (number, pulls[index].Head, changed.GetProperty("title").GetString()!, changed.GetProperty("body").GetString()!);
+        return Json(HttpStatusCode.OK, PullJson(pulls[index]));
+    }
+
+    private static string PullJson((int Number, string Head, string Title, string Body) pull) =>
+        System.Text.Json.JsonSerializer.Serialize(new
+        {
+            number = pull.Number,
+            state = "open",
+            title = pull.Title,
+            body = pull.Body,
+            html_url = "https://github.com/acme/web/pull/" + pull.Number,
+            head = new { @ref = pull.Head, label = "acme:" + pull.Head, sha = new string('a', 40) },
+            @base = new { @ref = "main", label = "acme:main", sha = new string('b', 40) },
+        });
 
     private static string CommentJson((long Id, string Login, string Body) comment) =>
         System.Text.Json.JsonSerializer.Serialize(new
