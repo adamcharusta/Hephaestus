@@ -33,9 +33,15 @@ public static class StepOutcomes
                 return null;
             }
 
-            return result.Outcome == StepOutcome.NeedsDecision && result.Questions.Count == 0 ? null : result;
+            if (result.Outcome == StepOutcome.NeedsDecision)
+            {
+                // A decision the Owner cannot be asked is no result: it is read now, so that it is an error of the step and not of the loop later.
+                _ = result.Questions.Count == 0 ? throw new ArgumentException("A result that needs a decision asks something.") : Request(result);
+            }
+
+            return result;
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or ArgumentException)
         {
             return null;
         }

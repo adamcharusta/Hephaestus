@@ -41,6 +41,14 @@ public class StepOutcomesTests
     }
 
     [Fact]
+    public void A_decision_the_Owner_cannot_be_asked_is_no_result_because_it_has_more_options_than_an_Escalation_may_have()
+    {
+        var options = string.Join(',', Enumerable.Range(0, 27).Select(number => $"\"option {number}\""));
+
+        Assert.Null(StepOutcomes.Read($$"""{"outcome":"needs-decision","summary":"x","questions":[{"question":"Which?","options":[{{options}}]}]}"""));
+    }
+
+    [Fact]
     public void One_question_is_the_decision_and_its_options_are_the_options()
     {
         var request = StepOutcomes.Request(new ImplementationResult(StepOutcome.NeedsDecision, "x", [new DecisionQuestion("Which database?", ["Postgres", "SQLite"])]));

@@ -35,7 +35,15 @@ public sealed partial class OrchestratorLoop
             var running = await reads.ListTasksAsync(TaskState.Running, cancellationToken);
             foreach (var task in running)
             {
-                await AdvanceAsync(task, run, cancellationToken);
+                try
+                {
+                    await AdvanceAsync(task, run, cancellationToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    // A runtime that cannot be reached, or a store that fails, is the tick's failure and is reported with it; the Task is carried on again by the next tick, and the rest of this one still runs.
+                    run.Failure ??= exception;
+                }
             }
 
             // Only one Task runs (FR-14): the next starts when that one has left Running, which a step that just ended may have made so.
@@ -66,7 +74,19 @@ public sealed partial class OrchestratorLoop
                 continue;
             }
 
-            var (started, problem) = await TryStartAsync(task, run, cancellationToken);
+            (bool Started, string? Problem) attempt;
+            try
+            {
+                attempt = await TryStartAsync(task, run, cancellationToken);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                // Whatever one Task's start meets, a runtime that cannot be asked among it, the Tasks of other Projects are still tried.
+                run.Failure ??= exception;
+                attempt = (false, "its start met a failure that the log of the tick holds");
+            }
+
+            var (started, problem) = attempt;
             if (started)
             {
                 _startNotBefore.Remove(task.Id);

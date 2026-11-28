@@ -226,6 +226,49 @@ public class OrchestratorLoopDispatchTests
     }
 
     [Fact]
+    public async Task A_runtime_that_cannot_be_asked_leaves_the_Task_Queued_is_reported_with_the_tick_and_does_not_hold_back_the_Tasks_of_other_Projects()
+    {
+        var rig = new RunRig();
+        rig.Stores.Projects.Add(new Project(OtherRepository, "acme/api", "main", DateTimeOffset.UnixEpoch, null));
+        rig.SetConfiguration(OtherRepository, RunRig.ConfigurationFile, new string('9', 40));
+        rig.Runtime.Throws[nameof(FakeRuntime.ResolveImageAsync)] = new IOException("the Docker socket is gone");
+        await rig.QueueAsync(issue: 2);
+        await rig.Stores.AppendAsync([LoopStores.Labeled("issue-event:other", issue: 8, repository: OtherRepository)], Token);
+        await rig.TickAsync();
+        await rig.StartAsync();
+        await rig.StartAsync(OtherRepository);
+
+        var report = await rig.TickAsync();
+
+        Assert.IsType<IOException>(report.Failure);
+        Assert.Equal((TaskState.Queued, TaskState.Queued), (rig.Task(2).State, rig.Stores.Tasks.Single(task => task.RepositoryId == OtherRepository).State));
+        Assert.Equal(2, rig.Runtime.Images.Count);
+        Assert.Equal(2, report.TaskProblems!.Count);
+        var again = await rig.TickAsync();
+        Assert.Equal(2, rig.Runtime.Images.Count);
+        Assert.Null(again.Failure);
+    }
+
+    [Fact]
+    public async Task A_Task_that_cannot_be_carried_on_does_not_stop_the_tick_from_closing_a_window_that_has_nothing_to_work()
+    {
+        var rig = new RunRig();
+        rig.Stores.Projects.Add(new Project(OtherRepository, "acme/api", "main", DateTimeOffset.UnixEpoch, null));
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+        rig.Stores.Windows.Clear();
+        rig.Stores.StepRuns[0] = rig.Stores.StepRuns[0] with { Status = Hephaestus.Core.Runs.StepRunStatus.Planned };
+        rig.Runtime.Throws[nameof(FakeRuntime.StartStepAsync)] = new IOException("the Docker socket is gone");
+        await rig.StartAsync(OtherRepository);
+
+        var report = await rig.TickAsync();
+
+        Assert.IsType<IOException>(report.Failure);
+        Assert.Equal(Hephaestus.Core.Windows.WindowEnd.Drained, Assert.Single(rig.Stores.Windows).End);
+    }
+
+    [Fact]
     public async Task A_Task_whose_Agent_is_not_ready_to_be_driven_is_not_started_and_the_log_line_names_what_is_wrong()
     {
         var rig = new RunRig();

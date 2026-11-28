@@ -40,6 +40,9 @@ public sealed partial class OrchestratorLoop
             {
                 return;
             }
+
+            // A checkout or a checkpoint is a container that is waited for, so the loop is shown to be alive between the steps of a Task.
+            heartbeat.Beat();
         }
     }
 
