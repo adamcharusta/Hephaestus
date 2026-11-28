@@ -2,7 +2,7 @@
 title: 'Story 3.14: Start a Project on demand and get a pull request'
 type: 'feature'
 created: '2026-11-28'
-status: 'in-review'
+status: 'done'
 baseline_commit: '83d061477244f4eedf824516f8c873ce0f6f6ba2'
 route: 'dispatch'
 review_loop_iteration: 0
