@@ -1,3 +1,4 @@
+using Hephaestus.Core.Validation;
 using Hephaestus.Core.Workspaces;
 
 namespace Hephaestus.Core.Ports;
@@ -47,6 +48,16 @@ public interface IWorkspaceRuntime
     /// </summary>
     /// <exception cref="WorkspaceRuntimeException">The base bundle is not the file the reference describes, the tools image cannot be fetched, the container failed or did not end in time, or what it returned is not exactly one bundle of the size and the shape that was asked for (an infrastructure error: nothing of it is used).</exception>
     Task<CheckpointResult> CheckpointAsync(CheckpointRequest request, string idempotencyKey, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Starts one Validation command on a fresh checkout of the pushed tip (AD-6, AD-13, FR-31): <see cref="CheckoutAsync"/> first, so that nothing an earlier command or step left in the Task's volume is there, then a container of the Task's
+    /// image that mounts the Task volume and nothing else of a step, with no credential, no context, no Methodology, and no Agent CLI, and with the Project's egress list alone. It returns as soon as the container has started, as
+    /// <see cref="StartStepAsync"/> does: the runtime stops it at its deadline, keeps its output, and appends the one step-exited Signal (AD-18). When the command's container exists already, which is what a restart finds, the tree is not made again under a command that runs.
+    /// Nothing the command leaves in the tree is kept: Validation is never checkpointed, and the next checkout makes the tree anew.
+    /// </summary>
+    /// <exception cref="ArgumentException">The container cannot be made, as for <see cref="StartStepAsync"/>.</exception>
+    /// <exception cref="WorkspaceRuntimeException">The checkout failed, or the container's isolation cannot be given, as for <see cref="CheckoutAsync"/> and <see cref="StartStepAsync"/>.</exception>
+    Task<StartedStep> StartValidationAsync(ValidationCommandRequest request, string idempotencyKey, CancellationToken cancellationToken);
 
     /// <summary>
     /// Runs an Agent probe to its end (AD-20, AD-18): a container of the probe image with no Task volume, no context, and no Methodology, whose only way out is its own egress proxy, limited to the hosts the invocation
