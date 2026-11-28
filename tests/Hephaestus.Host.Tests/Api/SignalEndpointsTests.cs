@@ -80,6 +80,7 @@ public class SignalEndpointsTests
     public async Task The_loop_applies_the_Signal_and_its_status_is_read_as_applied_with_the_window_it_opened()
     {
         var gateway = new FakeCodeHost();
+        gateway.IssueLabels[(Repository, 7)] = ["hephaestus"];
         await using var host = await StartAsync(gateway);
         await RegisterAsync(host);
         var services = host.App.Services;
@@ -100,7 +101,9 @@ public class SignalEndpointsTests
     [Fact]
     public async Task A_second_start_is_applied_with_the_note_that_a_window_is_open_already()
     {
-        await using var host = await StartAsync();
+        var gateway = new FakeCodeHost();
+        gateway.IssueLabels[(Repository, 7)] = ["hephaestus"];
+        await using var host = await StartAsync(gateway);
         await RegisterAsync(host);
         var services = host.App.Services;
         await services.GetRequiredService<IInstallationConfiguration>().AddTrustedUserAsync(29, "alice", Token);

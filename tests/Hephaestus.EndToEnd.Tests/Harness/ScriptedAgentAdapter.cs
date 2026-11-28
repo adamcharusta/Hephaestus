@@ -36,7 +36,14 @@ internal sealed class ScriptedAgentAdapter(string script, Agent agent = Agent.Cl
 
     public AgentInvocation DescribeProbe(AuthenticationMode mode) => new(["/bin/sh", "-c", "exit 0"], new Dictionary<string, string>(), [], [], [], ResultLocation.InOutputStream);
 
-    public AgentOutput Parse(IEnumerable<string> lines) => new([], null, [], 0);
+    /// <summary>The line that carries the result of a step: <c>RESULT:</c> and the document, which is how the scripted Agent "answers".</summary>
+    public const string ResultPrefix = "RESULT:";
+
+    public AgentOutput Parse(IEnumerable<string> lines)
+    {
+        var result = lines.FirstOrDefault(line => line.StartsWith(ResultPrefix, StringComparison.Ordinal))?[ResultPrefix.Length..];
+        return new AgentOutput([], result is null ? null : new AgentResult(false, null, result, "scripted", null, null), [], 0);
+    }
 
     public FailureClass? ClassifyExit(int exitCode, AgentOutput output) => exitCode == 0 ? null : FailureClass.Unknown;
 }
