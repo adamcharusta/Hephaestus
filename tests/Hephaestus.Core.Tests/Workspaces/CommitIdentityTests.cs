@@ -17,6 +17,15 @@ public class CommitIdentityTests
         Assert.Equal("hephaestus-adam[bot]@users.noreply.github.com", identity.Email);
     }
 
+    [Fact]
+    public void The_slug_the_loop_stores_of_the_app_is_all_the_identity_needs()
+    {
+        var identity = CommitIdentity.ForSlug("hephaestus-adam");
+
+        Assert.Equal(("hephaestus-adam[bot]", "hephaestus-adam[bot]@users.noreply.github.com"), (identity.Name, identity.Email));
+        Assert.Equal(CommitIdentity.For(App("hephaestus-adam")), identity);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(" ")]

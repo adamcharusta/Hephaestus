@@ -33,6 +33,14 @@ public class CheckpointCommitTests
     }
 
     [Fact]
+    public void A_step_with_no_Effort_asked_for_says_so_in_the_trailer_and_names_none()
+    {
+        var commit = CheckpointCommit.Compose(Identity, Language.English, StepKind.Implementation, TaskId, StepRunId, Agent.ClaudeCode, "opus5.5", effort: null);
+
+        Assert.Contains("Hephaestus-Effort: default\n", commit.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void The_subject_is_in_the_language_of_the_task_and_the_trailers_are_not_translated()
     {
         var polish = Compose(Language.Polish, StepKind.Correction);
