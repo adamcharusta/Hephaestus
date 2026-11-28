@@ -298,6 +298,19 @@ public static class MessageIds
     public const string CommentEscalationAnswerConfirm = "comment.escalation.answer-confirm";
     public const string CommentEscalationEffectPush = "comment.escalation.effect-push";
 
+    public const string CommentEscalationEffectPullRequest = "comment.escalation.effect-pull-request";
+
+    public const string PullRequestSectionWhatChanged = "pull-request.section.what-changed";
+    public const string PullRequestSectionTask = "pull-request.section.task";
+    public const string PullRequestSectionChecked = "pull-request.section.checked";
+    public const string PullRequestSectionWho = "pull-request.section.who";
+    public const string PullRequestColumnCommand = "pull-request.column.command";
+    public const string PullRequestColumnResult = "pull-request.column.result";
+    public const string PullRequestColumnDuration = "pull-request.column.duration";
+    public const string PullRequestResultExit = "pull-request.result.exit";
+    public const string PullRequestImplementer = "pull-request.who.implementer";
+    public const string PullRequestTaskIssue = "pull-request.task.issue";
+
     public const string AgentsLockColumns = "agents.lock.columns";
     public const string AgentsLockValue = "agents.lock.value";
     public const string AgentsLockNotAnExecutable = "agents.lock.not-an-executable";

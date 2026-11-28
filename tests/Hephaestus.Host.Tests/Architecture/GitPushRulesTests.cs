@@ -89,6 +89,17 @@ public partial class GitPushRulesTests
         Assert.Equal([typeof(Hephaestus.GitHub.GitHubMirrors)], implementers);
     }
 
+    [Fact]
+    public void The_pull_requests_port_is_implemented_by_the_gateway_alone_and_offers_nothing_that_merges_or_closes()
+    {
+        var implementers = new[] { typeof(IPullRequests).Assembly, typeof(Hephaestus.GitHub.GitHubPoller).Assembly, typeof(EntryPoint).Assembly, typeof(Hephaestus.Persistence.PersistenceOptions).Assembly, typeof(Hephaestus.Workspaces.WorkspaceRuntimeOptions).Assembly }
+            .SelectMany(assembly => assembly.GetTypes())
+            .Where(type => type is { IsClass: true } && type.GetInterfaces().Contains(typeof(IPullRequests)));
+
+        Assert.Equal([typeof(Hephaestus.GitHub.GitHubGateway)], implementers);
+        Assert.Equal(["PublishAsync"], typeof(IPullRequests).GetMethods().Select(method => method.Name));
+    }
+
     [GeneratedRegex(@"""push""", RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex GitPush();
 

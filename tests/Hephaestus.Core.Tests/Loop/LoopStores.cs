@@ -199,6 +199,13 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             Write(plan);
         }
 
+        // The rule of the real unit of work: the move is made only while the Task is in the state it leaves, and its intents with it.
+        if (recording.Move is { } move && Tasks.FindIndex(t => t.Id == recording.Effect.TaskId && t.State == move.From) is var index and >= 0)
+        {
+            Tasks[index] = Tasks[index] with { State = move.To, UpdatedAt = TimeProvider.GetUtcNow() };
+            AppendIntents(move.Effects);
+        }
+
         return Task.FromResult(true);
     }
 
@@ -220,7 +227,7 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             var scope = effect.Scope;
             var ordinal = Journal.Count(e => e.Entry == JournalEntryKind.Intent && EffectKeys.Scope(e.Effect.TaskId, e.Effect.RepositoryId) == scope && e.Effect.Cause == effect.Cause && e.Effect.Kind == effect.Kind);
             var key = EffectKeys.For(scope, effect.Cause, effect.Kind, ordinal);
-            Journal.Add(new JournalEntry(Journal.Count + 1, JournalEntryKind.Intent, new Effect(key, effect.TaskId, effect.Cause, effect.Kind, effect.Detail, ordinal, effect.RepositoryId, effect.IssueNumber), null, null, 0, null, TimeProvider.GetUtcNow()));
+            Journal.Add(new JournalEntry(Journal.Count + 1, JournalEntryKind.Intent, new Effect(key, effect.TaskId, effect.Cause, effect.Kind, effect.Detail, ordinal, effect.RepositoryId, effect.IssueNumber, effect.Payload), null, null, 0, null, TimeProvider.GetUtcNow()));
         }
     }
 

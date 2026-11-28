@@ -42,13 +42,16 @@ internal static class ControlHost
         builder.Services.AddHephaestusPersistence(settings.Persistence);
         // One gate for the gateway and the poller: a rate-limit answer to either holds back every request after it.
         builder.Services.TryAddSingleton(provider => new GitHubRateLimit(provider.GetRequiredService<TimeProvider>()));
-        builder.Services.TryAddSingleton<ICodeHost>(provider => new GitHubGateway(
+        builder.Services.TryAddSingleton(provider => new GitHubGateway(
             provider.GetRequiredService<ISecretStore>(),
             provider.GetRequiredService<IReadStore>(),
             provider.GetRequiredService<IInstallationConfiguration>(),
             provider.GetRequiredService<TimeProvider>(),
             rateLimit: provider.GetRequiredService<GitHubRateLimit>(),
             masker: provider.GetRequiredService<SecretMasker>()));
+        builder.Services.TryAddSingleton<ICodeHost>(provider => provider.GetRequiredService<GitHubGateway>());
+        // The gateway also opens and updates the pull request of a Task (Story 3.13), as the one code that does.
+        builder.Services.TryAddSingleton<IPullRequests>(provider => provider.GetRequiredService<GitHubGateway>());
         // The gateway also owns the bare mirrors and the bundles made from them (Story 3.5), and is the one code that pushes a Task branch (Story 3.7); git runs nowhere else.
         builder.Services.TryAddSingleton(provider => new GitHubMirrors(
             provider.GetRequiredService<IReadStore>(),

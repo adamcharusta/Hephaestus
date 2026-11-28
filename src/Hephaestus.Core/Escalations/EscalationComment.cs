@@ -77,6 +77,7 @@ public static class EscalationComment
         {
             { Kind: EffectKind.Label } => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectLabel, Labels.StatePrefix + effect.Detail, reason), language),
             { Kind: EffectKind.Push } => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectPush, reason), language),
+            { Kind: EffectKind.PullRequest } => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectPullRequest, reason), language),
             _ => catalog.Resolve(new Message(MessageIds.CommentEscalationEffectOther, reason), language),
         };
     }

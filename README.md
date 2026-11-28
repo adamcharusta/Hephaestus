@@ -75,6 +75,12 @@ checkout of the pushed commit, with no credential and with the Project's `allowe
 `validation-failure`, the commands after it are recorded as not run, and a command still running at its deadline is stopped and ends it as a `timeout` with the output it had printed kept. Each command's exit status, duration, and output are recorded, and what a command
 changed in the tree is thrown away: Validation is never kept as a commit. Nothing starts a step yet, so nothing runs Validation yet ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0028](docs/adr/0028-validation-decided-by-exit-status.md)).
 
+Each Task ends in one pull request, from its `hephaestus/<issue>-<title>` branch to the Project's Base Branch, opened under Hephaestus's own GitHub App identity, so the App needs the Pull requests permission it already asks for. Its description has
+the sections What changed, Task, How it was checked, and Who did what, in that order, and leaves out one with nothing to say. It states which Agent, Model, and Effort implemented the Task and the result of each Validation command, and it is written by Hephaestus from what it
+recorded: whatever an Agent wrote in it has HTML comments escaped, mentions and issue-closing keywords broken, and `/hephaestus` commands fenced, and the values of your stored secrets are masked. It names the issue as `Issue #7` and never with a closing
+keyword, so merging it does not close the issue; closing it stays yours. If the host stops after the pull request was opened and before that was recorded, the pull request is found again by its branch and no second one is opened, and a Task published again after more work has the same pull
+request updated. Nothing publishes a pull request yet, because nothing starts a Task yet ([`docs/pull-requests.md`](docs/pull-requests.md), [ADR-0029](docs/adr/0029-publish-one-pull-request-per-task.md)).
+
 ## Secrets
 
 A credential is handed to Hephaestus on standard input; a value given as an argument is refused. It is stored as a file on the `hephaestus-secrets` volume, which only the `hephaestus` container mounts;

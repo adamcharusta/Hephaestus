@@ -196,6 +196,20 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
             await WriteEscalationAsync(context, plan, at, cancellationToken);
         }
 
+        // The move the effect causes is made with its result, while the Task is where the effect found it, and the intents that show it are journaled with the move.
+        if (recording.Move is { } move && effect.TaskId is not null)
+        {
+            var to = Core.Tasks.TaskStates.Tag(move.To);
+            var from = Core.Tasks.TaskStates.Tag(move.From);
+            var moved = await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Tasks" SET "State" = {to}, "UpdatedAt" = {at} WHERE "Id" = {taskId} AND "State" = {from}""",
+                cancellationToken);
+            if (moved > 0)
+            {
+                await AppendIntentsAsync(context, move.Effects, at, cancellationToken);
+            }
+        }
+
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
@@ -245,6 +259,7 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
                 Cause = effect.Cause,
                 Kind = kind,
                 Detail = effect.Detail,
+                Payload = effect.Payload,
                 Ordinal = ordinal,
                 At = UtcInstantConverter.FromText(at),
             });
