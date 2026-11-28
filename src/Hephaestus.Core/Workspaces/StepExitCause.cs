@@ -2,7 +2,7 @@ namespace Hephaestus.Core.Workspaces;
 
 /// <summary>
 /// Why a step container ended, as the runtime itself knows it (AD-18): what it saw, not what an Agent said. Whether a CLI that ended by itself
-/// ended well is for its adapter to classify (Story 3.16).
+/// ended well is for its adapter to classify (AD-11, <see cref="Hephaestus.Core.Failures.FailureClassifier"/>).
 /// </summary>
 public enum StepExitCause
 {

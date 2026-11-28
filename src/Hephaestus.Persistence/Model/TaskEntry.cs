@@ -16,6 +16,15 @@ internal sealed class TaskEntry
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+
+    /// <summary>
+    /// The milliseconds the Task spent in <c>running</c> before it last entered the state (NFR-5). The database adds to it whenever the Task leaves <c>running</c>, and sets it to nothing when a <c>failed</c> Task is opted in
+    /// again, so that no code that moves a Task has to keep it. The trigger measures from <see cref="UpdatedAt"/>, so every write that changes <see cref="State"/> sets it to the time of the change.
+    /// </summary>
+    public long RunningMillis { get; set; }
+
+    /// <summary>When the Task entered <c>running</c>, while it is in it; the database sets and clears it with the state.</summary>
+    public DateTimeOffset? RunningSince { get; set; }
 }
 
 /// <summary>The issue's title and body as a Marker Label event vouched for them, with the hash a later comparison uses (AD-15).</summary>

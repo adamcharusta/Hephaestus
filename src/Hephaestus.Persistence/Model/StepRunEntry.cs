@@ -49,6 +49,9 @@ internal sealed class StepRunEntry
     public string TipBefore { get; set; } = string.Empty;
 
     public string? TipAfter { get; set; }
+
+    /// <summary>Which attempt at the step this is, from 1 (AD-11).</summary>
+    public int Attempt { get; set; } = 1;
 }
 
 /// <summary>What a Task started with (FR-2, AD-16): the commit the Project Configuration was read at, the image it resolved to, and the document that holds all of it. One for a Task.</summary>

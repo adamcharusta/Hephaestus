@@ -7,6 +7,7 @@ using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Failures;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Invocations;
+using Hephaestus.Core.Limits;
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Methodologies;
 using Hephaestus.Core.Ports;
@@ -25,14 +26,15 @@ namespace Hephaestus.Core.Loop;
 /// <summary>
 /// The steps of a <c>Running</c> Task (FR-17 to FR-23, FR-31, FR-36): the Primary Agent performs <c>Implementation</c> on a fresh checkout, its work is checkpointed and pushed, each of the Project's Validation
 /// commands runs on a fresh checkout of the pushed tip, and on a pass the pull request is journaled for publication (Story 3.13). Every decision is made from the step runs, the journal, and the snapshot, never from
-/// memory, so that a tick can stop between any two of them. The Task holds the single slot until publication moves it out of <c>Running</c>.
+/// memory, so that a tick can stop between any two of them. The Task holds the single slot until publication moves it out of <c>Running</c>. A step that fails is classified, and one that fails in a class that spends the step retry bound is attempted again
+/// as a new step run on a fresh checkout of the last pushed tip, until the bound or the Task's duration limit is spent and the Task fails with a comment (Story 3.16).
 /// </summary>
 public sealed partial class OrchestratorLoop
 {
     /// <summary>How many times one tick carries a Task a step further, so that the loop beats and the Signals behind are not held back.</summary>
     private const int MaximumAdvancesPerTick = 12;
 
-    /// <summary>How many times one tick after another may fail to start a step before it ends as an infrastructure error.</summary>
+    /// <summary>How many times one tick after another may fail to start a step, or to keep the work of one that failed, before the step ends as an infrastructure error, or its work is left behind; the step retry bound then decides what follows.</summary>
     public const int MaximumStartAttempts = 5;
 
     private readonly Dictionary<Guid, int> _startFailures = [];
@@ -69,6 +71,7 @@ public sealed partial class OrchestratorLoop
         return last.Status switch
         {
             StepRunStatus.Planned => await StartStepAsync(task, snapshot, last, run, cancellationToken),
+            StepRunStatus.Ended or StepRunStatus.Checkpointed when last.Failure is not null => await AfterFailureAsync(task, snapshot, last, run, cancellationToken),
             StepRunStatus.Ended when last.IsValidation => await AfterValidationAsync(task, snapshot, steps, run, cancellationToken),
             StepRunStatus.Ended => await AfterImplementationAsync(task, snapshot, last, run, cancellationToken),
             StepRunStatus.Checkpointed => await AfterCheckpointAsync(task, snapshot, steps, run, cancellationToken),
@@ -91,8 +94,7 @@ public sealed partial class OrchestratorLoop
             var bundle = await BundleOfAsync(task, step, step.TipBefore, cancellationToken);
             if (bundle is null)
             {
-                await FailStepAsync(task, step, FailureClass.InfrastructureError, "the commit to check out could not be bundled", run, cancellationToken);
-                return false;
+                return await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, "the commit to check out could not be bundled", run, cancellationToken);
             }
 
             var limits = StepLimits.Resolve(snapshot.Configuration.Limits, await reads.GetLimitsAsync(cancellationToken));
@@ -108,20 +110,19 @@ public sealed partial class OrchestratorLoop
                 return false;
             }
 
+            _startFailures.Remove(step.Id);
             await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Started), cancellationToken);
             return false;
         }
         catch (Exception exception) when (exception is WorkspaceRuntimeException or ImageNotUsableException or ArgumentException or MethodologyException or UnsupportedInvocationException)
         {
-            await FailStepAsync(task, step, FailureClass.InfrastructureError, exception.Message, run, cancellationToken);
-            return false;
+            return await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, exception.Message, run, cancellationToken);
         }
         catch (Exception exception) when (exception is not OperationCanceledException && CountStartFailure(step) >= MaximumStartAttempts)
         {
-            // A runtime or a GitHub that fails again and again is not waited for without end: the step ends as an infrastructure error (Story 3.16 makes this a bounded retry of its own).
+            // A runtime or a GitHub that fails again and again is not waited for without end: the step ends as an infrastructure error, which the step retry bound then attempts again or ends the Task for.
             _startFailures.Remove(step.Id);
-            await FailStepAsync(task, step, FailureClass.InfrastructureError, $"it could not be started in {MaximumStartAttempts} attempts ({exception.GetType().Name})", run, cancellationToken);
-            return false;
+            return await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, $"it could not be started in {MaximumStartAttempts} attempts ({exception.GetType().Name})", run, cancellationToken);
         }
     }
 
@@ -135,7 +136,7 @@ public sealed partial class OrchestratorLoop
         var setting = (await reads.ListAgentSettingsAsync(cancellationToken)).FirstOrDefault(candidate => candidate.Agent == step.Agent);
         if (adapter is null || setting is null || step.Model is null)
         {
-            await FailStepAsync(task, step, FailureClass.InfrastructureError, "the Agent of the step can no longer be driven", run, cancellationToken);
+            await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, "the Agent of the step can no longer be driven", run, cancellationToken);
             return false;
         }
 
@@ -179,7 +180,7 @@ public sealed partial class OrchestratorLoop
 
     /// <summary>
     /// Fetches the Task branch and says whether the step may run on it. Null when it may: the branch is where Hephaestus left it, or is not there because nothing was pushed. A branch that moved holds the Task: an Escalation names it and the Task waits until a Trusted User adopts the remote tip
-    /// (the <c>confirm</c> command is Story 3.18's), and the step run ends with no failure; one that could not be read ends the step as an infrastructure error. Returns false, that nothing more is to be done now, in both cases.
+    /// (the <c>confirm</c> command is Story 3.18's), and the step run ends with no failure; one that could not be read ends the step as an infrastructure error, which the step retry bound decides on.
     /// </summary>
     private async Task<bool?> CheckBranchAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, EffectsRun run, CancellationToken cancellationToken)
     {
@@ -201,8 +202,7 @@ public sealed partial class OrchestratorLoop
                 await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Ended, new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, null, StepOutcomes.BranchMoved, null)), cancellationToken);
                 return false;
             default:
-                await FailStepAsync(task, step, FailureClass.InfrastructureError, "the Task branch could not be read from GitHub", run, cancellationToken);
-                return false;
+                return await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, "the Task branch could not be read from GitHub", run, cancellationToken);
         }
     }
 
@@ -230,40 +230,33 @@ public sealed partial class OrchestratorLoop
             if (ImplementationResultOf(step) is { } result)
             {
                 await RaiseEscalationAsync(task, StepOutcomes.Request(result), EffectKeys.StepCause(step.Id), cancellationToken);
-            }
-            else
-            {
-                await FailStepAsync(task, step, FailureClass.AgentError, "the result that asks for a decision cannot be read", run, cancellationToken);
+                return false;
             }
 
-            return false;
+            return await FailStepAsync(task, snapshot, step, FailureClass.AgentError, "the result that asks for a decision cannot be read", run, cancellationToken);
         }
 
         try
         {
             if (await reads.GetGitHubAppSlugAsync(cancellationToken) is not { } slug)
             {
-                await FailStepAsync(task, step, FailureClass.InfrastructureError, "GitHub is not connected, so the work cannot be committed under Hephaestus's identity", run, cancellationToken);
-                return false;
+                return await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, "GitHub is not connected, so the work cannot be committed under Hephaestus's identity", run, cancellationToken);
             }
 
             var parent = await BundleOfAsync(task, step, step.TipBefore, cancellationToken);
             if (parent is null)
             {
-                await FailStepAsync(task, step, FailureClass.InfrastructureError, "the commit the work was started from could not be bundled", run, cancellationToken);
-                return false;
+                return await FailCheckpointAsync(task, snapshot, step, "the commit the work was started from could not be bundled", run, cancellationToken);
             }
 
-            var commit = CheckpointCommit.Compose(CommitIdentity.ForSlug(slug), await TextLanguageAsync(snapshot.Configuration, cancellationToken), step.Kind, task.Id, step.Id, step.Agent!.Value, step.Model!, step.Effort);
-            var checkpoint = await runtime!.CheckpointAsync(new CheckpointRequest(task.Id, step.Id, step.Kind, task.Branch, parent, commit), RunKeys.Checkpoint(task.Id, step.Id), cancellationToken);
+            var checkpoint = await CheckpointAsync(task, snapshot, step, slug, parent, cancellationToken);
             if (checkpoint.Bundle is not { } bundle)
             {
                 // The Agent left the tree as it found it. With nothing ever pushed there is nothing to publish, so the Task fails; with earlier work pushed, that work is what Validation checks.
                 if (step.TipBefore == snapshot.CommitId)
                 {
-                    await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Concluded, Move: FailedMove(task, step), Failure: FailureClass.AgentError), cancellationToken);
-                    run.Moved[task.Id] = TaskState.Failed;
-                    run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} failed: the Agent made no change.");
+                    var bounds = await ReadBoundsAsync(task, snapshot, cancellationToken);
+                    await EndTaskAsync(task, step, FailureClass.AgentError, FailureFactsOf(task, snapshot, step, FailureClass.AgentError, StepFailureEnd.NoChange, bounds), run, cancellationToken);
                     return false;
                 }
 
@@ -275,9 +268,30 @@ public sealed partial class OrchestratorLoop
         }
         catch (Exception exception) when (exception is WorkspaceRuntimeException or ArgumentException)
         {
-            await FailStepAsync(task, step, FailureClass.InfrastructureError, exception.Message, run, cancellationToken);
+            return await FailCheckpointAsync(task, snapshot, step, exception.Message, run, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// The work of a step that ended well could not be kept. What it left is in the Task's volume, so the checkpoint is tried again by each tick, up to <see cref="MaximumStartAttempts"/> times, before the step is failed and attempted again from the
+    /// last pushed tip, which loses it.
+    /// </summary>
+    private async Task<bool> FailCheckpointAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, string detail, EffectsRun run, CancellationToken cancellationToken)
+    {
+        if (CountStartFailure(step) < MaximumStartAttempts)
+        {
             return false;
         }
+
+        _startFailures.Remove(step.Id);
+        return await FailStepAsync(task, snapshot, step, FailureClass.InfrastructureError, detail, run, cancellationToken);
+    }
+
+    /// <summary>Keeps the work of an Agent's step as one commit on top of the tip its checkout was made from (AD-9).</summary>
+    private async Task<CheckpointResult> CheckpointAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, string slug, BundleReference parent, CancellationToken cancellationToken)
+    {
+        var commit = CheckpointCommit.Compose(CommitIdentity.ForSlug(slug), await TextLanguageAsync(snapshot.Configuration, cancellationToken), step.Kind, task.Id, step.Id, step.Agent!.Value, step.Model!, step.Effort);
+        return await runtime!.CheckpointAsync(new CheckpointRequest(task.Id, step.Id, step.Kind, task.Branch, parent, commit), RunKeys.Checkpoint(task.Id, step.Id), cancellationToken);
     }
 
     // A checkpointed Implementation whose push is made: Validation begins on the pushed tip, one command at a time (FR-31).
@@ -286,35 +300,51 @@ public sealed partial class OrchestratorLoop
     {
         var step = steps[^1];
         var tip = step.TipAfter ?? step.TipBefore;
-        if (tip != step.TipBefore)
+
+        // The push is an effect of its own, made in the effects phase; the commit it moves the branch to is what Validation checks, so it waits until the push is made.
+        if (!await IsPushedAsync(task, step, cancellationToken))
         {
-            // The push is an effect of its own, made in the effects phase; the commit it moves the branch to is what Validation checks, so it waits until the push is made.
-            var journal = await reads.ListJournalAsync(task.Id, cancellationToken);
-            var pushed = journal.Any(entry => entry.Entry == JournalEntryKind.Result && entry.Effect.Kind == EffectKind.Push && entry.Effect.Cause == EffectKeys.StepCause(step.Id) && entry.Result is EffectResult.Applied or EffectResult.AlreadyInPlace);
-            if (!pushed)
-            {
-                return false;
-            }
+            return false;
         }
 
         return await PlanValidationAsync(task, snapshot, step.Round, tip, commandIndex: 0, cancellationToken);
     }
 
+    /// <summary>Whether what the step's checkpoint moved the Task branch to is there: a step that left the tree as it was has nothing to push, and one that did has its push journaled as made.</summary>
+    private async Task<bool> IsPushedAsync(TaskRecord task, StepRun step, CancellationToken cancellationToken)
+    {
+        if ((step.TipAfter ?? step.TipBefore) == step.TipBefore)
+        {
+            return true;
+        }
+
+        var journal = await reads.ListJournalAsync(task.Id, cancellationToken);
+        return journal.Any(entry => entry.Entry == JournalEntryKind.Result && entry.Effect.Kind == EffectKind.Push && entry.Effect.Cause == EffectKeys.StepCause(step.Id) && entry.Result is EffectResult.Applied or EffectResult.AlreadyInPlace);
+    }
+
     private async Task<bool> PlanValidationAsync(TaskRecord task, TaskSnapshot snapshot, int round, string tip, int commandIndex, CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
-        var limit = ValidationRun.CommandLimit(snapshot.Configuration.Limits, await reads.GetLimitsAsync(cancellationToken));
-        var step = new NewStepRun(EntityId.New(time), task.Id, StepKind.Validation, round, now + limit, now, tip, CommandIndex: commandIndex);
+        var limits = await reads.GetLimitsAsync(cancellationToken);
+        var deadline = ValidationDeadline(task, snapshot, limits, now);
+        var step = new NewStepRun(EntityId.New(time), task.Id, StepKind.Validation, round, deadline, now, tip, CommandIndex: commandIndex);
         return await work.PlanStepRunAsync(step, cancellationToken);
     }
 
-    // A command of Validation that passed: the next one runs, or, when all have, the pull request is journaled for publication. A command that did not pass ended the Task when its end was applied.
+    /// <summary>When a command of Validation is stopped: after its own limit, and never after the moment the Task's time in <c>Running</c> reaches its limit (NFR-5).</summary>
+    private static DateTimeOffset ValidationDeadline(TaskRecord task, TaskSnapshot snapshot, InstallationLimits limits, DateTimeOffset now) =>
+        StepDeadlines.For(now, ValidationRun.CommandLimit(snapshot.Configuration.Limits, limits), StepDeadlines.TaskLimit(snapshot.Configuration.Limits, limits), task.TimeInRunning(now));
+
+    // A command of Validation that passed: the next one runs, or, when all have, the pull request is journaled for publication. A command that did not pass ended its step run with a failure, which AfterFailureAsync decides on.
 
     private async Task<bool> AfterValidationAsync(TaskRecord task, TaskSnapshot snapshot, IReadOnlyList<StepRun> steps, EffectsRun run, CancellationToken cancellationToken)
     {
         var anchor = steps.Last(step => !step.IsValidation);
         var validation = ValidationRun.Begin(snapshot.Configuration.Validation);
-        foreach (var step in steps.Where(step => step.IsValidation && step.Sequence > anchor.Sequence).OrderBy(step => step.Sequence))
+
+        // A command that was attempted again has more than one step run, and the last attempt is the one that counts.
+        var attempts = steps.Where(step => step.IsValidation && step.Sequence > anchor.Sequence).GroupBy(step => step.CommandIndex!.Value).OrderBy(group => group.Key);
+        foreach (var step in attempts.Select(group => group.OrderBy(step => step.Sequence).Last()))
         {
             var index = step.CommandIndex!.Value;
             validation = validation.Record(ValidationCommandResult.Ended(index, snapshot.Configuration.Validation[index], step.Id, step.ExitCode, step.Cause ?? StepExitCause.Lost, step.Duration ?? TimeSpan.Zero));
@@ -333,8 +363,7 @@ public sealed partial class OrchestratorLoop
 
         if (ImplementationResultOf(anchor) is not { } result)
         {
-            await FailStepAsync(task, steps[^1], FailureClass.InfrastructureError, "the result of the Implementation cannot be read", run, cancellationToken);
-            return false;
+            return await FailStepAsync(task, snapshot, steps[^1], FailureClass.InfrastructureError, "the result of the Implementation cannot be read", run, cancellationToken);
         }
 
         var title = (await reads.FindIssueSnapshotAsync(task.Id, cancellationToken))?.Title ?? task.Branch;
@@ -357,22 +386,175 @@ public sealed partial class OrchestratorLoop
         }
     }
 
-    // A step that could not be carried out ends the Task: Story 3.16 classifies and retries; until then, the Task fails and keeps its branch.
+    // A step that failed (AD-11, NFR-10): the work an Agent's step left is kept first, then the step is attempted again as a new step run while its class spends the step retry bound and the Task has time left, and otherwise the Task fails with a
+    // comment on its issue. Every decision is made from the step run, the journal, and the Task's time, so a tick can stop between any two of them.
 
-    private static TaskMove FailedMove(TaskRecord task, StepRun step) =>
-        new(TaskState.Running, TaskState.Failed, [new NewEffect(task.Id, EffectKeys.StepCause(step.Id), EffectKind.Label, TaskState.Failed.Tag())]);
+    /// <summary>What bounds a Task's steps now: how many times a step is attempted again, the Task duration limit, and how much of it is left.</summary>
+    private sealed record Bounds(int Retries, TimeSpan TaskLimit, TimeSpan Remaining, InstallationLimits Limits);
 
-    private async Task FailStepAsync(TaskRecord task, StepRun step, FailureClass failure, string detail, EffectsRun run, CancellationToken cancellationToken)
+    private async Task<Bounds> ReadBoundsAsync(TaskRecord task, TaskSnapshot snapshot, CancellationToken cancellationToken)
     {
-        // A step that never ended ends with the failure; one that ended well and could not be carried on is concluded with it.
-        var change = step.Status is StepRunStatus.Planned or StepRunStatus.Started
-            ? new StepRunChange(step.Id, StepRunStatus.Ended, new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, failure, null, null), Move: FailedMove(task, step))
-            : new StepRunChange(step.Id, StepRunStatus.Concluded, Move: FailedMove(task, step), Failure: failure);
-        if (await work.ChangeStepRunAsync(change, cancellationToken))
+        var limits = await reads.GetLimitsAsync(cancellationToken);
+        var taskLimit = StepDeadlines.TaskLimit(snapshot.Configuration.Limits, limits);
+        var retries = InstallationSettings.StepRetriesFrom(await reads.ListSettingsAsync(cancellationToken));
+        return new Bounds(retries, taskLimit, StepDeadlines.Remaining(taskLimit, task.TimeInRunning(time.GetUtcNow())), limits);
+    }
+
+    /// <summary>
+    /// Carries on a step run that ended, or whose work was kept, with a failure. The work of an Agent step whose container ran is checkpointed and pushed before anything else (FR-20), so that a step attempted again starts from it and the Task branch holds all work
+    /// done; the decision follows once the push is made. Returns whether the records changed in a way that lets the Task go further at once.
+    /// </summary>
+    private async Task<bool> AfterFailureAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, EffectsRun run, CancellationToken cancellationToken)
+    {
+        if (!FailureClasses.TryParse(step.Failure, out var failure))
         {
-            run.Moved[task.Id] = TaskState.Failed;
-            run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} failed in {step.Kind.Tag()} ({failure.Tag()}): {detail}.");
+            failure = FailureClass.Unknown;
         }
+
+        if (step.Status == StepRunStatus.Ended && !step.IsValidation && step.StartedAt is not null && await KeepWorkAsync(task, snapshot, step, run, cancellationToken) is { } progress)
+        {
+            return progress;
+        }
+
+        // A step that kept work waits for its push, which may also end in an Escalation that takes the Task out of Running.
+        if (!await IsPushedAsync(task, step, cancellationToken))
+        {
+            return false;
+        }
+
+        return await ConcludeFailureAsync(task, snapshot, step, failure, run, cancellationToken);
+    }
+
+    /// <summary>
+    /// Keeps what a failed Agent step left in the Task's volume as one commit, whose push is journaled with it. Returns null when there is nothing to wait for: the work was left behind because it could not be kept, which is said in the log, or because GitHub is not connected; otherwise whether the step
+    /// moved on, false when the attempt is to be made again by the next tick, up to <see cref="MaximumStartAttempts"/> times.
+    /// </summary>
+    private async Task<bool?> KeepWorkAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, EffectsRun run, CancellationToken cancellationToken)
+    {
+        string failed;
+        try
+        {
+            if (await reads.GetGitHubAppSlugAsync(cancellationToken) is not { } slug)
+            {
+                run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber}: GitHub is not connected, so the work of the {step.Kind.Tag()} step cannot be committed and is left behind.");
+                return null;
+            }
+
+            if (await BundleOfAsync(task, step, step.TipBefore, cancellationToken) is not { } parent)
+            {
+                failed = "the commit the work was started from could not be bundled";
+            }
+            else
+            {
+                var checkpoint = await CheckpointAsync(task, snapshot, step, slug, parent, cancellationToken);
+                _startFailures.Remove(step.Id);
+                return checkpoint.Bundle is not { } bundle
+                    ? await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Checkpointed, TipAfter: step.TipBefore), cancellationToken)
+                    : await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Checkpointed, TipAfter: bundle.Tip, Effects: [PushIntent.For(step.Id, bundle, snapshot.CommitId).ToNewEffect(task.Id)]), cancellationToken);
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            failed = $"{exception.GetType().Name}: {exception.Message}";
+        }
+
+        if (CountStartFailure(step) < MaximumStartAttempts)
+        {
+            return false;
+        }
+
+        _startFailures.Remove(step.Id);
+        run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber}: the work of the {step.Kind.Tag()} step could not be kept and is left behind: {failed}.");
+        return null;
+    }
+
+    /// <summary>
+    /// The step run <paramref name="step"/> failed with <paramref name="failure"/>, and its work is kept as far as it can be. In one transaction it is concluded and either attempted again, as a new step run of the same step with the next attempt, on the last pushed tip,
+    /// or the Task fails, with its label and a comment on the issue.
+    /// </summary>
+    private async Task<bool> ConcludeFailureAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, FailureClass failure, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var bounds = await ReadBoundsAsync(task, snapshot, cancellationToken);
+        var end = StepRetries.Decide(failure, step.Attempt, bounds.Retries, bounds.Remaining);
+        if (end != StepFailureEnd.Retry)
+        {
+            await EndTaskAsync(task, step, failure, FailureFactsOf(task, snapshot, step, failure, end, bounds), run, cancellationToken);
+            return false;
+        }
+
+        var now = time.GetUtcNow();
+        var stepLimit = step.IsValidation ? ValidationRun.CommandLimit(snapshot.Configuration.Limits, bounds.Limits) : bounds.TaskLimit;
+        var retry = new NewStepRun(
+            EntityId.New(time),
+            task.Id,
+            step.Kind,
+            step.Round,
+            StepDeadlines.For(now, stepLimit, bounds.TaskLimit, task.TimeInRunning(now)),
+            now,
+            await LastPushedTipAsync(task, snapshot, cancellationToken),
+            step.Agent,
+            step.Model,
+            step.Effort,
+            step.Methodology,
+            step.Template,
+            step.CommandIndex,
+            step.Attempt + 1);
+        if (!await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Concluded, Failure: failure, Retry: retry), cancellationToken))
+        {
+            return false;
+        }
+
+        run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber}: {step.Kind.Tag()} attempt {step.Attempt} failed ({failure.Tag()}) and is attempted again.");
+        return true;
+    }
+
+    /// <summary>What the comment on the issue of a Task that failed says: the class, the step, the Validation command and its exit status, the attempts and the bound, the limit when it ended the Task, and the branch.</summary>
+    private static TaskFailureFacts FailureFactsOf(TaskRecord task, TaskSnapshot snapshot, StepRun step, FailureClass failure, StepFailureEnd end, Bounds bounds)
+    {
+        var command = step.IsValidation && step.CommandIndex is { } index && index < snapshot.Configuration.Validation.Count ? snapshot.Configuration.Validation[index] : null;
+        return new TaskFailureFacts(
+            failure.Tag(),
+            step.Kind.Tag(),
+            command,
+            command is null ? null : step.ExitCode,
+            step.Attempt,
+            bounds.Retries,
+            end.Tag(),
+            end == StepFailureEnd.DurationLimit ? LimitFormat.FormatDuration(bounds.TaskLimit) : null,
+            task.Branch);
+    }
+
+    /// <summary>Ends the Task as <c>Failed</c> with the intents of its label and of the comment that says what was attempted, which class ended it, and which command or step failed; its branch keeps all the work done.</summary>
+    private async Task<bool> EndTaskAsync(TaskRecord task, StepRun step, FailureClass failure, TaskFailureFacts facts, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var cause = EffectKeys.StepCause(step.Id);
+        var move = new TaskMove(
+            TaskState.Running,
+            TaskState.Failed,
+            [new NewEffect(task.Id, cause, EffectKind.Label, TaskState.Failed.Tag()), TaskFailureNotice.ToNewEffect(task.Id, cause, task.RepositoryId, task.IssueNumber, facts)]);
+        if (!await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Concluded, Move: move, Failure: failure), cancellationToken))
+        {
+            return false;
+        }
+
+        run.Moved[task.Id] = TaskState.Failed;
+        run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} failed in {step.Kind.Tag()} ({failure.Tag()}) after {step.Attempt} attempt(s): {facts.End}.");
+        return true;
+    }
+
+    /// <summary>
+    /// A step that could not be carried out. A step that never ended ends with the failure and is decided on by the next step of the Task; one that ended well and could not be carried on is concluded with it at once. Returns whether the records changed
+    /// in a way that lets the Task go further.
+    /// </summary>
+    private async Task<bool> FailStepAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, FailureClass failure, string detail, EffectsRun run, CancellationToken cancellationToken)
+    {
+        run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber}: {step.Kind.Tag()} attempt {step.Attempt} could not be carried out ({failure.Tag()}): {detail}.");
+        if (step.Status is StepRunStatus.Planned or StepRunStatus.Started)
+        {
+            return await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Ended, new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, failure, null, null)), cancellationToken);
+        }
+
+        return await ConcludeFailureAsync(task, snapshot, step, failure, run, cancellationToken);
     }
 
     // The end of a container, as the runtime reported it (AD-18): the loop gives the stored stream to the adapter, validates the result, and writes the step run.
@@ -393,12 +575,12 @@ public sealed partial class OrchestratorLoop
             return applied;
         }
 
+        // A step that failed is recorded as it failed and nothing more: whether it is attempted again or ends the Task is decided from that record by the Task's next step (AD-11).
         var at = time.GetUtcNow();
         var end = step.IsValidation
             ? await EndOfValidationAsync(step, signal, cause, at, cancellationToken)
             : await EndOfAgentStepAsync(step, signal, cause, at, cancellationToken);
-        var move = end.Failure is not null && task.State == TaskState.Running ? FailedMove(task, step) : null;
-        return applied with { StepRun = new StepRunChange(step.Id, StepRunStatus.Ended, end, Move: move) };
+        return applied with { StepRun = new StepRunChange(step.Id, StepRunStatus.Ended, end) };
     }
 
     private async Task<StepRunEnd> EndOfValidationAsync(StepRun step, Signal signal, StepExitCause cause, DateTimeOffset at, CancellationToken cancellationToken)
@@ -428,12 +610,10 @@ public sealed partial class OrchestratorLoop
     {
         StepRunEnd Ended(FailureClass? failure, string? outcome = null, string? result = null) => new(at, signal.ExitCode, cause, failure, outcome, result);
 
-        switch (cause)
+        // The runtime's cause comes first: a container it stopped or lost has no stream that is read (AD-11).
+        if (FailureClassifier.FromRuntime(cause) is { } runtimeCause)
         {
-            case StepExitCause.Timeout:
-                return Ended(FailureClass.Timeout);
-            case StepExitCause.OutOfMemory or StepExitCause.Lost:
-                return Ended(FailureClass.InfrastructureError);
+            return Ended(runtimeCause);
         }
 
         var adapter = _adapters.FirstOrDefault(candidate => candidate.Agent == step.Agent);
@@ -454,14 +634,11 @@ public sealed partial class OrchestratorLoop
             return Ended(FailureClass.AgentError);
         }
 
-        if (adapter.ClassifyExit(signal.ExitCode ?? -1, parsed) is { } classified)
-        {
-            return Ended(classified);
-        }
-
-        return StepOutcomes.Read(parsed.Result?.StructuredOutput) is { } read
-            ? Ended(null, read.Outcome == StepOutcome.Completed ? StepOutcomes.Completed : StepOutcomes.NeedsDecision, parsed.Result!.StructuredOutput)
-            : Ended(FailureClass.AgentError);
+        // Then the adapter's reading of a CLI that ended by itself, then Core's reading of the result, which is validated by strict deserialization and never interpreted when it is missing or invalid.
+        var read = StepOutcomes.Read(parsed.Result?.StructuredOutput);
+        return FailureClassifier.Decide(cause, () => adapter.ClassifyExit(signal.ExitCode ?? -1, parsed), () => read is not null) is { } failure
+            ? Ended(failure)
+            : Ended(null, read!.Outcome == StepOutcome.Completed ? StepOutcomes.Completed : StepOutcomes.NeedsDecision, parsed.Result!.StructuredOutput);
     }
 
     private static IEnumerable<string> ReadLines(Stream stream)

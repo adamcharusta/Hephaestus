@@ -157,7 +157,7 @@ public class RunToPullRequestTests
     }
 
     [Fact]
-    public async Task A_step_that_does_not_end_well_ends_the_Task_as_Failed_with_no_pull_request_and_frees_the_slot_for_the_next_Task()
+    public async Task A_step_that_does_not_end_well_is_attempted_again_within_the_bound_then_ends_the_Task_as_Failed_with_a_comment_and_no_pull_request_and_frees_the_slot_for_the_next_Task()
     {
         await using var run = await StartAsync(script: runtime =>
         {
@@ -177,9 +177,15 @@ public class RunToPullRequestTests
         await SettledAsync(run);
         Assert.Equal(TaskState.Failed, failed.State);
         Assert.Equal(second.Branch, Assert.Single(run.GitHub.Publications).Head);
-        var broken = Assert.Single(await run.Installation.Reads.ListStepRunsAsync(failed.Id, Cancel));
-        Assert.Equal(("unknown", 3), (broken.Failure, broken.ExitCode));
+        var attempts = await run.Installation.Reads.ListStepRunsAsync(failed.Id, Cancel);
+        Assert.Equal([1, 2, 3], attempts.Select(step => step.Attempt));
+        Assert.All(attempts, step => Assert.Equal(("unknown", 3, "implementation"), (step.Failure, step.ExitCode, step.Kind.ToString().ToLowerInvariant())));
         Assert.Contains("hephaestus:failed", run.GitHub.LabelsOf(Repository, 3));
+        await Installation.EventuallyAsync(() => Task.FromResult(run.GitHub.Comments.Count == 0 ? null : run.GitHub.Comments[0].Text));
+        var comment = Assert.Single(run.GitHub.Comments);
+        Assert.Equal(3, comment.Issue);
+        Assert.Contains("**Failed:** `unknown` in `implementation`.", comment.Text, StringComparison.Ordinal);
+        Assert.Contains("Attempts: 3. The bound of retries for a step is 2", comment.Text, StringComparison.Ordinal);
     }
 
     [Fact]

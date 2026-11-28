@@ -71,4 +71,30 @@ public class StepRunTests
         Assert.Equal(TimeSpan.FromHours(3), StepDeadlines.AgentLimit(Hephaestus.Core.Projects.ProjectLimits.None, new Hephaestus.Core.Limits.InstallationLimits(TimeSpan.FromHours(3), null, null)));
         Assert.Equal(StepDeadlines.DefaultAgentLimit, StepDeadlines.AgentLimit(Hephaestus.Core.Projects.ProjectLimits.None, Hephaestus.Core.Limits.InstallationLimits.None));
     }
+
+    [Fact]
+    public void The_Task_limit_is_the_same_limit_as_an_Agent_steps_and_a_step_is_stopped_at_the_narrowest_of_its_own_and_what_the_Task_has_left()
+    {
+        var now = new DateTimeOffset(2026, 11, 28, 10, 0, 0, TimeSpan.Zero);
+        var project = new Hephaestus.Core.Projects.ProjectLimits(TimeSpan.FromHours(2), null, null);
+        var limit = StepDeadlines.TaskLimit(project, Hephaestus.Core.Limits.InstallationLimits.None);
+
+        Assert.Equal(TimeSpan.FromHours(2), limit);
+        Assert.Equal(limit, StepDeadlines.AgentLimit(project, Hephaestus.Core.Limits.InstallationLimits.None));
+        Assert.Equal(now + TimeSpan.FromHours(2), StepDeadlines.For(now, limit, limit, TimeSpan.Zero));
+        Assert.Equal(now + TimeSpan.FromMinutes(30), StepDeadlines.For(now, TimeSpan.FromMinutes(30), limit, TimeSpan.FromMinutes(10)));
+        Assert.Equal(now + TimeSpan.FromMinutes(50), StepDeadlines.For(now, limit, limit, TimeSpan.FromMinutes(70)));
+        Assert.Equal(TimeSpan.FromMinutes(50), StepDeadlines.Remaining(limit, TimeSpan.FromMinutes(70)));
+    }
+
+    [Theory]
+    [InlineData(120)]
+    [InlineData(121)]
+    [InlineData(500)]
+    public void A_Task_that_has_spent_all_its_time_gets_a_deadline_that_has_passed_and_never_one_before_now(int minutesSpent)
+    {
+        var now = new DateTimeOffset(2026, 11, 28, 10, 0, 0, TimeSpan.Zero);
+
+        Assert.Equal(now, StepDeadlines.For(now, TimeSpan.FromMinutes(30), TimeSpan.FromHours(2), TimeSpan.FromMinutes(minutesSpent)));
+    }
 }

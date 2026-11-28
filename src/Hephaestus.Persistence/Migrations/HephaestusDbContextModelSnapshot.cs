@@ -631,6 +631,11 @@ namespace Hephaestus.Persistence.Migrations
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("Attempt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(1);
+
                     b.Property<string>("Cause")
                         .HasMaxLength(16)
                         .HasColumnType("TEXT");
@@ -738,6 +743,14 @@ namespace Hephaestus.Persistence.Migrations
 
                     b.Property<long>("RepositoryId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<long>("RunningMillis")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0L);
+
+                    b.Property<string>("RunningSince")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("State")
                         .IsRequired()

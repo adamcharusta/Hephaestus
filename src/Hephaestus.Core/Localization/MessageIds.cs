@@ -299,6 +299,14 @@ public static class MessageIds
     public const string CommentEscalationEffectPush = "comment.escalation.effect-push";
 
     public const string CommentEscalationEffectPullRequest = "comment.escalation.effect-pull-request";
+    public const string CommentFailedHeadline = "comment.failed.headline";
+    public const string CommentFailedCommand = "comment.failed.command";
+    public const string CommentFailedCommandExit = "comment.failed.command-exit";
+    public const string CommentFailedNotRetried = "comment.failed.not-retried";
+    public const string CommentFailedExhausted = "comment.failed.exhausted";
+    public const string CommentFailedDurationLimit = "comment.failed.duration-limit";
+    public const string CommentFailedNoChange = "comment.failed.no-change";
+    public const string CommentFailedNext = "comment.failed.next";
 
     public const string PullRequestSectionWhatChanged = "pull-request.section.what-changed";
     public const string PullRequestSectionTask = "pull-request.section.task";

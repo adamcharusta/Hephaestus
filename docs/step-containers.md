@@ -67,7 +67,7 @@ restart after a crash between the intent to create it and its result finds, that
    | `out-of-memory` | the kernel ended it for using more memory than its limit |
    | `lost` | the container was gone when the runtime looked; no exit code is known |
 
-   Whether a CLI that ended by itself ended well is for its adapter to say (Story 3.16). The loop applies the Signal like any other, within a tick, whatever else is running.
+   Whether a CLI that ended by itself ended well is for its adapter to say ([`failures.md`](failures.md)). The loop applies the Signal like any other, within a tick, whatever else is running.
 4. **Removal.** It removes the container, the step run's egress proxy and network, and the step run's context and Methodology volumes. The order is output complete, Signal, removal: a crash after the Signal leaves a labelled container for recovery to find (Story 3.17), and a crash before it
    leaves a container whose log is read again from the start, which replaces the output file.
 

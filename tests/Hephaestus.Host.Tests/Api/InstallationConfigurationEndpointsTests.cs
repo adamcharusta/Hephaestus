@@ -264,9 +264,9 @@ public class InstallationConfigurationEndpointsTests
         var set = await client.SendAsync(HttpMethod.Put, "/api/settings/language", "pl", Token);
         var after = await client.GetAsync("/api/settings", Token);
 
-        Assert.Equal("""{"settings":[{"name":"language","value":"en","default":"en","isSet":false},{"name":"pollingInterval","value":"60","default":"60","isSet":false},{"name":"effectRetries","value":"5","default":"5","isSet":false}]}""", before.Body);
+        Assert.Equal("""{"settings":[{"name":"language","value":"en","default":"en","isSet":false},{"name":"pollingInterval","value":"60","default":"60","isSet":false},{"name":"effectRetries","value":"5","default":"5","isSet":false},{"name":"stepRetries","value":"2","default":"2","isSet":false}]}""", before.Body);
         Assert.Equal("""{"name":"language","value":"pl","default":"en","isSet":true}""", set.Body);
-        Assert.Equal("""{"settings":[{"name":"language","value":"pl","default":"en","isSet":true},{"name":"pollingInterval","value":"60","default":"60","isSet":false},{"name":"effectRetries","value":"5","default":"5","isSet":false}]}""", after.Body);
+        Assert.Equal("""{"settings":[{"name":"language","value":"pl","default":"en","isSet":true},{"name":"pollingInterval","value":"60","default":"60","isSet":false},{"name":"effectRetries","value":"5","default":"5","isSet":false},{"name":"stepRetries","value":"2","default":"2","isSet":false}]}""", after.Body);
     }
 
     [Theory]

@@ -180,7 +180,7 @@ public sealed partial class OrchestratorLoop
             task.Id,
             StepKind.Implementation,
             Round: 0,
-            now + StepDeadlines.AgentLimit(snapshot.Configuration.Limits, limits),
+            StepDeadlines.For(now, StepDeadlines.AgentLimit(snapshot.Configuration.Limits, limits), StepDeadlines.TaskLimit(snapshot.Configuration.Limits, limits), task.TimeInRunning(now)),
             now,
             await LastPushedTipAsync(task, snapshot, cancellationToken),
             choice.Agent,

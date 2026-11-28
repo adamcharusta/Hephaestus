@@ -106,11 +106,20 @@ internal sealed class FakeMirrors : IRepositoryMirrors
 
     public MirrorFailure FetchFails { get; set; }
 
+    /// <summary>How many fetches fail, before the mirror answers as <see cref="FetchFails"/> says; a blink of GitHub that is over by the next attempt.</summary>
+    public int FailNextFetches { get; set; }
+
     public MirrorFailure BundleFails { get; set; }
 
     public Task<MirrorResult> FetchAsync(long repositoryId, CancellationToken cancellationToken)
     {
         Fetches.Add(repositoryId);
+        if (FailNextFetches > 0)
+        {
+            FailNextFetches--;
+            return Task.FromResult(MirrorResult.Failed(MirrorFailure.Unreachable));
+        }
+
         return Task.FromResult(FetchFails == MirrorFailure.None ? MirrorResult.Fetched : MirrorResult.Failed(FetchFails));
     }
 
@@ -241,6 +250,11 @@ internal sealed class RunRig
     public OrchestratorLoop Loop { get; }
 
     public static CancellationToken Token => TestContext.Current.CancellationToken;
+
+    /// <summary>Sets how many times a step is attempted again (the installation setting <c>stepRetries</c>); a test of what ends a Task sets none.</summary>
+    public void SetStepRetries(int retries) => Stores.Settings[Hephaestus.Core.Settings.InstallationSettings.StepRetriesName] = retries.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    public void NoRetries() => SetStepRetries(0);
 
     private OrchestratorLoop NewLoop() => new(
         Stores,

@@ -360,8 +360,11 @@ public sealed partial class OrchestratorLoop(
 
         if (existing is not null)
         {
-            // A Task is one Project and one issue for life (AD-2); opting in again belongs to Story 2.3.
-            return new SignalApplication(stored.Sequence, SignalStatus.Applied, TaskId: existing.Id);
+            // A Task is one Project and one issue for life (AD-2): one that failed returns to the Queue as the same Task, and continues on its branch; the rows for its other states belong to Story 2.3.
+            var applied = new SignalApplication(stored.Sequence, SignalStatus.Applied, TaskId: existing.Id);
+            return TaskLifecycle.AfterMarkerApplied(existing.State) is { } queued
+                ? applied with { MoveTaskTo = queued, NewEffects = [ShowState(existing with { State = queued }, stored.Sequence)] }
+                : applied;
         }
 
         if (signal.IssueTitle is not { } title)

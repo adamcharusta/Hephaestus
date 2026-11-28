@@ -80,6 +80,7 @@ public static class StepRunStatuses
 /// <param name="Outcome">What the step's result said: <c>completed</c> or <c>needs-decision</c> for an Agent step, and the command's status for a Validation step.</param>
 /// <param name="Result">The result document of an Agent step as it was validated, which later decisions read.</param>
 /// <param name="TipAfter">The tip of the checkpoint, when the step's work was kept.</param>
+/// <param name="Attempt">Which attempt at the step this run is, from 1: a step that failed in a class that spends the step retry bound is attempted again as a new step run with the next number (AD-11).</param>
 public sealed record StepRun(
     Guid Id,
     Guid TaskId,
@@ -103,7 +104,8 @@ public sealed record StepRun(
     string? Failure = null,
     string? Outcome = null,
     string? Result = null,
-    string? TipAfter = null)
+    string? TipAfter = null,
+    int Attempt = 1)
 {
     public bool IsValidation => Kind == StepKind.Validation;
 
@@ -125,7 +127,8 @@ public sealed record NewStepRun(
     Effort? Effort = null,
     string? Methodology = null,
     string? Template = null,
-    int? CommandIndex = null);
+    int? CommandIndex = null,
+    int Attempt = 1);
 
 /// <summary>How a step run ended, as the runtime's cause, the Agent's result, and Core's reading of them say.</summary>
 /// <param name="Failure">The class of the failure, or null when the step did what it was asked.</param>
@@ -141,4 +144,5 @@ public sealed record StepRunEnd(DateTimeOffset At, int? ExitCode, StepExitCause 
 /// <param name="Effects">The intents the change causes, for example the push of a checkpoint.</param>
 /// <param name="Move">The move of the Task the change causes, for example to <c>Failed</c>, with the intents of its label.</param>
 /// <param name="Failure">The class of a failure the loop found after the step ended, for example that it left no change; recorded on the run when set.</param>
-public sealed record StepRunChange(Guid StepRunId, StepRunStatus To, StepRunEnd? End = null, string? TipAfter = null, IReadOnlyList<NewEffect>? Effects = null, TaskMove? Move = null, FailureClass? Failure = null);
+/// <param name="Retry">The step run that attempts the failed step again, planned in the same transaction, only while the Task is <c>Running</c>.</param>
+public sealed record StepRunChange(Guid StepRunId, StepRunStatus To, StepRunEnd? End = null, string? TipAfter = null, IReadOnlyList<NewEffect>? Effects = null, TaskMove? Move = null, FailureClass? Failure = null, NewStepRun? Retry = null);
