@@ -179,6 +179,8 @@ internal sealed class FakeInbox : Hephaestus.Core.Ports.ISignalInbox
     /// <summary>When set, an append fails with it, as a crash between the append and the cursor would not be seen: nothing is stored.</summary>
     public Exception? Fail { get; set; }
 
+    public Task<Hephaestus.Core.Signals.StoredSignal?> FindAsync(long sequence, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<long> AppendOneAsync(Hephaestus.Core.Signals.Signal signal, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<int> AppendAsync(IReadOnlyList<Hephaestus.Core.Signals.Signal> signals, CancellationToken cancellationToken)

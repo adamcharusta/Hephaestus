@@ -1,7 +1,5 @@
 using Microsoft.EntityFrameworkCore.Migrations;
 
-#nullable disable
-
 namespace Hephaestus.Persistence.Migrations;
 
 /// <summary>

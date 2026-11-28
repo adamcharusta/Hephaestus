@@ -16,6 +16,8 @@ internal sealed class InMemoryInbox(List<string> calls) : ISignalInbox
 
     private int _attempts;
 
+    public Task<Hephaestus.Core.Signals.StoredSignal?> FindAsync(long sequence, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<long> AppendOneAsync(Hephaestus.Core.Signals.Signal signal, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<int> AppendAsync(IReadOnlyList<Signal> signals, CancellationToken cancellationToken)

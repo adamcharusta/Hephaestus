@@ -14,14 +14,9 @@ internal static class SignalApi
 
     private static async Task<IResult> ShowAsync(string id, ISignalInbox inbox, CancellationToken cancellationToken)
     {
-        // The id is a sequence; the one Signal that follows the one before it is it, so that the inbox needs no lookup of its own.
-        if (long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) && sequence > 0)
+        if (long.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var sequence) && await inbox.FindAsync(sequence, cancellationToken) is { } found)
         {
-            var found = (await inbox.ReadAsync(sequence - 1, 1, cancellationToken)).FirstOrDefault(stored => stored.Sequence == sequence);
-            if (found is not null)
-            {
-                return Results.Json(Documents.Signal(found), ApiJson.Default.SignalDocument);
-            }
+            return Results.Json(Documents.Signal(found), ApiJson.Default.SignalDocument);
         }
 
         return new ProblemResult(StatusCodes.Status404NotFound, "signal-not-found", MessageIds.ProblemSignalNotFoundTitle, new Message(MessageIds.ProblemSignalNotFoundDetail, id));

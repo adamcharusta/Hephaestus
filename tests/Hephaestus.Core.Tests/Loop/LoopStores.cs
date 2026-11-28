@@ -311,6 +311,8 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     public Task<IReadOnlyList<Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<Window>>([.. Windows.Where(w => !openOnly || w.IsOpen)]);
 
+    public Task<StoredSignal?> FindAsync(long sequence, CancellationToken cancellationToken) => Task.FromResult(Signals.FirstOrDefault(s => s.Sequence == sequence));
+
     public Task<long> AppendOneAsync(Signal signal, CancellationToken cancellationToken)
     {
         var existing = Signals.FirstOrDefault(s => s.Signal.Source == signal.Source && s.Signal.SourceEventId == signal.SourceEventId);

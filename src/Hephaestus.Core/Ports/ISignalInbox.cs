@@ -20,6 +20,9 @@ public interface ISignalInbox
     /// </summary>
     Task<long> AppendOneAsync(Signal signal, CancellationToken cancellationToken);
 
+    /// <summary>The Signal with this sequence, or null when the inbox has none.</summary>
+    Task<StoredSignal?> FindAsync(long sequence, CancellationToken cancellationToken);
+
     /// <summary>The Signals whose sequence is greater than <paramref name="afterSequence"/>, in inbox order, at most <paramref name="limit"/>.</summary>
     Task<IReadOnlyList<StoredSignal>> ReadAsync(long afterSequence, int limit, CancellationToken cancellationToken);
 
