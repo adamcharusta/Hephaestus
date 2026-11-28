@@ -49,7 +49,14 @@ public sealed partial class OrchestratorLoop
             // Only one Task runs (FR-14): the next starts when that one has left Running, which a step that just ended may have made so.
             if (running.Count == 0 || (await reads.ListTasksAsync(TaskState.Running, cancellationToken)).Count == 0)
             {
-                await DispatchNextAsync(run, cancellationToken);
+                try
+                {
+                    await DispatchNextAsync(run, cancellationToken);
+                }
+                catch (Exception exception) when (exception is not OperationCanceledException)
+                {
+                    run.Failure ??= exception;
+                }
             }
         }
 
@@ -67,6 +74,11 @@ public sealed partial class OrchestratorLoop
 
         var queued = await reads.ListTasksAsync(TaskState.Queued, cancellationToken);
         var now = time.GetUtcNow();
+        foreach (var gone in _startNotBefore.Keys.Where(id => queued.All(task => task.Id != id)).ToList())
+        {
+            _startNotBefore.Remove(gone);
+        }
+
         foreach (var task in DispatchPolicy.InWindows(queued, windows.Select(window => window.RepositoryId).ToHashSet()))
         {
             if (_startNotBefore.TryGetValue(task.Id, out var notBefore) && notBefore > now)
@@ -267,6 +279,13 @@ public sealed partial class OrchestratorLoop
         foreach (var window in DispatchPolicy.Drained(await reads.ListTasksAsync(TaskState.Queued, cancellationToken), windows))
         {
             await work.CloseWindowAsync(new WindowClosing(window.Id, WindowEnd.Drained), cancellationToken);
+        }
+
+        // A Project the Owner removed has nothing more to be worked, whatever waits in its Queue (FR-1): its window is closed as the Owner's removal would have it.
+        var registered = (await reads.ListProjectsAsync(includeRemoved: false, cancellationToken)).Select(project => project.RepositoryId).ToHashSet();
+        foreach (var window in windows.Where(window => !registered.Contains(window.RepositoryId)))
+        {
+            await work.CloseWindowAsync(new WindowClosing(window.Id, WindowEnd.Stopped), cancellationToken);
         }
     }
 }

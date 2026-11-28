@@ -159,3 +159,31 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-10-choose-how-each-agent-signs-in-and-check-that-it-is-ready.md`
   summary: Tell a usage limit from a refused credential in the reason of an unavailable Agent, and record `ExhaustedUntil` from a probe that meets a limit.
   evidence: `ClassifyExit` names `agent-error` for both and the adapter classifies no usage limit, so the reason of a probe says only that the CLI reported an error with an exit code; what a refused request under a subscription looks like is unrecorded and is Story 7.1's (review of Story 3.10, low).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Bound the retries of a step whose checkout or bundle could not be made because GitHub or the Docker Engine was unreachable for a moment, instead of failing the Task at once.
+  evidence: A mirror that cannot be fetched, a commit that cannot be bundled, a branch that cannot be read, or a checkout that fails ends the step as an `infrastructure-error` and the Task as `failed`, so a blink of GitHub costs the Owner an opt-in; the step retry bound of Story 3.16 (AR-55, NFR-10) is what turns these into attempts again on a fresh checkout.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Carry on a Task whose step run was `started` and whose container was lost with the host: remove the container, take a checkpoint, and attempt the step again as a new step run.
+  evidence: A step run that is `started` waits for the runtime's step-exited Signal; when the host stopped after the container was lost and nothing reports it, the Task stays `running` and holds the single slot. A `planned` step run is carried out by the next tick; the `started` one is Story 3.17's recovery by labels.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Start a step run that was `planned` without making a second checkout over a container that is already running, when the host stopped between the runtime's answer and the record that the step started.
+  evidence: The runtime finds a step's container again by its labels and returns it, but `CheckoutAsync` makes `/workspace` anew each time it is called, so a repeat after a crash in that one gap would clone over a running Agent; the window is the time of one transaction and the fix is the recovery of Story 3.17 (the checkout learns that a container of the step run exists).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Say on the issue that a Task was not started and why, and where an Agent made no change, and where a step ended the Task, instead of only in the log.
+  evidence: A Task whose file is missing or invalid, whose image cannot be used, whose Agent has no adapter, no sign-in, or no capacity stays `queued` and is reported in the log of the tick every minute; a `failed` Task shows its label and nothing else. The comments are Stories 3.15 and 3.16 (UX-DR-19, FR-2).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Decide how an Agent's several questions in one `needs-decision` result are put to the Owner, and what the reply answers.
+  evidence: One question is the Escalation's decision with its options; several are joined into one numbered decision with no options, because an Escalation asks one decision (FR-48) and one reply ends it; whether each question should be its own Escalation, or the options of all of them listed, is not in any criterion and changes how waiting works (Story 3.15, AD-13).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Run the end-to-end test of the Task from labelled issue to pull request on the real Docker Engine, as the harness of Story 3.3 does for a single step, with a mirror made by real git.
+  evidence: `RunToPullRequestTests` runs the real host, loop, database, control API, and command line with a scripted runtime and GitHub, so it needs no Engine and runs everywhere; the checkout, checkpoint, and push of real containers and real git are each tested on their own (Stories 3.5 to 3.7), and nothing yet runs them together, which this machine had no Docker Engine to show.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-14-start-a-project-on-demand-and-get-a-pull-request.md`
+  summary: Bound the time a Task spends in `Running` across all its steps by the Task duration limit, not only each step by its own deadline.
+  evidence: A step's deadline is the Project's limit held to the installation's, and each Validation command gets its own, so a Task's steps can together outlast the duration limit (Story 3.16, NFR-5).

@@ -34,7 +34,7 @@ internal sealed partial class CliApplication
             return await CheckProjectAsync(parse.GetValue(tree.ProjectCheckName)!, json, cancellationToken);
         }
 
-        return await RunSignalCommandAsync(command, parse, tree, json, cancellationToken);
+        return null;
     }
 
     /// <summary>

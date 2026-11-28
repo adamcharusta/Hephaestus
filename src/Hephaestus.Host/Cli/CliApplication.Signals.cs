@@ -66,11 +66,10 @@ internal sealed partial class CliApplication
 
         // The loop applies a Signal within a tick, so the wait is short; one that is still pending when it ends is reported as pending, not as a failure.
         var settled = accepted;
-        var waited = TimeSpan.Zero;
-        while (settled.Status == SignalStatuses.Tag(SignalStatus.Pending) && waited < _signalWait)
+        var started = System.Diagnostics.Stopwatch.GetTimestamp();
+        while (settled.Status == SignalStatuses.Tag(SignalStatus.Pending) && System.Diagnostics.Stopwatch.GetElapsedTime(started) < _signalWait)
         {
             await Task.Delay(_signalPoll, cancellationToken);
-            waited += _signalPoll;
             var current = await CallAsync(HttpMethod.Get, $"/api/signals/{accepted.Id}", body: null, cancellationToken);
             if (current is null)
             {

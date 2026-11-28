@@ -18,6 +18,16 @@ public class SignalCommandTests
 
     private static Task<CliRun> RunAsync(RunningHost host, Language language, params string[] args) => CliRun.ExecuteAsync(host.Settings.ControlSocketPath, language, args);
 
+    private static async Task EventuallyRejectedAsync(RunningHost host, long id)
+    {
+        var inbox = host.App.Services.GetRequiredService<ISignalInbox>();
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (DateTimeOffset.UtcNow < deadline && (await inbox.FindAsync(id, Token))!.Status == SignalStatus.Pending)
+        {
+            await Task.Delay(50, Token);
+        }
+    }
+
     private static string Line(string text) => text + Environment.NewLine;
 
     /// <summary>A registered Project with a Task waiting in its Queue that cannot start (the fake GitHub has no file for it), so that a window opened on it stays open.</summary>
@@ -35,11 +45,10 @@ public class SignalCommandTests
         return host;
     }
 
-    private static async Task<CliApplication> ApplicationAsync(StubApi api, StringWriter output, StringWriter error, TimeSpan wait)
+    private static Task<CliApplication> ApplicationAsync(StubApi api, StringWriter output, StringWriter error, TimeSpan wait)
     {
         var settings = new HostSettings(api.SocketPath, Language.English, "/tmp/none", "/tmp/none", "/tmp/none", "/tmp/none", "/tmp/none", HostSettings.DefaultInstallationId);
-        await Task.CompletedTask;
-        return new CliApplication(settings, new ControlApiClient(api.SocketPath, Language.English), new StringReader(string.Empty), output, error, signalWait: wait, signalPoll: TimeSpan.FromMilliseconds(20));
+        return Task.FromResult(new CliApplication(settings, new ControlApiClient(api.SocketPath, Language.English), new StringReader(string.Empty), output, error, signalWait: wait, signalPoll: TimeSpan.FromMilliseconds(20)));
     }
 
     [Fact]
@@ -136,7 +145,7 @@ public class SignalCommandTests
     {
         await using var host = await HostWithAQueuedTaskAsync();
         var id = await host.App.Services.GetRequiredService<ISignalInbox>().AppendOneAsync(Signal.Start(999, Guid.NewGuid(), DateTimeOffset.UtcNow), Token);
-        await Task.Delay(2500, Token);
+        await EventuallyRejectedAsync(host, id);
 
         var lines = await RunAsync(host, Language.Polish, "signal", "show", id.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var json = await RunAsync(host, Language.English, "signal", "show", id.ToString(System.Globalization.CultureInfo.InvariantCulture), "--json");

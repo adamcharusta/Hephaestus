@@ -146,6 +146,21 @@ public class OrchestratorLoopWindowTests
     }
 
     [Fact]
+    public async Task A_window_of_a_Project_the_Owner_removed_is_closed_though_Tasks_wait_in_its_Queue()
+    {
+        var rig = WithATaskThatCannotStart();
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+        Assert.True(Assert.Single(rig.Stores.Windows).IsOpen);
+
+        rig.Stores.Projects[0] = rig.Stores.Projects[0] with { RemovedAt = rig.Time.Now };
+        await rig.TickAsync();
+
+        Assert.Equal(WindowEnd.Stopped, Assert.Single(rig.Stores.Windows).End);
+    }
+
+    [Fact]
     public async Task A_window_ends_as_drained_when_the_last_Queued_Task_has_been_started_and_the_Task_that_runs_finishes_all_the_same()
     {
         var rig = new RunRig();

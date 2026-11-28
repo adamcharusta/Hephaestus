@@ -183,7 +183,7 @@ public class RunToPullRequestTests
     }
 
     [Fact]
-    public async Task A_stop_closes_the_window_and_the_Queue_waits_until_the_Owner_starts_again()
+    public async Task A_Queue_waits_until_the_Owner_starts_work_and_a_stop_before_a_start_changes_nothing()
     {
         await using var run = await StartAsync();
         await OptInAsync(run, issue: 4);

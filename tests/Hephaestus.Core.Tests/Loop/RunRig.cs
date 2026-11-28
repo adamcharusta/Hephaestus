@@ -156,6 +156,9 @@ internal sealed class RunAdapter(Agent agent = Agent.ClaudeCode) : IAgentAdapter
 
     public FailureClass? Class { get; set; }
 
+    /// <summary>When set, reading the stored stream fails with it.</summary>
+    public Exception? ParseThrows { get; set; }
+
     public List<InvocationRequest> Invocations { get; } = [];
 
     public Support SupportsAuthentication(AuthenticationMode mode) => SupportsEverything ? Support.Yes : Support.No(new Hephaestus.Core.Localization.Message("x"));
@@ -172,6 +175,11 @@ internal sealed class RunAdapter(Agent agent = Agent.ClaudeCode) : IAgentAdapter
 
     public AgentOutput Parse(IEnumerable<string> lines)
     {
+        if (ParseThrows is not null)
+        {
+            throw ParseThrows;
+        }
+
         var result = lines.FirstOrDefault(line => line.StartsWith("RESULT:", StringComparison.Ordinal))?[7..];
         return new AgentOutput([], result is null ? null : new AgentResult(false, null, result, "model", null, null), [], 0);
     }
@@ -310,11 +318,9 @@ internal sealed class RunRig
     }
 
     /// <summary>Ends the Validation command that runs now, with the exit code given, and ticks.</summary>
-    public async Task EndValidationAsync(int exitCode = 0, int issue = Issue)
+    public async Task EndValidationAsync(int exitCode = 0, int issue = Issue, StepExitCause cause = StepExitCause.Exited)
     {
-        await ExitAsync(LastStep(issue).Id, exitCode);
+        await ExitAsync(LastStep(issue).Id, exitCode, cause);
         await TickAsync(2);
     }
-
-    public static ValidationCommandStatus StatusOf(StepRun step) => step.Outcome == "passed" ? ValidationCommandStatus.Passed : ValidationCommandStatus.Failed;
 }

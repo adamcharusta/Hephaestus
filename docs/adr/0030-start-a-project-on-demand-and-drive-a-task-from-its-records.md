@@ -47,4 +47,6 @@ binaries nor the Docker client.
 
 - A Task with a window open is started within a tick of the Owner's start; a Task that cannot be started is said so in the log and tried again after a minute, until Story 3.15 says it on the issue.
 - A step lost with the host (a `started` step run whose container is gone) is not recovered: Story 3.17 removes its container, takes a checkpoint, and attempts it again as a new step run. A `planned` one is carried out by the next tick.
+- Checkout and checkpoint are helper containers that git runs in, and the loop waits for each for seconds within a tick, as the port is written (ADR-0022, ADR-0023); a tick carries one Task at most twelve steps further, and the loop is shown alive between them. The container of an Agent's step or of a Validation command is never waited for. A runtime or GitHub that fails again and again to start a step ends it as an infrastructure error after five ticks, until Story 3.16's bound replaces that count.
+- A Project the Owner removes has its window closed, and a window closes the moment its last `queued` Task has started: a Task that returns to `queued` later, for example after an answer, is dispatched without a window only by Story 3.15's rule.
 - A step run's usage, and the other Agent, the Reviewer, and the Findings, join the record with Stories 3.15 and 4.x.

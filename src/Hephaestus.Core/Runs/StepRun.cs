@@ -23,7 +23,7 @@ public enum StepRunStatus
     /// <summary>An Implementation run whose work was kept as a commit; the push of it is journaled in the same transaction (AD-9).</summary>
     Checkpointed,
 
-    /// <summary>The loop has acted on the end of the run for good: the last Validation command, whose consequence (the publication, or the end of the Task) is journaled with it.</summary>
+    /// <summary>The loop has acted on the end of the run for good, and its consequence (the publication, or the end of the Task) is journaled with it: the last Validation command, or an Implementation that left the tree as it found it.</summary>
     Concluded,
 }
 

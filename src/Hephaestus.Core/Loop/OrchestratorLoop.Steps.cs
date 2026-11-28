@@ -32,6 +32,11 @@ public sealed partial class OrchestratorLoop
     /// <summary>How many times one tick carries a Task a step further, so that the loop beats and the Signals behind are not held back.</summary>
     private const int MaximumAdvancesPerTick = 12;
 
+    /// <summary>How many times one tick after another may fail to start a step before it ends as an infrastructure error.</summary>
+    public const int MaximumStartAttempts = 5;
+
+    private readonly Dictionary<Guid, int> _startFailures = [];
+
     private async Task AdvanceAsync(TaskRecord started, EffectsRun run, CancellationToken cancellationToken)
     {
         for (var advances = 0; advances < MaximumAdvancesPerTick; advances++)
@@ -111,7 +116,17 @@ public sealed partial class OrchestratorLoop
             await FailStepAsync(task, step, FailureClass.InfrastructureError, exception.Message, run, cancellationToken);
             return false;
         }
+        catch (Exception exception) when (exception is not OperationCanceledException && CountStartFailure(step) >= MaximumStartAttempts)
+        {
+            // A runtime or a GitHub that fails again and again is not waited for without end: the step ends as an infrastructure error (Story 3.16 makes this a bounded retry of its own).
+            _startFailures.Remove(step.Id);
+            await FailStepAsync(task, step, FailureClass.InfrastructureError, $"it could not be started in {MaximumStartAttempts} attempts ({exception.GetType().Name})", run, cancellationToken);
+            return false;
+        }
     }
+
+    /// <summary>How many times in a row a step run's start met a failure that is not its own; kept in memory, so that a restart gives it a fresh count.</summary>
+    private int CountStartFailure(StepRun step) => _startFailures[step.Id] = _startFailures.GetValueOrDefault(step.Id) + 1;
 
     private async Task<bool> StartAgentStepAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, BundleReference bundle, StepLimits limits, EffectsRun run, CancellationToken cancellationToken)
     {
@@ -175,12 +190,14 @@ public sealed partial class OrchestratorLoop
                 return null;
             case BranchState.Moved:
                 var plan = EscalationPath.ForBlockedPush(task, PushCheck.RemoteMoved, check.Detail, EffectKeys.StepCause(step.Id), time);
-                if (plan is not null && await work.EscalateAsync(plan, cancellationToken))
+                if (plan is null || !await work.EscalateAsync(plan, cancellationToken))
                 {
-                    run.Moved[task.Id] = TaskState.WaitingForOwner;
-                    run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} waits for the Owner: its branch is not where Hephaestus left it.");
+                    // The Task could not be held, so the step is not ended as one that never ran: the next tick looks at the branch again.
+                    return false;
                 }
 
+                run.Moved[task.Id] = TaskState.WaitingForOwner;
+                run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} waits for the Owner: its branch is not where Hephaestus left it.");
                 await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Ended, new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, null, StepOutcomes.BranchMoved, null)), cancellationToken);
                 return false;
             default:
@@ -210,9 +227,13 @@ public sealed partial class OrchestratorLoop
         if (step.Outcome == StepOutcomes.NeedsDecision)
         {
             // The Agent asked the Owner something (AD-13): the question is the Escalation, which moves the Task out of Running, so the next Implementation is a step of its own once it is answered.
-            if (step.Result is not null && JsonSerializer.Deserialize(step.Result, ResultJson.Default.ImplementationResult) is { } result)
+            if (ImplementationResultOf(step) is { } result)
             {
                 await RaiseEscalationAsync(task, StepOutcomes.Request(result), EffectKeys.StepCause(step.Id), cancellationToken);
+            }
+            else
+            {
+                await FailStepAsync(task, step, FailureClass.AgentError, "the result that asks for a decision cannot be read", run, cancellationToken);
             }
 
             return false;
@@ -305,8 +326,14 @@ public sealed partial class OrchestratorLoop
             return await PlanValidationAsync(task, snapshot, anchor.Round, tip, validation.NextIndex!.Value, cancellationToken);
         }
 
-        if (validation.Outcome != ValidationOutcome.Passed || ImplementationResultOf(anchor) is not { } result)
+        if (validation.Outcome != ValidationOutcome.Passed)
         {
+            return false;
+        }
+
+        if (ImplementationResultOf(anchor) is not { } result)
+        {
+            await FailStepAsync(task, steps[^1], FailureClass.InfrastructureError, "the result of the Implementation cannot be read", run, cancellationToken);
             return false;
         }
 
@@ -337,8 +364,11 @@ public sealed partial class OrchestratorLoop
 
     private async Task FailStepAsync(TaskRecord task, StepRun step, FailureClass failure, string detail, EffectsRun run, CancellationToken cancellationToken)
     {
-        var end = new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, failure, null, null);
-        if (await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Ended, end, Move: FailedMove(task, step)), cancellationToken))
+        // A step that never ended ends with the failure; one that ended well and could not be carried on is concluded with it.
+        var change = step.Status is StepRunStatus.Planned or StepRunStatus.Started
+            ? new StepRunChange(step.Id, StepRunStatus.Ended, new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, failure, null, null), Move: FailedMove(task, step))
+            : new StepRunChange(step.Id, StepRunStatus.Concluded, Move: FailedMove(task, step), Failure: failure);
+        if (await work.ChangeStepRunAsync(change, cancellationToken))
         {
             run.Moved[task.Id] = TaskState.Failed;
             run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} failed in {step.Kind.Tag()} ({failure.Tag()}): {detail}.");
@@ -413,9 +443,15 @@ public sealed partial class OrchestratorLoop
         }
 
         AgentOutput parsed;
-        await using (var stream = await output!.OpenReadAsync(step.Id, cancellationToken))
+        try
         {
+            await using var stream = await output!.OpenReadAsync(step.Id, cancellationToken);
             parsed = stream is null ? new AgentOutput([], null, [], 0) : adapter.Parse(ReadLines(stream));
+        }
+        catch (Exception exception) when (exception is IOException or InvalidDataException or JsonException or FormatException)
+        {
+            // What was stored cannot be read, or is not what the adapter's CLI prints: the step has no result, and a Signal that failed to apply again and again would leave the Task holding the slot.
+            return Ended(FailureClass.AgentError);
         }
 
         if (adapter.ClassifyExit(signal.ExitCode ?? -1, parsed) is { } classified)

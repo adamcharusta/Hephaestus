@@ -108,6 +108,7 @@ internal sealed record SnapshotDocument(
     }
 }
 
-[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow)]
+// A member a later version adds is skipped, so that the snapshot of a Task that started before the upgrade is still read.
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
 [JsonSerializable(typeof(SnapshotDocument))]
 internal sealed partial class SnapshotJson : JsonSerializerContext;

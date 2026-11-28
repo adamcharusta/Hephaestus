@@ -16,19 +16,6 @@ public static class DispatchPolicy
     public static IReadOnlyList<TaskRecord> InWindows(IEnumerable<TaskRecord> tasks, IReadOnlySet<long> openWindows) =>
         [.. Eligible(tasks).Where(task => openWindows.Contains(task.RepositoryId)).OrderBy(task => task.IssueNumber).ThenBy(task => task.RepositoryId)];
 
-    /// <summary>
-    /// The Task to dispatch now, or null: none while a Task is <c>Running</c> (FR-14), otherwise the first the policy puts first.
-    /// </summary>
-    public static TaskRecord? Next(IReadOnlyCollection<TaskRecord> tasks, IReadOnlyCollection<Window> windows)
-    {
-        if (tasks.Any(task => task.State == TaskState.Running))
-        {
-            return null;
-        }
-
-        return InWindows(tasks, windows.Where(window => window.IsOpen).Select(window => window.RepositoryId).ToHashSet()).FirstOrDefault();
-    }
-
     /// <summary>The Projects whose window has nothing left to work: no Task of theirs is eligible (FR-16), so the window closes. A <c>Running</c> Task finishes all the same.</summary>
     public static IReadOnlyList<Window> Drained(IReadOnlyCollection<TaskRecord> tasks, IReadOnlyCollection<Window> windows)
     {

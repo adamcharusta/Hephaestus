@@ -127,10 +127,10 @@ public class OrchestratorLoopDispatchTests
     }
 
     [Theory]
-    [InlineData("primaryAlias: opus\nimage: ubuntu:24.04\n", "validation")]
-    [InlineData("primaryAlias: nobody\nvalidation:\n  - x\nimage: ubuntu:24.04\n", "invalid")]
-    [InlineData("this: is: not: yaml: [", "invalid")]
-    public async Task A_Task_whose_configuration_is_invalid_is_not_started_and_the_log_line_says_so(string file, string _)
+    [InlineData("primaryAlias: opus\nimage: ubuntu:24.04\n")]
+    [InlineData("primaryAlias: nobody\nvalidation:\n  - x\nimage: ubuntu:24.04\n")]
+    [InlineData("this: is: not: yaml: [")]
+    public async Task A_Task_whose_configuration_is_invalid_is_not_started_and_the_log_line_says_so(string file)
     {
         var rig = new RunRig();
         rig.SetConfiguration(RunRig.RepositoryId, file, RunRig.StartCommit);
@@ -309,6 +309,34 @@ public class OrchestratorLoopDispatchTests
 
         Assert.Equal(TaskState.Queued, rig.Task().State);
         Assert.Contains(report.TaskProblems!, line => line.Contains("names no primary Alias", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task An_Alias_that_no_longer_names_an_Agent_or_an_Effort_does_not_start_the_Task()
+    {
+        var rig = new RunRig();
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+
+        // The Task has its snapshot and is Queued again with a window open; the Owner has since redefined the Aliases.
+        rig.Stores.Tasks[0] = rig.Stores.Tasks[0] with { State = TaskState.Queued };
+        rig.Stores.Windows.Clear();
+        await rig.StartAsync();
+        rig.Stores.Aliases.Clear();
+        rig.Stores.Aliases.AddRange([Alias.ForEffort("opus", Effort.Low, rig.Time.Now), Alias.ForEffort("deep", Effort.High, rig.Time.Now)]);
+
+        var notAgent = await rig.TickAsync();
+
+        Assert.Contains(notAgent.TaskProblems!, line => line.Contains("no longer one that names an Agent", StringComparison.Ordinal));
+
+        rig.Stores.Aliases.Clear();
+        rig.Stores.Aliases.AddRange([Alias.ForModel("opus", Agent.ClaudeCode, "claude-opus-5-5", rig.Time.Now), Alias.ForModel("deep", Agent.ClaudeCode, "claude-opus-5-5", rig.Time.Now)]);
+        rig.Time.Advance(TimeSpan.FromMinutes(2));
+        var notEffort = await rig.TickAsync();
+
+        Assert.Contains(notEffort.TaskProblems!, line => line.Contains("no longer one that names an Effort", StringComparison.Ordinal));
+        Assert.Equal(TaskState.Queued, rig.Task().State);
     }
 
     [Fact]

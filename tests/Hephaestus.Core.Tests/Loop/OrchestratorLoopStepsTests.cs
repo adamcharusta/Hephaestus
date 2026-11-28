@@ -333,6 +333,149 @@ public class OrchestratorLoopStepsTests
     }
 
     [Fact]
+    public async Task The_limits_the_egress_hosts_and_the_deadline_of_the_snapshot_reach_the_container_of_every_step()
+    {
+        var rig = new RunRig();
+        rig.SetConfiguration(RunRig.RepositoryId, RunRig.ConfigurationFile + "\nallowedEgressHosts:\n  - nuget.org\nlimits:\n  cpus: 3\n  memory: 2g\n", RunRig.StartCommit);
+        await rig.ImplementAsync();
+        await rig.TickAsync();
+
+        var agent = Assert.Single(rig.Runtime.Steps).Request;
+        var validation = Assert.Single(rig.Runtime.Validations).Request;
+        Assert.Equal(["api.fake.test", "nuget.org"], agent.AllowedEgressHosts);
+        Assert.Equal(["nuget.org"], validation.ProjectEgressHosts);
+        Assert.Equal(["nuget.org"], validation.Container().AllowedEgressHosts);
+        Assert.Equal((3000, 2L * 1024 * 1024 * 1024), (agent.Limits.CpuMillis, agent.Limits.MemoryBytes));
+        Assert.Equal(agent.Limits, validation.Limits);
+        Assert.Equal(rig.LastStep().Deadline, validation.Deadline);
+        Assert.Equal(rig.LastStep().PlannedAt + Hephaestus.Core.Validation.ValidationRun.DefaultCommandLimit, validation.Deadline);
+    }
+
+    [Theory]
+    [InlineData(StepExitCause.Timeout, "timeout", "timeout")]
+    [InlineData(StepExitCause.Lost, "infrastructure-error", "interrupted")]
+    [InlineData(StepExitCause.OutOfMemory, "infrastructure-error", "interrupted")]
+    public async Task A_command_that_the_runtime_stopped_or_lost_ends_the_Task_with_the_class_of_the_runtimes_cause(StepExitCause cause, string failure, string outcome)
+    {
+        var rig = new RunRig();
+        await rig.ImplementAsync();
+        await rig.TickAsync();
+
+        await rig.EndValidationAsync(0, cause: cause);
+
+        Assert.Equal((TaskState.Failed, failure, outcome), (rig.Task().State, rig.LastStep().Failure, rig.LastStep().Outcome));
+        Assert.Single(rig.Runtime.Validations);
+        Assert.Empty(rig.Pulls.Publications);
+    }
+
+    [Fact]
+    public async Task A_Task_that_starts_again_after_work_was_pushed_checks_out_and_looks_at_the_branch_from_the_tip_last_pushed()
+    {
+        var rig = new RunRig();
+        await rig.ImplementAsync();
+        await rig.TickAsync();
+        var pushed = rig.Runtime.NextTip;
+
+        // The Task waited for the Owner and was answered: it is Queued again, with a window open.
+        rig.Stores.Tasks[0] = rig.Stores.Tasks[0] with { State = TaskState.Queued };
+        rig.Stores.Windows.Clear();
+        await rig.StartAsync();
+        await rig.TickAsync();
+
+        var step = rig.LastStep();
+        Assert.Equal((StepKind.Implementation, pushed), (step.Kind, step.TipBefore));
+        Assert.Equal(pushed, rig.Runtime.Checkouts[^1].Request.Bundle.Tip);
+        Assert.Equal(pushed, rig.Branches.Checks[^1].LastPushedTip);
+    }
+
+    [Fact]
+    public async Task A_second_Implementation_that_changes_nothing_after_work_was_pushed_goes_on_to_Validation_of_what_was_pushed()
+    {
+        var rig = new RunRig();
+        await rig.ImplementAsync();
+        await rig.TickAsync();
+        var pushed = rig.Runtime.NextTip;
+        rig.Stores.Tasks[0] = rig.Stores.Tasks[0] with { State = TaskState.Queued };
+        rig.Stores.Windows.Clear();
+        rig.Runtime.Unchanged = true;
+        await rig.StartAsync();
+        await rig.TickAsync();
+
+        await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, RunRig.Completed());
+        await rig.TickAsync(2);
+
+        Assert.Equal((TaskState.Running, StepKind.Validation, pushed), (rig.Task().State, rig.LastStep().Kind, rig.LastStep().TipBefore));
+    }
+
+    [Fact]
+    public async Task A_stored_stream_that_cannot_be_read_is_an_agent_error_and_not_a_Signal_that_fails_to_apply()
+    {
+        var rig = new RunRig();
+        rig.Adapter.ParseThrows = new InvalidDataException("not what the CLI prints");
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+
+        await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, RunRig.Completed());
+        var report = await rig.TickAsync();
+
+        Assert.Null(report.Failure);
+        Assert.Equal((TaskState.Failed, "agent-error"), (rig.Task().State, rig.LastStep().Failure));
+    }
+
+    [Fact]
+    public async Task A_result_that_asks_for_a_decision_and_cannot_be_read_back_ends_the_Task_instead_of_holding_the_slot_in_silence()
+    {
+        var rig = new RunRig();
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+        // A step run that ended asking for a decision whose result cannot be read back, as a store that was damaged would give it.
+        rig.Stores.StepRuns[0] = rig.Stores.StepRuns[0] with { Status = StepRunStatus.Ended, Outcome = "needs-decision", Result = "garbled" };
+
+        await rig.TickAsync();
+
+        Assert.Equal((TaskState.Failed, "agent-error"), (rig.Task().State, rig.LastStep().Failure));
+    }
+
+    [Fact]
+    public async Task A_checkpoint_the_runtime_cannot_make_ends_the_Task_and_the_step_that_ended_well_is_concluded_with_the_failure()
+    {
+        var rig = new RunRig();
+        rig.Runtime.Throws[nameof(FakeRuntime.CheckpointAsync)] = new WorkspaceRuntimeException(new Hephaestus.Core.Localization.Message("workspace.probe.docker"));
+        await rig.QueueAsync();
+        await rig.StartAsync();
+        await rig.TickAsync();
+
+        await rig.ExitAsync(rig.LastStep().Id, 0, StepExitCause.Exited, RunRig.Completed());
+        await rig.TickAsync();
+
+        var step = rig.LastStep();
+        Assert.Equal((TaskState.Failed, StepRunStatus.Concluded, "infrastructure-error", "completed"), (rig.Task().State, step.Status, step.Failure, step.Outcome));
+        Assert.Empty(rig.Branches.Pushes);
+    }
+
+    [Fact]
+    public async Task A_step_that_cannot_be_started_tick_after_tick_ends_as_an_infrastructure_error_at_the_bound()
+    {
+        var rig = new RunRig();
+        rig.Runtime.Throws[nameof(FakeRuntime.StartStepAsync)] = new IOException("the Docker socket is gone");
+        await rig.QueueAsync();
+        await rig.StartAsync();
+
+        for (var attempt = 1; attempt < Hephaestus.Core.Loop.OrchestratorLoop.MaximumStartAttempts; attempt++)
+        {
+            Assert.NotNull((await rig.TickAsync()).Failure);
+            Assert.Equal(TaskState.Running, rig.Task().State);
+        }
+
+        var last = await rig.TickAsync();
+
+        Assert.Equal((TaskState.Failed, "infrastructure-error"), (rig.Task().State, rig.LastStep().Failure));
+        Assert.Contains(last.TaskProblems!, line => line.Contains("5 attempts", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task The_end_of_a_container_is_recorded_once_and_a_second_Signal_for_it_changes_nothing()
     {
         var rig = new RunRig();

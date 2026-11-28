@@ -138,9 +138,9 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
             return agent;
         }
 
-        if (command == tree.SignalShow)
+        if (await RunSignalCommandAsync(command, parse, tree, json, cancellationToken) is { } signal)
         {
-            return await RunSignalCommandAsync(command, parse, tree, json, cancellationToken) ?? Failure;
+            return signal;
         }
 
         HelpWriter.Write(command, tree.Help, output, language);

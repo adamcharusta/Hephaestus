@@ -2,8 +2,8 @@
 title: 'Story 3.14: Start a Project on demand and get a pull request'
 type: 'feature'
 created: '2026-11-28'
-status: 'in-progress'
-baseline_commit: '83d06141a8d3dca4fd7273bc9ca51aee9d6693dc'
+status: 'in-review'
+baseline_commit: '83d061477244f4eedf824516f8c873ce0f6f6ba2'
 route: 'dispatch'
 review_loop_iteration: 0
 context:
@@ -56,10 +56,10 @@ context:
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Core model, ports, dispatch policy, loop phases, messages (en, pl).
-- [ ] Persistence: tables, migration, unit of work, read store, inbox append with its id.
-- [ ] Host: Signal API, commands, wiring, log lines.
-- [ ] Tests at every layer, the end-to-end test, documentation, ADR, README, story `done` in `sprint-status.yaml`.
+- [x] Core model, ports, dispatch policy, loop phases, messages (en, pl).
+- [x] Persistence: tables, migration, unit of work, read store, inbox append with its id.
+- [x] Host: Signal API, commands, wiring, log lines.
+- [x] Tests at every layer, the end-to-end test, documentation, ADR, README, story `done` in `sprint-status.yaml`.
 
 **Acceptance Criteria:**
 
@@ -67,7 +67,7 @@ context:
 |-----------|----------|
 | 202 with a Signal id; window opened; status readable | `SignalEndpointsTests`, `OrchestratorLoopWindowTests`, `SignalCommandTests` |
 | Second start opens no second window and says so | `OrchestratorLoopWindowTests`, `WindowJournalTests` |
-| Dispatch order, `Queued` to `Running` only, never two `Running` | `DispatchPolicyTests`, `OrchestratorLoopDispatchTests`, `DispatchPersistenceTests` |
+| Dispatch order, `Queued` to `Running` only, never two `Running` | `DispatchOrderTests`, `OrchestratorLoopDispatchTests`, `DispatchPersistenceTests` |
 | Snapshot of configuration, commit id, digest; later steps use it | `OrchestratorLoopDispatchTests`, `DispatchPersistenceTests` |
 | Implementation, checkpoint, push, Validation, publication; slot held | `OrchestratorLoopStepsTests`, `RunToPullRequestTests` |
 | Window closes when no Task is eligible or the Owner stops it | `OrchestratorLoopWindowTests` |
@@ -76,3 +76,23 @@ context:
 ## Implementation Notes
 
 - Unattended run: no Open Questions could be put to the Owner. Choices that the Owner would not notice were made and are recorded in ADR-0030.
+- The Task of an Agent's step that changed nothing, a failed step, and a Validation command that does not pass end the Task as `failed` for now; the comment on the issue, the classes beyond those the runtime and the adapter name, and the retries are Stories 3.15 and 3.16.
+- Before every step the Task branch is looked at (`ITaskBranches.CheckBranchAsync`), as ADR-0024 left it to this story: a branch that moved holds the Task with an Escalation whose resume condition is `confirm`, which Story 3.18 delivers.
+
+## Review Triage Log
+
+| Finding | Verdict | Route and evidence |
+| --- | --- | --- |
+| A branch-moved step ends even when the Task could not be held, and is then read as a finished Implementation | medium | patch: the step now ends only when the Escalation was raised; otherwise the next tick looks again |
+| A step whose end cannot be read, or whose start fails again and again, holds the slot for ever | medium | patch: an unreadable stream is an `agent-error`, an unreadable stored result ends the Task, and five failed starts end the step; `FailStepAsync` concludes a step that already ended |
+| `FailStepAsync` was a no-op for a step that had ended (found while testing a checkpoint that fails) | high | patch, with a test |
+| A tick that fails in a Task's advance or start skips the closing of drained windows, and one Task's failed start holds back other Projects | medium | patch: each is caught, reported with the tick, and the rest runs |
+| A window of a Project the Owner removed stays open | medium | patch: it is closed as stopped |
+| `DispatchPolicy.Next` is dead code; tests of the old `DispatchPolicyTests` were overwritten | medium | patch: `Next` removed, the old tests restored, the new ones in `DispatchOrderTests` |
+| The egress hosts, limits, and deadline of the snapshot are not shown to reach the containers; a Validation command's timeout, loss, and out-of-memory classes; a Task started again after a push; the Alias branches | medium | patch: tests added |
+| `Concluded` documented for one use only; the snapshot refuses a member a later version adds; the CLI wait ignores the time of its requests; two places dispatch `signal show`; fixed sleeps in two tests | low | patch |
+| A start on a Project with an empty Queue says a window is open though it closed in the same tick | low | not changed: the sentence is true of the window at the time it was applied, and FR-16 says a start ends when the Queue is empty |
+| The Task-duration limit is not summed over a Task's steps; a step lost with the host is not recovered; a checkout can be repeated over a running container after a crash in one gap; the loop beats only between steps | low | defer: Stories 3.16 and 3.17, in `deferred-work.md` |
+| The `TaskProblems` lines are English text | false | log lines are never translated (AD-21) |
+| A host with no runtime starts no Task and says nothing | false | the host always wires the loop's ports; only a bare loop in a test has none |
+| A tick makes several reads of windows and Tasks | low | not changed: each read is one indexed query on SQLite, and the fix is more state to pass around |
