@@ -289,6 +289,50 @@ public class OrchestratorLoopStepsTests
     }
 
     [Fact]
+    public async Task The_Task_branch_is_looked_at_before_every_step_against_the_tip_last_pushed_and_the_start_commit()
+    {
+        var rig = new RunRig();
+        await rig.ImplementAsync();
+        await rig.TickAsync();
+
+        Assert.Equal([RunRig.StartCommit, rig.Runtime.NextTip], rig.Branches.Checks.Select(check => check.LastPushedTip));
+        Assert.All(rig.Branches.Checks, check => Assert.Equal((rig.Task().Branch, RunRig.StartCommit, RunRig.RepositoryId), (check.Branch, check.StartCommit, check.RepositoryId)));
+    }
+
+    [Fact]
+    public async Task A_branch_that_someone_else_moved_holds_the_Task_for_the_Owner_and_no_step_runs_on_it()
+    {
+        var rig = new RunRig();
+        rig.Branches.Check = BranchCheckResult.Moved("2 commits Hephaestus did not push");
+        await rig.QueueAsync();
+        await rig.StartAsync();
+
+        var report = await rig.TickAsync();
+
+        Assert.Equal(TaskState.WaitingForOwner, rig.Task().State);
+        var escalation = Assert.Single(rig.Stores.Escalations);
+        Assert.Equal((EscalationKind.PushBlocked, PushCheck.RemoteMoved, ResumeConditions.Confirm), (escalation.Kind, escalation.Check, escalation.ResumeCondition));
+        Assert.Equal(("branch-moved", StepRunStatus.Ended, null), (rig.LastStep().Outcome, rig.LastStep().Status, rig.LastStep().Failure));
+        Assert.Empty(rig.Runtime.Checkouts);
+        Assert.Empty(rig.Runtime.Steps);
+        Assert.Contains(report.TaskProblems!, line => line.Contains("not where Hephaestus left it", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_branch_that_cannot_be_read_ends_the_step_as_an_infrastructure_error()
+    {
+        var rig = new RunRig();
+        rig.Branches.Check = BranchCheckResult.Unavailable(MirrorFailure.Unreachable);
+        await rig.QueueAsync();
+        await rig.StartAsync();
+
+        await rig.TickAsync();
+
+        Assert.Equal((TaskState.Failed, "infrastructure-error"), (rig.Task().State, rig.LastStep().Failure));
+        Assert.Empty(rig.Runtime.Checkouts);
+    }
+
+    [Fact]
     public async Task The_end_of_a_container_is_recorded_once_and_a_second_Signal_for_it_changes_nothing()
     {
         var rig = new RunRig();

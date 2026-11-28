@@ -18,7 +18,16 @@ internal sealed class FakeBranches(LoopStores stores) : ITaskBranches
     /// <summary>The bundles deleted, with the number of journal lines there were at the time, so that a test can say the result was written first.</summary>
     public List<(BundleReference Bundle, int JournalLines, bool HadResult)> Deleted { get; } = [];
 
-    public Task<BranchCheckResult> CheckBranchAsync(BranchCheckRequest request, CancellationToken cancellationToken) => Task.FromResult(BranchCheckResult.InSync());
+    /// <summary>What a look at the branch answers; the branch is where Hephaestus left it unless a test says otherwise.</summary>
+    public BranchCheckResult Check { get; set; } = BranchCheckResult.InSync();
+
+    public List<BranchCheckRequest> Checks { get; } = [];
+
+    public Task<BranchCheckResult> CheckBranchAsync(BranchCheckRequest request, CancellationToken cancellationToken)
+    {
+        Checks.Add(request);
+        return Task.FromResult(Check);
+    }
 
     public Task<PushResult> PushAsync(PushRequest request, string idempotencyKey, CancellationToken cancellationToken)
     {

@@ -77,6 +77,12 @@ public sealed partial class OrchestratorLoop
     {
         try
         {
+            // Before any step, the Task branch on GitHub is looked at (AD-9): where someone else has moved it, no step runs on it, and the Task is held for the Owner.
+            if (branches is not null && await CheckBranchAsync(task, snapshot, step, run, cancellationToken) is { } held)
+            {
+                return held;
+            }
+
             var bundle = await BundleOfAsync(task, step, step.TipBefore, cancellationToken);
             if (bundle is null)
             {
@@ -154,6 +160,33 @@ public sealed partial class OrchestratorLoop
             invocation.SecretReferences);
         await runtime.StartStepAsync(container, RunKeys.Container(task.Id, step.Id), cancellationToken);
         return true;
+    }
+
+    /// <summary>
+    /// Fetches the Task branch and says whether the step may run on it. Null when it may: the branch is where Hephaestus left it, or is not there because nothing was pushed. A branch that moved holds the Task: an Escalation names it and the Task waits until a Trusted User adopts the remote tip
+    /// (the <c>confirm</c> command is Story 3.18's), and the step run ends with no failure; one that could not be read ends the step as an infrastructure error. Returns false, that nothing more is to be done now, in both cases.
+    /// </summary>
+    private async Task<bool?> CheckBranchAsync(TaskRecord task, TaskSnapshot snapshot, StepRun step, EffectsRun run, CancellationToken cancellationToken)
+    {
+        var check = await branches!.CheckBranchAsync(new BranchCheckRequest(task.RepositoryId, task.Branch, step.TipBefore, snapshot.CommitId), cancellationToken);
+        switch (check.State)
+        {
+            case BranchState.InSync:
+                return null;
+            case BranchState.Moved:
+                var plan = EscalationPath.ForBlockedPush(task, PushCheck.RemoteMoved, check.Detail, EffectKeys.StepCause(step.Id), time);
+                if (plan is not null && await work.EscalateAsync(plan, cancellationToken))
+                {
+                    run.Moved[task.Id] = TaskState.WaitingForOwner;
+                    run.TaskProblems.Add($"Task {task.Id} of issue #{task.IssueNumber} waits for the Owner: its branch is not where Hephaestus left it.");
+                }
+
+                await work.ChangeStepRunAsync(new StepRunChange(step.Id, StepRunStatus.Ended, new StepRunEnd(time.GetUtcNow(), null, StepExitCause.Lost, null, StepOutcomes.BranchMoved, null)), cancellationToken);
+                return false;
+            default:
+                await FailStepAsync(task, step, FailureClass.InfrastructureError, "the Task branch could not be read from GitHub", run, cancellationToken);
+                return false;
+        }
     }
 
     /// <summary>The bundle of a commit of the Project's mirror, which the next checkout reads once (AD-9); null when the mirror cannot be brought up to date or lacks the commit.</summary>

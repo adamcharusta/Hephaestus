@@ -100,7 +100,7 @@ replaced by name, and doing the checkout again makes the same workspace.
 
 The gateway keeps the repository the bundle is made from: one bare mirror per Project on the `hephaestus-mirrors` volume, with no hooks and no working tree, which only the `hephaestus` container mounts. The orchestrator runs git only against a mirror, through one runner that is the only code that starts a process,
 and never in a directory an Agent can write to. [ADR-0022](adr/0022-checkout-from-a-bundle.md) has the decision. The runtime fetches the `hephaestus-tools` image when the machine lacks it; `HEPHAESTUS_TOOLS_IMAGE` names it (Compose sets the image of the same release), and in a development checkout
-`docker compose -f deploy/compose.yaml --profile tools build` builds it. The loop calls the checkout when it starts a step (Story 3.14); until then the tests and the harness do.
+`docker compose -f deploy/compose.yaml --profile tools build` builds it. The loop calls the checkout when it starts a step ([Starting work and running a Task](dispatch.md)).
 
 ## The checkpoint after a step (AD-9, FR-20, Story 3.6)
 
@@ -113,8 +113,7 @@ that equals the tip's makes no commit and no bundle. The message and the identit
 exactly one regular file to leave, `/checkpoint/result.bundle`, a bundle of one head, `refs/heads/<Task branch>`, with the tip as its one prerequisite.
 
 The runtime copies that one file out of the stopped container and hands it on as a bundle reference with its path under the bundles directory, its SHA-256, its tip, and its prerequisite. It refuses, as an infrastructure error, an archive with a link entry, a parent path, an extra entry, another name, or a file over the bound of 2 GiB, and a bundle whose header is not
-that one head and that one prerequisite; nothing of a refused archive stays on the data volume. A step of another kind is not checkpointed: what it left in the tree is discarded by the next checkout. The gateway imports and checks the bundle before anything is pushed (see below); the loop asks for the checkpoint when a step has ended (Story 3.14), and until then the
-tests and the harness do. [ADR-0023](adr/0023-checkpoint-as-one-commit.md) has the decision. `CheckpointScriptTests` run the script with the git of the machine; `CheckpointEngineTests` run it in the real tools image in CI.
+that one head and that one prerequisite; nothing of a refused archive stays on the data volume. A step of another kind is not checkpointed: what it left in the tree is discarded by the next checkout. The gateway imports and checks the bundle before anything is pushed (see below); the loop asks for the checkpoint when a step has ended ([Starting work and running a Task](dispatch.md)). [ADR-0023](adr/0023-checkpoint-as-one-commit.md) has the decision. `CheckpointScriptTests` run the script with the git of the machine; `CheckpointEngineTests` run it in the real tools image in CI.
 
 ## The push after a checkpoint (AD-4, AD-9, AD-19, FR-4, FR-44, Story 3.7)
 
@@ -124,7 +123,7 @@ or absent when nothing was pushed; the bundle has one head, the Task branch; the
 
 The push is one refspec from the quarantine ref to `refs/heads/hephaestus/<issue>-<slug>`, with no plus, no force, and no delete, so GitHub refuses what is not a fast-forward as well. The loop journals it as an effect whose intent names the step run, the bundle's checksum, the tip before and the tip after, and the start commit, makes it, and deletes the bundle's file once its result is journaled.
 A failed check ends the effect as refused and raises an Escalation that names the check; the Task waits for the Owner and its Workspace is kept. A Task branch that someone else pushed to is not pushed to or run on: the Escalation names the commits Hephaestus did not push, and a reply does not end the wait, only a Trusted User's `confirm` does (Story 3.18).
-[ADR-0024](adr/0024-push-through-the-gateways-checks.md) has the decision. `GitHubPushTests` push to a repository on the machine with real git; the loop calls the push when a step has ended (Story 3.14), and until then the tests and the harness do.
+[ADR-0024](adr/0024-push-through-the-gateways-checks.md) has the decision. `GitHubPushTests` push to a repository on the machine with real git; the loop journals the push when an Implementation has been checkpointed and makes it ([Starting work and running a Task](dispatch.md)).
 
 ## The egress proxy (AD-7, Story 3.4)
 
@@ -157,7 +156,7 @@ host an Agent's CLI needs that its adapter does not declare therefore shows up t
 ## Validation (AD-6, AD-13, FR-31, Story 3.12)
 
 Whether work is acceptable is decided by the exit status of the Project's `validation` commands and by the Reviewer's Findings, and by nothing an Agent reported ([ADR-0028](adr/0028-validation-decided-by-exit-status.md)). The call is `IWorkspaceRuntime.StartValidationAsync`; the sequence of
-commands and the decision are `ValidationRun` in Core. Nothing calls them in a Task's life yet: the loop does that in Story 3.14.
+commands and the decision are `ValidationRun` in Core. The loop runs them in a Task's life, one command at a time, when the push of its work is made ([Starting work and running a Task](dispatch.md)).
 
 **One container for each command.** A command is `bash -c "<command>"` as the container's entry point, in the image the Task started with (`name@sha256:...`), as user `10001:10001` with the same hardening as any step container. It is its own container run with its own step run id, so it has one output file, a name
 of its own, and its own step-exited Signal, and the runtime stops it at its own deadline. The deadline is the Task duration the Project asks for within the installation's, never more than 30 minutes (`ValidationRun.CommandLimit`).
@@ -181,7 +180,7 @@ and the commands after it are recorded as `not-run`. A command the runtime stopp
 looked, ends it as `infrastructure-error` (AD-11): no exit status of the command is known, so it is neither a pass nor a failure of the Project's code. The first three are the classes `validation-failure`, `timeout`, and `infrastructure-error` of a failed step run.
 
 **What is recorded.** For each command: its position, the command, its status (`passed`, `failed`, `timeout`, `interrupted`, or `not-run`), its exit status, its duration, and the step run whose output file holds what it printed (masked, as every container's output is). `ValidationRun.ToJson` writes it as `validation.json`, which a later step's
-context carries ([Methodologies](methodologies.md)); there is no table for step runs yet (Story 3.14), so until then the results are what the caller keeps.
+context carries ([Methodologies](methodologies.md)); the loop records each step run, with how it ended and the result of an Agent's step, in a table of its own ([Starting work and running a Task](dispatch.md)).
 
 **Nothing is kept.** Validation is not a step kind that is checkpointed: no `CheckpointRequest` is made for it, so what a command wrote, built, or installed in the tree is not a commit and is not pushed. The tree is made anew by the next checkout.
 
@@ -208,7 +207,7 @@ When a Task starts, the runtime resolves the image the Project Configuration nam
    or `/lib/ld-linux-aarch64.so.1`) means glibc. An image with both is musl, because a musl build runs where glibc is only emulated and a glibc build does not run on musl alone.
 
 An image that cannot be fetched, is built for another architecture, declares volumes, or holds neither loader does not start the Task, and the Owner is told why, in the installation's language. The image contract is Linux, glibc or musl, and
-`bash`: an image built from scratch, or from a distroless static base, is refused. The result, the digest and the C library, is what the loop records in the Task's configuration snapshot (Story 3.14).
+`bash`: an image built from scratch, or from a distroless static base, is refused. The result, the digest and the C library, is what the loop records in the Task's configuration snapshot when it starts the Task ([Starting work and running a Task](dispatch.md)).
 
 ## The credential of an Agent, and the probe
 

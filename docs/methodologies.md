@@ -46,4 +46,4 @@ what both CLIs' schema-constrained output accepts: objects, strings, enumeration
 
 ## What is not here yet
 
-Templates for the other step kinds and the `bmad` Methodology (Epics 4 and 5), the files a Project supplies from its Base Branch, and the loop that assembles a set for each step run and records what was applied (Story 3.14).
+Templates for the other step kinds and the `bmad` Methodology (Epics 4 and 5), the files a Project supplies from its Base Branch, and the files a Project supplies. The loop assembles a set for each step run and records the Methodology and the template it applied on the step run ([Starting work and running a Task](dispatch.md)).

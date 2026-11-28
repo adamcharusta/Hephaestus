@@ -14,6 +14,9 @@ public static class StepOutcomes
     /// <summary>The Agent needs a decision of the Owner before it can go on.</summary>
     public const string NeedsDecision = "needs-decision";
 
+    /// <summary>The step never ran: its Task branch on GitHub was not where Hephaestus left it, so the Task was held for the Owner (AD-9).</summary>
+    public const string BranchMoved = "branch-moved";
+
     /// <summary>
     /// Reads the result document of an Implementation by strict deserialization, as the schema allows it: no unknown member, an outcome that is one of the two, a summary, and, for a result that needs a decision, at least one question
     /// with a text. Anything else is no result, and is never interpreted. Null when the document is missing or is not such a result.
