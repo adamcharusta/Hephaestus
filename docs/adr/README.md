@@ -32,5 +32,6 @@ Each record states one decision, the alternatives weighed, and what follows from
 | [0024](0024-push-through-the-gateways-checks.md) | Push a Task branch only through the gateway's checks, as a journaled fast-forward | Accepted | AD-4, AD-5, AD-9, AD-19 |
 | [0025](0025-drive-claude-code-through-its-official-interface.md) | Drive Claude Code with one hardened invocation and read what it printed, and name a failure only when the stream does | Accepted | AD-7, AD-10, AD-11, AD-12 |
 | [0026](0026-agent-sign-in-and-the-probe.md) | Choose each Agent's sign-in from what its adapter supports, resolve its credential only when a container starts, and probe it in a fixed image with no Task volume | Accepted | AD-10, AD-16, AD-20 |
+| [0027](0027-one-instruction-per-step-kind.md) | One instruction file per step run, from the Methodology's template for the step kind and nothing that depends on the Agent | Accepted | AD-12, AD-13, AD-14, AD-21 |
 
 The brief asked for records on eight topics. They map as follows: modular monolith (0001); agent integration strategy (0004, 0005, 0011); task provider abstraction (0006); local persistence (0014); workspace isolation (0008, 0009, 0010); workflow execution (0002); control plane and execution plane separation (0015, 0008); security boundaries (0008, 0010, 0013, 0018).

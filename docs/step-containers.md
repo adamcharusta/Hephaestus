@@ -41,7 +41,7 @@ Tasks: recovery and cleanup select on the label, so the containers and volumes m
 
 The runtime does not limit disk: a step can fill the Task volume or its own container's layer, and a size limit for Task volumes is a later decision (AR-70). The root file system of the container is writable, because a toolchain writes to it.
 
-The context and the Methodology of a step run are placed in two volumes of their own, `hephaestus-context-<step-run-id>` and `hephaestus-methodology-<step-run-id>`, by a container that is created and never started; the step container
+The context of a step run is the file set of [Methodologies](methodologies.md): the template of the step kind as `instruction.md`, and the files of the Task. The context and the Methodology of a step run are placed in two volumes of their own, `hephaestus-context-<step-run-id>` and `hephaestus-methodology-<step-run-id>`, by a container that is created and never started; the step container
 mounts them read-only. The runtime removes them with the container when the step ends.
 
 The call that starts a step returns as soon as the container is started; it does not wait for the step to end (AD-18). When a container of the step run exists already, which is what a
