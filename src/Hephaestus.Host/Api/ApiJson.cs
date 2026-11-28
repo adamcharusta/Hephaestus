@@ -143,6 +143,12 @@ internal sealed record ConfigurationCheckDocument(
     IReadOnlyList<ConfigurationIssueDocument> Issues,
     ProjectConfigurationDocument? Configuration);
 
+/// <summary>
+/// A Signal as the inbox holds it (AD-17): <c>id</c> is its sequence, <c>kind</c> what it asks, and <c>status</c> <c>pending</c>, <c>applied</c>, or <c>rejected</c>. <c>reason</c> is why a rejected one was rejected, or, for an applied one,
+/// the note that says it changed nothing (<c>window-already-open</c>); it is a machine value and is never translated. The answer to a request is this document with the status <c>pending</c>.
+/// </summary>
+internal sealed record SignalDocument(long Id, string Kind, string Status, string? Reason);
+
 /// <summary>An RFC 9457 problem details document. <c>type</c> is never translated; <c>title</c> and <c>detail</c> are.</summary>
 internal sealed record ProblemDocument(string Type, string Title, int Status, string Detail);
 
@@ -171,5 +177,6 @@ internal sealed record ProblemDocument(string Type, string Title, int Status, st
 [JsonSerializable(typeof(ProjectListDocument))]
 [JsonSerializable(typeof(ProjectRequest))]
 [JsonSerializable(typeof(ConfigurationCheckDocument))]
+[JsonSerializable(typeof(SignalDocument))]
 [JsonSerializable(typeof(ProblemDocument))]
 internal sealed partial class ApiJson : JsonSerializerContext;

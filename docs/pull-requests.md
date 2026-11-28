@@ -30,4 +30,4 @@ Publishing is an effect of the loop, journaled before and after like every effec
 3. A Task that has ended or that waits is published nothing, and the intent ends as `superseded`.
 4. A failure is treated as every effect on GitHub is: a wait for a rate limit is not a failure, an outage is retried at bounded delays, and a refusal for good, or the bound, ends the effect and raises an Escalation whose comment says the pull request could not be opened or updated.
 
-The loop journals the intent when a Task's Validation has passed and its branch is pushed (Story 3.14); nothing journals one yet.
+The loop journals the intent when every Validation command of a Task has passed on its pushed branch ([Starting work and running a Task](dispatch.md)).

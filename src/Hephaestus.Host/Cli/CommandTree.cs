@@ -97,9 +97,14 @@ internal sealed class CommandTree
         ProjectAdd = new Command("add", Describe(MessageIds.CliProjectAddDescription)) { ProjectAddName, ProjectBaseBranch, Json };
         ProjectList = new Command("list", Describe(MessageIds.CliProjectListDescription)) { ProjectAll, Json };
         ProjectRemove = new Command("remove", Describe(MessageIds.CliProjectRemoveDescription)) { ProjectRemoveName, Json };
+        ProjectStartName = new Argument<string>("owner/repo");
+        ProjectStopName = new Argument<string>("owner/repo");
+        NoWait = new Option<bool>("--no-wait") { Description = Describe(MessageIds.CliOptionNoWait) };
+        ProjectStart = new Command("start", Describe(MessageIds.CliProjectStartDescription)) { ProjectStartName, NoWait, Json };
+        ProjectStop = new Command("stop", Describe(MessageIds.CliProjectStopDescription)) { ProjectStopName, NoWait, Json };
         ProjectCheckName = new Argument<string>("owner/repo");
         ProjectCheck = new Command("check", Describe(MessageIds.CliProjectCheckDescription)) { ProjectCheckName, Json };
-        Project = new Command("project", Describe(MessageIds.CliProjectDescription)) { ProjectAdd, ProjectList, ProjectRemove, ProjectCheck };
+        Project = new Command("project", Describe(MessageIds.CliProjectDescription)) { ProjectAdd, ProjectList, ProjectRemove, ProjectCheck, ProjectStart, ProjectStop };
 
         Project.SetAction(_ => 0);
 
@@ -114,7 +119,13 @@ internal sealed class CommandTree
 
         Agent.SetAction(_ => 0);
 
-        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Health, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project, Agent };
+        SignalShowId = new Argument<string>("id");
+        SignalShow = new Command("show", Describe(MessageIds.CliSignalShowDescription)) { SignalShowId, Json };
+        Signal = new Command("signal", Describe(MessageIds.CliSignalDescription)) { SignalShow };
+
+        Signal.SetAction(_ => 0);
+
+        Root = new Command("hephaestus", Describe(MessageIds.CliRootDescription)) { Version, Health, Secret, GitHub, TrustedUser, Alias, Limit, ProtectedPath, Setting, Config, Project, Agent, Signal };
         Root.Options.Add(Help);
         Root.SetAction(_ => 0);
     }
@@ -212,6 +223,22 @@ internal sealed class CommandTree
     public Command ProjectRemove { get; }
 
     public Command ProjectCheck { get; }
+
+    public Command ProjectStart { get; }
+
+    public Command ProjectStop { get; }
+
+    public Argument<string> ProjectStartName { get; }
+
+    public Argument<string> ProjectStopName { get; }
+
+    public Option<bool> NoWait { get; }
+
+    public Command Signal { get; }
+
+    public Command SignalShow { get; }
+
+    public Argument<string> SignalShowId { get; }
 
     public Argument<string> ProjectCheckName { get; }
 

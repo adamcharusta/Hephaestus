@@ -3,12 +3,15 @@ using Hephaestus.Core.Invocations;
 using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
+using Hephaestus.Core.Failures;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Runs;
 using Hephaestus.Core.Signals;
 using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
+using Hephaestus.Core.Windows;
 
 namespace Hephaestus.Core.Tests.Loop;
 
@@ -34,6 +37,24 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     public List<AdmittedComment> AdmittedComments { get; } = [];
 
     public string? AppSlug { get; set; }
+
+    /// <summary>The windows of the Projects, in the order they were opened.</summary>
+    public List<Window> Windows { get; } = [];
+
+    /// <summary>The step runs of the Tasks, in the order they were planned.</summary>
+    public List<StepRun> StepRuns { get; } = [];
+
+    /// <summary>What each Task started with.</summary>
+    public Dictionary<Guid, TaskSnapshot> TaskSnapshots { get; } = [];
+
+    /// <summary>The Aliases the loop resolves an Agent from.</summary>
+    public List<Alias> Aliases { get; } = [];
+
+    public List<AgentSetting> AgentSettings { get; } = [];
+
+    public List<AgentCapacity> AgentCapacities { get; } = [];
+
+    public InstallationLimits Limits { get; set; } = InstallationLimits.None;
 
     /// <summary>GitHub, as far as the loop asks it: the labels of the issues.</summary>
     public FakeIssues Github { get; } = new();
@@ -146,6 +167,26 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
             AdmittedComments.Add(admitted);
         }
 
+        if (application.OpenWindow is { } opened)
+        {
+            if (Windows.Any(w => w.RepositoryId == opened.RepositoryId && w.IsOpen))
+            {
+                throw new InvalidOperationException("A Project has at most one open window.");
+            }
+
+            Windows.Add(opened);
+        }
+
+        if (application.CloseWindow is { } closing)
+        {
+            Close(closing);
+        }
+
+        if (application.StepRun is { } stepRun)
+        {
+            Change(stepRun);
+        }
+
         AppendIntents(application.NewEffects);
         return Task.FromResult(true);
     }
@@ -255,6 +296,135 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
     public Task<IReadOnlyList<JournalEntry>> ListJournalAsync(Guid? taskId, CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<JournalEntry>>([.. Journal.Where(e => taskId is null || e.Effect.TaskId == taskId)]);
 
+    public Task<TaskRecord?> FindTaskAsync(Guid taskId, CancellationToken cancellationToken) => Task.FromResult(Tasks.FirstOrDefault(t => t.Id == taskId));
+
+    public Task<IReadOnlyList<TaskRecord>> ListTasksAsync(TaskState state, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<TaskRecord>>([.. Tasks.Where(t => t.State == state).OrderBy(t => t.IssueNumber).ThenBy(t => t.RepositoryId)]);
+
+    public Task<TaskSnapshot?> FindTaskSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => Task.FromResult(TaskSnapshots.GetValueOrDefault(taskId));
+
+    public Task<IReadOnlyList<StepRun>> ListStepRunsAsync(Guid taskId, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<StepRun>>([.. StepRuns.Where(s => s.TaskId == taskId).OrderBy(s => s.Sequence)]);
+
+    public Task<StepRun?> FindStepRunAsync(Guid stepRunId, CancellationToken cancellationToken) => Task.FromResult(StepRuns.FirstOrDefault(s => s.Id == stepRunId));
+
+    public Task<IReadOnlyList<Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<Window>>([.. Windows.Where(w => !openOnly || w.IsOpen)]);
+
+    public Task<StoredSignal?> FindAsync(long sequence, CancellationToken cancellationToken) => Task.FromResult(Signals.FirstOrDefault(s => s.Sequence == sequence));
+
+    public Task<long> AppendOneAsync(Signal signal, CancellationToken cancellationToken)
+    {
+        var existing = Signals.FirstOrDefault(s => s.Signal.Source == signal.Source && s.Signal.SourceEventId == signal.SourceEventId);
+        if (existing is not null)
+        {
+            return Task.FromResult(existing.Sequence);
+        }
+
+        Signals.Add(new StoredSignal(Signals.Count + 1, signal));
+        return Task.FromResult((long)Signals.Count);
+    }
+
+    /// <summary>The rule of the real unit of work: the Task moves to Running only from Queued, and only while no Task is Running; its snapshot is kept, its first step run planned, and the intents journaled.</summary>
+    public Task<bool> DispatchAsync(TaskDispatch dispatch, CancellationToken cancellationToken)
+    {
+        var index = Tasks.FindIndex(t => t.Id == dispatch.TaskId && t.State == TaskState.Queued);
+        if (index < 0 || Tasks.Any(t => t.State == TaskState.Running))
+        {
+            return Task.FromResult(false);
+        }
+
+        Tasks[index] = Tasks[index] with { State = TaskState.Running, UpdatedAt = TimeProvider.GetUtcNow() };
+        if (dispatch.Snapshot is { } snapshot)
+        {
+            TaskSnapshots[snapshot.TaskId] = snapshot;
+        }
+
+        Plan(dispatch.FirstStep);
+        AppendIntents(dispatch.Effects);
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> PlanStepRunAsync(NewStepRun run, CancellationToken cancellationToken)
+    {
+        if (!Tasks.Any(t => t.Id == run.TaskId && t.State == TaskState.Running) || StepRuns.Any(s => s.Id == run.Id))
+        {
+            return Task.FromResult(false);
+        }
+
+        Plan(run);
+        return Task.FromResult(true);
+    }
+
+    private void Plan(NewStepRun run) => StepRuns.Add(new StepRun(
+        run.Id,
+        run.TaskId,
+        StepRuns.Count(s => s.TaskId == run.TaskId) + 1,
+        run.Kind,
+        run.Round,
+        StepRunStatus.Planned,
+        run.Deadline,
+        run.PlannedAt,
+        run.TipBefore,
+        Agent: run.Agent,
+        Model: run.Model,
+        Effort: run.Effort,
+        Methodology: run.Methodology,
+        Template: run.Template,
+        CommandIndex: run.CommandIndex));
+
+    public Task<bool> ChangeStepRunAsync(StepRunChange change, CancellationToken cancellationToken) => Task.FromResult(Change(change));
+
+    /// <summary>The rule of the real unit of work: a run moves only from a status the change may be made from, the Task moves only from the state it leaves, and the intents are journaled with them.</summary>
+    private bool Change(StepRunChange change)
+    {
+        var index = StepRuns.FindIndex(s => s.Id == change.StepRunId && change.To.MayMoveToFrom().Contains(s.Status));
+        if (index < 0)
+        {
+            return false;
+        }
+
+        var run = StepRuns[index] with { Status = change.To };
+        run = change.To switch
+        {
+            StepRunStatus.Started => run with { StartedAt = TimeProvider.GetUtcNow() },
+            StepRunStatus.Ended => run with
+            {
+                EndedAt = change.End!.At,
+                ExitCode = change.End.ExitCode,
+                Cause = change.End.Cause,
+                Failure = change.End.Failure?.Tag(),
+                Outcome = change.End.Outcome,
+                Result = change.End.Result,
+            },
+            StepRunStatus.Checkpointed => run with { TipAfter = change.TipAfter },
+            _ => run with { Failure = change.Failure?.Tag() ?? run.Failure },
+        };
+        StepRuns[index] = run;
+        if (change.Move is { } move && Tasks.FindIndex(t => t.Id == run.TaskId && t.State == move.From) is var moved and >= 0)
+        {
+            Tasks[moved] = Tasks[moved] with { State = move.To, UpdatedAt = TimeProvider.GetUtcNow() };
+            AppendIntents(move.Effects);
+        }
+
+        AppendIntents(change.Effects);
+        return true;
+    }
+
+    public Task<bool> CloseWindowAsync(WindowClosing closing, CancellationToken cancellationToken) => Task.FromResult(Close(closing));
+
+    private bool Close(WindowClosing closing)
+    {
+        var index = Windows.FindIndex(w => w.Id == closing.WindowId && w.IsOpen);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        Windows[index] = Windows[index] with { ClosedAt = TimeProvider.GetUtcNow(), End = closing.End };
+        return true;
+    }
+
     public static Signal Labeled(string id, long? actor = 29, string? login = "alice", string label = "hephaestus", int issue = 7, long repository = RepositoryId, string? title = "Add a login page", string? body = "Details.") =>
         new(Signal.GitHubSource, id, SignalKind.Labeled, repository, issue, actor, login, label, null, null, new DateTimeOffset(2026, 11, 27, 11, 0, 0, TimeSpan.Zero), title, body);
 
@@ -268,13 +438,13 @@ internal sealed class LoopStores : IReadStore, ISignalInbox, IUnitOfWork
 
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
-    public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyList<Alias>> ListAliasesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<Alias>>([.. Aliases]);
 
-    public Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyList<AgentSetting>> ListAgentSettingsAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentSetting>>([.. AgentSettings]);
 
-    public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentCapacity>>([.. AgentCapacities]);
 
-    public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
+    public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => Task.FromResult(Limits);
 
     public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 

@@ -42,6 +42,12 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
 
     public DbSet<OutputFileEntry> OutputFiles => Set<OutputFileEntry>();
 
+    public DbSet<WindowEntry> Windows => Set<WindowEntry>();
+
+    public DbSet<StepRunEntry> StepRuns => Set<StepRunEntry>();
+
+    public DbSet<TaskSnapshotEntry> TaskSnapshots => Set<TaskSnapshotEntry>();
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configuration)
     {
         configuration.Properties<Guid>().HaveConversion<EntityIdConverter>();
@@ -162,6 +168,50 @@ internal sealed class HephaestusDbContext(DbContextOptions<HephaestusDbContext> 
             task.Property(t => t.State).IsRequired().HasMaxLength(32);
             task.Property(t => t.Branch).IsRequired().HasMaxLength(80);
             task.HasIndex(t => new { t.RepositoryId, t.IssueNumber }).IsUnique();
+
+            // At most one Task runs in the whole installation (FR-14, AD-1): the database refuses a second.
+            task.HasIndex(t => t.State).IsUnique().HasFilter("\"State\" = 'running'").HasDatabaseName("IX_Tasks_Running");
+        });
+
+        model.Entity<WindowEntry>(window =>
+        {
+            window.ToTable("Windows");
+            window.HasKey(w => w.Id);
+            window.Property(w => w.Id).ValueGeneratedNever();
+            window.Property(w => w.End).HasMaxLength(16);
+
+            // A Project has at most one open window; a second start of it opens none (FR-16).
+            window.HasIndex(w => w.RepositoryId).IsUnique().HasFilter("\"ClosedAt\" IS NULL").HasDatabaseName("IX_Windows_Open");
+        });
+
+        model.Entity<TaskSnapshotEntry>(snapshot =>
+        {
+            snapshot.ToTable("TaskSnapshots");
+            snapshot.HasKey(s => s.TaskId);
+            snapshot.Property(s => s.TaskId).ValueGeneratedNever();
+            snapshot.Property(s => s.CommitId).IsRequired().HasMaxLength(40);
+            snapshot.Property(s => s.ImageDigest).IsRequired().HasMaxLength(128);
+            snapshot.Property(s => s.Document).IsRequired();
+        });
+
+        model.Entity<StepRunEntry>(step =>
+        {
+            step.ToTable("StepRuns");
+            step.HasKey(s => s.Id);
+            step.Property(s => s.Id).ValueGeneratedNever();
+            step.Property(s => s.Kind).IsRequired().HasMaxLength(16);
+            step.Property(s => s.Status).IsRequired().HasMaxLength(16);
+            step.Property(s => s.Agent).HasMaxLength(16);
+            step.Property(s => s.Model).HasMaxLength(Core.Aliases.AliasShape.MaximumModelLength);
+            step.Property(s => s.Effort).HasMaxLength(8);
+            step.Property(s => s.Methodology).HasMaxLength(64);
+            step.Property(s => s.Template).HasMaxLength(200);
+            step.Property(s => s.Cause).HasMaxLength(16);
+            step.Property(s => s.Failure).HasMaxLength(24);
+            step.Property(s => s.Outcome).HasMaxLength(16);
+            step.Property(s => s.TipBefore).IsRequired().HasMaxLength(40);
+            step.Property(s => s.TipAfter).HasMaxLength(40);
+            step.HasIndex(s => new { s.TaskId, s.Sequence }).IsUnique();
         });
 
         model.Entity<IssueSnapshotEntry>(snapshot =>

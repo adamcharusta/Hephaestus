@@ -51,6 +51,14 @@ public class OrchestratorServiceTests
         public Task<bool> RecordEffectAsync(Hephaestus.Core.Effects.EffectRecording recording, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<bool> EscalateAsync(Hephaestus.Core.Escalations.EscalationPlan plan, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> DispatchAsync(Hephaestus.Core.Runs.TaskDispatch dispatch, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> PlanStepRunAsync(Hephaestus.Core.Runs.NewStepRun run, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> ChangeStepRunAsync(Hephaestus.Core.Runs.StepRunChange change, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> CloseWindowAsync(Hephaestus.Core.Ports.WindowClosing closing, CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
     [Fact]
@@ -150,6 +158,18 @@ public class OrchestratorServiceTests
 
         var line = Assert.Single(log.Lines);
         Assert.Equal((LogLevel.Warning, "2 attempt(s) at an effect on GitHub did not succeed and will be tried again."), (line.Level, line.Text));
+    }
+
+    [Fact]
+    public void A_Task_that_could_not_be_started_or_was_ended_by_a_step_is_one_warning_each_and_the_Tasks_started_are_one_information_line()
+    {
+        var (service, log, _) = Build();
+
+        service.Report(new TickReport(0, 0, 0, null, [], TasksStarted: 1, TaskProblems: ["Task a of issue #7 was not started: its configuration is invalid.", "Task b of issue #8 failed in implementation (timeout): x."]));
+
+        Assert.Equal(
+            [(LogLevel.Warning, "Task a of issue #7 was not started: its configuration is invalid."), (LogLevel.Warning, "Task b of issue #8 failed in implementation (timeout): x."), (LogLevel.Information, "Started 1 Task(s).")],
+            log.Lines.Select(line => (line.Level, line.Text)));
     }
 
     [Fact]

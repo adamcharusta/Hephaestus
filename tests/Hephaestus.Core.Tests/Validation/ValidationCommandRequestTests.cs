@@ -97,9 +97,9 @@ public class ValidationCommandRequestTests
     }
 
     [Fact]
-    public void Validation_is_not_a_step_kind_so_no_checkpoint_can_be_asked_for_what_a_command_left_in_the_tree()
+    public void Validation_is_a_step_kind_that_is_never_checkpointed_so_no_checkpoint_can_be_asked_for_what_a_command_left_in_the_tree()
     {
-        Assert.DoesNotContain(Enum.GetNames<StepKind>(), name => name.Contains("Validation", StringComparison.Ordinal));
+        Assert.False(StepKind.Validation.IsCheckpointed());
         Assert.Equal([StepKind.Implementation, StepKind.Correction, StepKind.Rework], Enum.GetValues<StepKind>().Where(kind => kind.IsCheckpointed()));
     }
 }

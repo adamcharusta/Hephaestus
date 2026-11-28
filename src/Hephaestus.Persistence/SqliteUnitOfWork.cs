@@ -1,9 +1,14 @@
 using System.Text.Json;
+using Hephaestus.Core.Aliases;
 using Hephaestus.Core.Effects;
 using Hephaestus.Core.Escalations;
+using Hephaestus.Core.Failures;
 using Hephaestus.Core.GitHub;
 using Hephaestus.Core.Ports;
+using Hephaestus.Core.Runs;
 using Hephaestus.Core.Signals;
+using Hephaestus.Core.Windows;
+using Hephaestus.Core.Workspaces;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
 
@@ -99,6 +104,22 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
             });
         }
 
+        if (application.OpenWindow is { } opened)
+        {
+            context.Windows.Add(new WindowEntry { Id = opened.Id, RepositoryId = opened.RepositoryId, OpenedAt = opened.OpenedAt });
+        }
+
+        if (application.CloseWindow is { } closing)
+        {
+            await CloseWindowAsync(context, closing, processedAt, cancellationToken);
+        }
+
+        if (application.StepRun is { } stepRun)
+        {
+            // A change that is not made, because the run has gone further already, leaves the Signal applied all the same: the runtime reports a container's end once, and what it reported is not lost.
+            await WriteStepRunChangeAsync(context, stepRun, processedAt, cancellationToken);
+        }
+
         if (application.NewEffects is { Count: > 0 } effects)
         {
             await AppendIntentsAsync(context, effects, processedAt, cancellationToken);
@@ -107,6 +128,197 @@ internal sealed class SqliteUnitOfWork(HephaestusDatabase database, TimeProvider
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return true;
+    }
+
+    public async Task<bool> DispatchAsync(TaskDispatch dispatch, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var at = UtcInstantConverter.ToText(time.GetUtcNow());
+        var taskId = EntityIdConverter.ToText(dispatch.TaskId);
+        var running = Core.Tasks.TaskStates.Tag(Core.Tasks.TaskState.Running);
+        var queued = Core.Tasks.TaskStates.Tag(Core.Tasks.TaskState.Queued);
+
+        // The only edge into Running, and the rule that two Tasks never run: the move is made only while the Task is Queued and no Task is Running.
+        var moved = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE "Tasks" SET "State" = {running}, "UpdatedAt" = {at}
+            WHERE "Id" = {taskId} AND "State" = {queued} AND NOT EXISTS (SELECT 1 FROM "Tasks" WHERE "State" = {running})
+            """,
+            cancellationToken);
+        if (moved == 0)
+        {
+            return false;
+        }
+
+        if (dispatch.Snapshot is { } snapshot)
+        {
+            context.TaskSnapshots.Add(new TaskSnapshotEntry
+            {
+                TaskId = snapshot.TaskId,
+                CommitId = snapshot.CommitId,
+                ImageDigest = snapshot.Image.Digest,
+                Document = snapshot.ToJson(),
+                TakenAt = snapshot.TakenAt,
+            });
+        }
+
+        context.StepRuns.Add(await NewEntryAsync(context, dispatch.FirstStep, cancellationToken));
+        await AppendIntentsAsync(context, dispatch.Effects, at, cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> PlanStepRunAsync(NewStepRun run, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var at = UtcInstantConverter.ToText(time.GetUtcNow());
+        var taskId = EntityIdConverter.ToText(run.TaskId);
+        var running = Core.Tasks.TaskStates.Tag(Core.Tasks.TaskState.Running);
+
+        // The first statement is a write, for the reason given in ApplyAsync; it also holds the plan to a Task that is still running.
+        var claimed = await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Tasks" SET "UpdatedAt" = {at} WHERE "Id" = {taskId} AND "State" = {running}""",
+            cancellationToken);
+        if (claimed == 0 || await context.StepRuns.AnyAsync(s => s.Id == run.Id, cancellationToken))
+        {
+            return false;
+        }
+
+        context.StepRuns.Add(await NewEntryAsync(context, run, cancellationToken));
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> ChangeStepRunAsync(StepRunChange change, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var at = UtcInstantConverter.ToText(time.GetUtcNow());
+        if (!await WriteStepRunChangeAsync(context, change, at, cancellationToken))
+        {
+            return false;
+        }
+
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> CloseWindowAsync(WindowClosing closing, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenWriter();
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        if (!await CloseWindowAsync(context, closing, UtcInstantConverter.ToText(time.GetUtcNow()), cancellationToken))
+        {
+            return false;
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+        return true;
+    }
+
+    private static async Task<bool> CloseWindowAsync(HephaestusDbContext context, WindowClosing closing, string at, CancellationToken cancellationToken)
+    {
+        var id = EntityIdConverter.ToText(closing.WindowId);
+        var end = closing.End.Tag();
+        return await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""UPDATE "Windows" SET "ClosedAt" = {at}, "End" = {end} WHERE "Id" = {id} AND "ClosedAt" IS NULL""",
+            cancellationToken) > 0;
+    }
+
+    /// <summary>The sequence of a step run is its place among its Task's: one more than the last, made here, where the one writer cannot be raced.</summary>
+    private static async Task<StepRunEntry> NewEntryAsync(HephaestusDbContext context, NewStepRun run, CancellationToken cancellationToken) => new()
+    {
+        Id = run.Id,
+        TaskId = run.TaskId,
+        Sequence = (await context.StepRuns.Where(s => s.TaskId == run.TaskId).MaxAsync(s => (int?)s.Sequence, cancellationToken) ?? 0) + 1,
+        Kind = run.Kind.Tag(),
+        Round = run.Round,
+        Status = StepRunStatus.Planned.Tag(),
+        Deadline = run.Deadline,
+        PlannedAt = run.PlannedAt,
+        Agent = run.Agent?.Tag(),
+        Model = run.Model,
+        Effort = run.Effort?.Tag(),
+        Methodology = run.Methodology,
+        Template = run.Template,
+        CommandIndex = run.CommandIndex,
+        TipBefore = run.TipBefore,
+    };
+
+    /// <summary>
+    /// Changes the step run while it is in a status the change may be made from, and, with it, moves the Task and journals the intents the change causes. The first statement is the write that makes the change, so that a change
+    /// that finds the run moved already writes nothing at all. Returns whether it was made.
+    /// </summary>
+    private static async Task<bool> WriteStepRunChangeAsync(HephaestusDbContext context, StepRunChange change, string at, CancellationToken cancellationToken)
+    {
+        var id = EntityIdConverter.ToText(change.StepRunId);
+        var status = change.To.Tag();
+        var from = change.To.MayMoveToFrom();
+        if (from.Count == 0)
+        {
+            throw new ArgumentException("A step run does not move to the status it is planned in.", nameof(change));
+        }
+
+        var first = from[0].Tag();
+        var second = from[^1].Tag();
+        var failure = change.Failure?.Tag() ?? change.End?.Failure?.Tag();
+        var changed = change.To switch
+        {
+            StepRunStatus.Started => await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "StepRuns" SET "Status" = {status}, "StartedAt" = {at} WHERE "Id" = {id} AND ("Status" = {first} OR "Status" = {second})""",
+                cancellationToken),
+            StepRunStatus.Ended => await EndAsync(context, change, id, status, first, second, failure, cancellationToken),
+            StepRunStatus.Checkpointed => await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "StepRuns" SET "Status" = {status}, "TipAfter" = {change.TipAfter} WHERE "Id" = {id} AND ("Status" = {first} OR "Status" = {second})""",
+                cancellationToken),
+            _ => await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "StepRuns" SET "Status" = {status}, "Failure" = COALESCE({failure}, "Failure") WHERE "Id" = {id} AND ("Status" = {first} OR "Status" = {second})""",
+                cancellationToken),
+        };
+        if (changed == 0)
+        {
+            return false;
+        }
+
+        var taskId = await context.StepRuns.AsNoTracking().Where(s => s.Id == change.StepRunId).Select(s => s.TaskId).SingleAsync(cancellationToken);
+        if (change.Move is { } move)
+        {
+            var to = Core.Tasks.TaskStates.Tag(move.To);
+            var leaving = Core.Tasks.TaskStates.Tag(move.From);
+            var taskText = EntityIdConverter.ToText(taskId);
+            var moved = await context.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "Tasks" SET "State" = {to}, "UpdatedAt" = {at} WHERE "Id" = {taskText} AND "State" = {leaving}""",
+                cancellationToken);
+            if (moved > 0)
+            {
+                await AppendIntentsAsync(context, move.Effects, at, cancellationToken);
+            }
+        }
+
+        if (change.Effects is { Count: > 0 } effects)
+        {
+            await AppendIntentsAsync(context, effects, at, cancellationToken);
+        }
+
+        return true;
+    }
+
+    private static Task<int> EndAsync(HephaestusDbContext context, StepRunChange change, string id, string status, string first, string second, string? failure, CancellationToken cancellationToken)
+    {
+        var end = change.End ?? throw new ArgumentException("The end of a step run says how it ended.", nameof(change));
+        var endedAt = UtcInstantConverter.ToText(end.At);
+        var cause = end.Cause.Tag();
+        return context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            UPDATE "StepRuns" SET "Status" = {status}, "EndedAt" = {endedAt}, "ExitCode" = {end.ExitCode}, "Cause" = {cause}, "Failure" = {failure}, "Outcome" = {end.Outcome}, "Result" = {end.Result}
+            WHERE "Id" = {id} AND ("Status" = {first} OR "Status" = {second})
+            """,
+            cancellationToken);
     }
 
     public async Task<bool> EscalateAsync(EscalationPlan plan, CancellationToken cancellationToken)

@@ -1,6 +1,7 @@
 using Hephaestus.Core.Localization;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
+using Hephaestus.Core.Signals;
 
 namespace Hephaestus.Host.Api;
 
@@ -22,6 +23,28 @@ internal static class ProjectApi
         // resolved by the client into another address, and a name that is not owner/repo would be an unknown address, not a refusal.
         projects.MapPut(string.Empty, AddAsync);
         projects.MapDelete(string.Empty, RemoveAsync);
+
+        // Starting and stopping work on a Project change what the loop does, so each is a Signal (AD-17): the answer is 202 with the Signal's id, and its status is read from /api/signals/{id}.
+        projects.MapPost("/start", (string? name, ProjectService service, ISignalInbox inbox, TimeProvider time, CancellationToken cancellationToken) =>
+            RequestAsync(SignalKind.StartRequested, name, service, inbox, time, cancellationToken));
+        projects.MapPost("/stop", (string? name, ProjectService service, ISignalInbox inbox, TimeProvider time, CancellationToken cancellationToken) =>
+            RequestAsync(SignalKind.StopRequested, name, service, inbox, time, cancellationToken));
+    }
+
+    private static async Task<IResult> RequestAsync(SignalKind kind, string? name, ProjectService service, ISignalInbox inbox, TimeProvider time, CancellationToken cancellationToken)
+    {
+        name ??= string.Empty;
+        var (project, failure) = await service.FindAsync(name, cancellationToken);
+        if (project is null)
+        {
+            return Problem(failure, name, null);
+        }
+
+        // Every request is an event of its own: two starts are two Signals, and the loop opens one window for both.
+        var requestId = Guid.NewGuid();
+        var signal = kind == SignalKind.StartRequested ? Signal.Start(project.RepositoryId, requestId, time.GetUtcNow()) : Signal.Stop(project.RepositoryId, requestId, time.GetUtcNow());
+        var id = await inbox.AppendOneAsync(signal, cancellationToken);
+        return Results.Json(new SignalDocument(id, kind.Tag(), SignalStatus.Pending.Tag(), null), ApiJson.Default.SignalDocument, statusCode: StatusCodes.Status202Accepted);
     }
 
     private static async Task<IResult> ListAsync(IReadStore store, CancellationToken cancellationToken, bool all = false)

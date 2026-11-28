@@ -112,6 +112,18 @@ internal sealed class FakeInstallation : IReadStore, IInstallationConfiguration
 
     public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<AgentCapacity>>([.. AgentCapacities.Values.OrderBy(c => c.Agent).ThenBy(c => c.Mode)]);
 
+    public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Tasks.TaskRecord>> ListTasksAsync(Hephaestus.Core.Tasks.TaskState state, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Runs.TaskSnapshot?> FindTaskSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Runs.StepRun>> ListStepRunsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Runs.StepRun?> FindStepRunAsync(Guid stepRunId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Windows.Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<long?> GetGitHubAppIdAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<TrustedUser>> ListTrustedUsersAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

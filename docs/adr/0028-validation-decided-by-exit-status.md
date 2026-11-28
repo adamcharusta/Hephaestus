@@ -33,7 +33,7 @@ An Agent that says it is finished proves nothing (FR-31). Work is acceptable onl
 
 ## Consequences
 
-- The loop (Story 3.14) writes a step run for each command, records its deadline before it asks for the container, calls `StartValidationAsync`, builds a `ValidationCommandResult` from the step-exited Signal when it is applied, and starts the next command only while `ValidationRun.NextCommand` has one.
+- The loop (Story 3.14, ADR-0030) writes a step run for each command, records its deadline before it asks for the container, calls `StartValidationAsync`, builds a `ValidationCommandResult` from the step-exited Signal when it is applied, and starts the next command only while `ValidationRun.NextCommand` has one.
 - The Correction loop (FR-34) spends a round on a `validation-failure` and not on the other two classes.
 - The pull request description (Story 3.13) composes each command's result from the recorded results.
 - That a command reaches only the Project's listed hosts rests on the egress proxy of its step run; `ValidationContainerTests` shows the proxy is given the Project's list alone, and the proxy's own tests show what it refuses.

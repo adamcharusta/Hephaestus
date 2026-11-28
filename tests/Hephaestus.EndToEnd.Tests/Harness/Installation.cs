@@ -51,12 +51,14 @@ internal sealed class Installation : IAsyncDisposable
 
     public IOutputStore Output => Services.GetRequiredService<IOutputStore>();
 
+    public string ControlSocketPath => Path.Combine(_directory, "control.sock");
+
     public IInstallationConfiguration Configuration => Services.GetRequiredService<IInstallationConfiguration>();
 
     private static CancellationToken Cancel => TestContext.Current.CancellationToken;
 
     /// <summary>Starts the installation: migrated, listening on its control socket, its loop and poller running.</summary>
-    public static async Task<Installation> StartAsync(EngineFixture? engine = null)
+    public static async Task<Installation> StartAsync(EngineFixture? engine = null, Action<IServiceCollection>? services = null)
     {
         var directory = Directory.CreateTempSubdirectory("hxe").FullName;
         var agents = AgentsEnvironment.Prepare(directory);
@@ -71,6 +73,8 @@ internal sealed class Installation : IAsyncDisposable
             engine?.InstallationId ?? HostSettings.DefaultInstallationId);
         var app = ControlHost.Build(settings, builder =>
         {
+            // What a test replaces, such as the runtime and GitHub, is registered before the host's own, which are added only where a test named none.
+            services?.Invoke(builder.Services);
             if (engine is not null)
             {
                 // The fixture's own network, agents volume, and installation id, so that the installation and the Engine's objects belong together. Short waits, so that a test

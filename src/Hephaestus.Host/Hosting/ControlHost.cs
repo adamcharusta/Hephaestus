@@ -84,8 +84,8 @@ internal static class ControlHost
             provider.GetRequiredService<SecretMasker>()));
         builder.Services.TryAddSingleton<LoopHeartbeat>();
         builder.Services.TryAddSingleton<INotifier, NoOpNotifier>();
-        // The loop takes the language the environment names, for the installation that has stored none.
-        builder.Services.TryAddSingleton(provider => ActivatorUtilities.CreateInstance<OrchestratorLoop>(provider, settings.Language));
+        // The loop takes the language the environment names, for the installation that has stored none, and the runtime when it first needs it (Story 3.14).
+        builder.Services.TryAddSingleton(provider => ActivatorUtilities.CreateInstance<OrchestratorLoop>(provider, settings.Language, new LazyWorkspaceRuntime(provider)));
         builder.Services.AddHostedService<OrchestratorService>();
         builder.Services.TryAddSingleton<TrustedUserService>();
         builder.Services.TryAddSingleton<AliasService>();

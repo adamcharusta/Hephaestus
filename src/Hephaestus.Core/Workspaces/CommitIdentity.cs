@@ -33,7 +33,13 @@ public sealed record CommitIdentity
     public static CommitIdentity For(GitHubIdentity app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        var name = $"{app.Slug}[bot]";
+        return ForSlug(app.Slug);
+    }
+
+    /// <summary>The identity of the GitHub App with this slug, which is all the loop stores of it (Story 1.7): the bot account's name and its no-reply address.</summary>
+    public static CommitIdentity ForSlug(string slug)
+    {
+        var name = $"{slug}[bot]";
         return new CommitIdentity(name, $"{name}@users.noreply.github.com");
     }
 

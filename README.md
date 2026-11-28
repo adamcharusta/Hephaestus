@@ -43,10 +43,10 @@ state, and `docker compose down --volumes` deletes it with the rest. [`docs/agen
 
 ## Step containers
 
-Every step of a Task will run in a container that cannot touch your files, your other Projects, or Docker itself: it runs as user `10001:10001` with every capability dropped, `no-new-privileges`,
+Every step of a Task runs in a container that cannot touch your files, your other Projects, or Docker itself: it runs as user `10001:10001` with every capability dropped, `no-new-privileges`,
 Docker's default seccomp profile, a process limit, the Task's processor and memory limits (never above `hephaestus limit show`), no published port, and no route to the host. Its only mounts are the Task's volume,
 the context and Methodology read-only, the Agent CLIs read-only, and a temporary `HOME`. Only the `hephaestus` container holds the Docker socket, so the orchestrator is equivalent to root on the host,
-and no Task volume is ever mounted into it. The runtime that creates these containers is in place and tested against a real Docker Engine; nothing starts a step yet.
+and no Task volume is ever mounted into it. The runtime that creates these containers is in place and tested against a real Docker Engine, and a Task's steps run in them once you start work on a Project (see [Starting work on a Project](#starting-work-on-a-project)).
 
 The runtime also sees each step to its end. What a step prints, on standard output and standard error, is read from Docker's log of the container, so the Docker daemon must keep a log it can read back (its default
 `json-file` driver, or `local`; with a driver `docker logs` cannot read, no output is kept). The output is masked, so that no secret value is stored, and kept in the `hephaestus-data` volume under `output/`, one file for each container run, indexed in the database. A step
@@ -67,19 +67,19 @@ Only the committed tree survives a step. Before every step a container of the `h
 commit on the Base Branch when nothing was pushed yet: a fresh repository with default configuration, no hook, and no untracked or ignored file, so a hook, a git setting, or a fake test runner that one step planted is gone
 when the next one starts. That container has no network and no credential and is given one file, a git bundle, which the gateway makes from a bare mirror of the Project, kept on the `hephaestus-mirrors` volume (a cache that GitHub can fill
 again; only the `hephaestus` container mounts it). The `hephaestus` container runs git only against a mirror, never in a directory a Task can write to; the git that runs in a Task's directory is the one in the tools container. The machine needs the tools image: the runtime fetches `HEPHAESTUS_TOOLS_IMAGE` when it is missing,
-and in a checkout of this repository `docker compose -f deploy/compose.yaml --profile tools build` builds it. The `hephaestus` image is built on Ubuntu 26.04 so that it carries git 2.53. After a step that changes code, a container of the same image keeps the work as one commit on the last pushed commit, without using the repository the Agent worked in, and leaves it as one bundle file. Only the gateway pushes that bundle, to the Task's branch, as a fast-forward and only after it has found no stored secret value in what is new, no change to a protected path, and nothing but the Task branch in the bundle; a branch that someone else pushed to is never pushed to. Nothing starts a step yet, so nothing makes a
-checkout, a checkpoint, or a push yet; the runtime and the gateway do it when asked ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0022](docs/adr/0022-checkout-from-a-bundle.md), [ADR-0024](docs/adr/0024-push-through-the-gateways-checks.md)).
+and in a checkout of this repository `docker compose -f deploy/compose.yaml --profile tools build` builds it. The `hephaestus` image is built on Ubuntu 26.04 so that it carries git 2.53. After a step that changes code, a container of the same image keeps the work as one commit on the last pushed commit, without using the repository the Agent worked in, and leaves it as one bundle file. Only the gateway pushes that bundle, to the Task's branch, as a fast-forward and only after it has found no stored secret value in what is new, no change to a protected path, and nothing but the Task branch in the bundle; a branch that someone else pushed to is never pushed to. The loop makes the checkout when it starts a step, asks
+for the checkpoint when the step has ended, and journals the push; the runtime and the gateway do it ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0022](docs/adr/0022-checkout-from-a-bundle.md), [ADR-0024](docs/adr/0024-push-through-the-gateways-checks.md)).
 
 Your Project's own commands decide whether work is acceptable; nothing an Agent says does. Each command in `validation` is run through `bash`, one container each, in the Project's image at the digest recorded when the Task started, on a fresh
 checkout of the pushed commit, with no credential and with the Project's `allowedEgressHosts` alone (an Agent vendor's host is not added). Validation passes only if every command exited with status 0. The first command that does not ends it as a
 `validation-failure`, the commands after it are recorded as not run, and a command still running at its deadline is stopped and ends it as a `timeout` with the output it had printed kept. Each command's exit status, duration, and output are recorded, and what a command
-changed in the tree is thrown away: Validation is never kept as a commit. Nothing starts a step yet, so nothing runs Validation yet ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0028](docs/adr/0028-validation-decided-by-exit-status.md)).
+changed in the tree is thrown away: Validation is never kept as a commit. When the push of an Implementation is made, each command runs in its own container on a fresh checkout of the pushed tip ([`docs/step-containers.md`](docs/step-containers.md), [ADR-0028](docs/adr/0028-validation-decided-by-exit-status.md)).
 
 Each Task ends in one pull request, from its `hephaestus/<issue>-<title>` branch to the Project's Base Branch, opened under Hephaestus's own GitHub App identity, so the App needs the Pull requests permission it already asks for. Its description has
 the sections What changed, Task, How it was checked, and Who did what, in that order, and leaves out one with nothing to say. It states which Agent, Model, and Effort implemented the Task and the result of each Validation command, and it is written by Hephaestus from what it
 recorded: whatever an Agent wrote in it has HTML comments escaped, mentions and issue-closing keywords broken, and `/hephaestus` commands fenced, and the values of your stored secrets are masked. It names the issue as `Issue #7` and never with a closing
 keyword, so merging it does not close the issue; closing it stays yours. If the host stops after the pull request was opened and before that was recorded, the pull request is found again by its branch and no second one is opened, and a Task published again after more work has the same pull
-request updated. Nothing publishes a pull request yet, because nothing starts a Task yet ([`docs/pull-requests.md`](docs/pull-requests.md), [ADR-0029](docs/adr/0029-publish-one-pull-request-per-task.md)).
+request updated. It is published when every Validation command of a Task has passed ([`docs/pull-requests.md`](docs/pull-requests.md), [ADR-0029](docs/adr/0029-publish-one-pull-request-per-task.md)).
 
 ## Secrets
 
@@ -150,7 +150,7 @@ docker exec hephaestus hephaestus agent list                 # each Agent: mode,
 
 The credential is stored as a secret and reaches only the container that runs that Agent's CLI, in its environment, at the moment the container starts. A check runs the CLI once in a fixed Debian image that belongs to no Project, with no Task volume, through its own egress
 proxy that allows only the Agent's hosts; it needs access to Docker Hub the first time, and it makes one request to the vendor, which costs a few tokens or counts against a plan. What it finds is stored with the time on the capacity record of that credential: an unavailable Agent has no
-capacity, and no step run is failed by it. Nothing chooses an Agent by it yet, and no step starts yet; the check runs when you ask for it. The Codex CLI adapter is not part of this release yet, so `agent set-auth codex-cli` says so and changes nothing.
+capacity, and no step run is failed by it. Starting a Task reads it: an Agent whose sign-in you have not chosen, or that has no capacity, gets no Task; the check itself runs when you ask for it. The Codex CLI adapter is not part of this release yet, so `agent set-auth codex-cli` says so and changes nothing.
 
 ## Aliases, limits, protected paths, and settings
 
@@ -222,7 +222,7 @@ An issue becomes a Task when a Trusted User applies the label `hephaestus` to it
 Hephaestus records who it was and why it was refused, and says on the issue, once for each user, that the label was ignored because that user
 is not a Trusted User. A comment or a `/hephaestus` command from someone who is not a Trusted User is recorded and gets no reply. The Task starts `queued` with the issue's title and body, as GitHub showed them with the label event, snapshotted and its
 branch `hephaestus/<issue-number>-<slug>` chosen. Its state shows on the issue as one label, `hephaestus:queued`, which GitHub's issue filter
-lists; Hephaestus puts it back if you change it by hand. Nothing works on the Task yet: dispatch, withdrawing, and the Dashboard are later
+lists; Hephaestus puts it back if you change it by hand. A `queued` Task is worked when you start work on its Project (see [Starting work on a Project](#starting-work-on-a-project)); withdrawing and the Dashboard are later
 stories. Ask whether the orchestrator loop is running:
 
 ```bash
@@ -232,6 +232,23 @@ docker exec hephaestus hephaestus health          # Loop: alive, last tick 2026-
 [`docs/intake.md`](docs/intake.md) says what the loop does with each Signal, what Hephaestus says on an issue when it ignores something, what the snapshot holds, and how the branch is named.
 [`docs/state-labels.md`](docs/state-labels.md) lists the state labels and says what happens when GitHub cannot be reached or refuses a change:
 the Task moves to `waiting-for-owner`, and in v0.1 a Task whose issue can no longer be written to is visible only in the log.
+
+### Starting work on a Project
+
+Nothing runs until you say a Project may be worked. `project start` opens a window on it, and while the window is open Hephaestus takes the Project's `queued` Tasks one at a time, the lowest issue number first, and at most one Task runs in the whole installation:
+
+```bash
+docker exec hephaestus hephaestus project start acme/shop    # Signal 12 appended.  A window is open on acme/shop. Its Queue is worked until it is empty or you stop it.
+docker exec hephaestus hephaestus project stop acme/shop     # the window is closed; a Task that is running finishes and no other starts
+docker exec hephaestus hephaestus signal show 12             # id, kind, status (pending, applied, or rejected), and reason
+```
+
+Each command appends a Signal, prints its id, waits up to ten seconds to see whether it was applied, and exits 0 for a Signal still pending (`--no-wait` does not wait). A second `project start` while a window is open says so and opens no second. The window closes by itself when no `queued` Task of the Project is left.
+
+When a Task starts, Hephaestus reads `hephaestus.yml` from the Base Branch once, checks it as `project check` does, and keeps it with the commit it was read at and the image it resolved to, with its digest: every later step of that Task uses what was kept, even if the file changes. The Primary Agent your Project
+names then implements the Task on a fresh checkout, its work is kept as one commit and pushed to the Task branch, each Validation command runs on the pushed tip, and when all pass the pull request is opened and the Task is `pull-request-open`. A Task that cannot be started because its file is missing or invalid, or because its
+Agent is not signed in or has no capacity, stays `queued` and the log says why; a step that fails, a Validation command that does not pass, or an Agent that changes nothing ends the Task as `failed` with its work on its branch, until bounded retries and a comment on the issue arrive ([`docs/dispatch.md`](docs/dispatch.md),
+[ADR-0030](docs/adr/0030-start-a-project-on-demand-and-drive-a-task-from-its-records.md)).
 
 ### When Hephaestus needs a decision
 

@@ -34,6 +34,12 @@ public sealed partial class OrchestratorLoop
         public Dictionary<Guid, TaskState> Moved { get; } = [];
 
         public Exception? Failure { get; set; }
+
+        /// <summary>How many Tasks this tick moved from <c>Queued</c> to <c>Running</c>.</summary>
+        public int Started { get; set; }
+
+        /// <summary>The Tasks this tick could not start, one line each.</summary>
+        public List<string> TaskProblems { get; } = [];
     }
 
     /// <summary>

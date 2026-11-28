@@ -61,3 +61,13 @@ public static class SignalRejections
     /// <summary>Applying the Signal failed again and again; it is set aside so that the Signals behind it are not held back.</summary>
     public const string ApplyFailed = "apply-failed";
 }
+
+/// <summary>What an applied Signal says besides that it was applied, in the place a rejected one gives its reason; machine values, never translated.</summary>
+public static class SignalNotes
+{
+    /// <summary>A request to start work on a Project whose window is open already: nothing was opened, and the command says so (FR-16).</summary>
+    public const string WindowAlreadyOpen = "window-already-open";
+
+    /// <summary>A request to stop a Project whose window is not open: nothing was closed.</summary>
+    public const string WindowNotOpen = "window-not-open";
+}

@@ -51,12 +51,20 @@ public partial class StepEndRulesTests
     }
 
     [Fact]
-    public void The_loop_does_not_take_the_runtime_so_it_cannot_wait_for_a_step()
+    public void The_loop_asks_the_runtime_only_for_what_returns_without_waiting_for_a_step()
     {
-        var loop = Code(Path.Combine(RepositoryRoot.Path, "src/Hephaestus.Core/Loop/OrchestratorLoop.cs")) + Code(Path.Combine(RepositoryRoot.Path, "src/Hephaestus.Core/Loop/OrchestratorLoop.Effects.cs"));
+        var loopFiles = Directory.GetFiles(Path.Combine(RepositoryRoot.Path, "src/Hephaestus.Core/Loop"), "OrchestratorLoop*.cs");
+        var loop = string.Concat(loopFiles.Select(Code));
 
-        Assert.DoesNotContain("IWorkspaceRuntime", loop, StringComparison.Ordinal);
+        // A step's container is started and left (AD-18): the loop has no way to ask the runtime to wait for it, and never runs a probe, which runs to its end.
+        var calls = RuntimeCalls().Matches(loop).Select(match => match.Groups[1].Value).Distinct().Order().ToList();
+
+        Assert.NotEmpty(calls);
+        Assert.All(calls, call => Assert.Contains(call, new[] { "ResolveImageAsync", "EnsureTaskVolumeAsync", "StartStepAsync", "CheckoutAsync", "CheckpointAsync", "StartValidationAsync" }));
     }
+
+    [GeneratedRegex(@"\bruntime!?\.(\w+)\(")]
+    private static partial Regex RuntimeCalls();
 
     [GeneratedRegex(@"\.(StopContainerAsync|KillContainerAsync|PauseContainerAsync|RestartContainerAsync)\(")]
     private static partial Regex Ends();

@@ -41,14 +41,23 @@ public sealed record ConfigurationCheck(
 /// </summary>
 public sealed class ProjectConfigurationService(ProjectService projects, ICodeHost codeHost, IReadStore reads, IMethodologyCatalog methodologies)
 {
+    private readonly ProjectConfigurationReader _reader = new(codeHost, reads, methodologies);
+
     public async Task<ConfigurationCheck> CheckAsync(string fullName, CancellationToken cancellationToken)
     {
         var (project, failure) = await projects.FindAsync(fullName, cancellationToken);
-        if (project is null)
-        {
-            return ConfigurationCheck.Failed(failure);
-        }
+        return project is null ? ConfigurationCheck.Failed(failure) : await _reader.ReadAsync(project, cancellationToken);
+    }
+}
 
+/// <summary>
+/// Reads and checks the configuration file of a Project that is known already, as the check of Story 1.11 does and as the loop does when it starts a Task (FR-2, AD-16): the gateway returns the raw bytes of the file at the tip of the
+/// Base Branch with that commit's id, and everything else happens here. Nothing is stored.
+/// </summary>
+public sealed class ProjectConfigurationReader(ICodeHost codeHost, IReadStore reads, IMethodologyCatalog methodologies)
+{
+    public async Task<ConfigurationCheck> ReadAsync(Project project, CancellationToken cancellationToken)
+    {
         var read = await codeHost.ReadFileAsync(project.RepositoryId, project.BaseBranch, ProjectConfigurationFile.Path, ProjectConfigurationFile.MaximumLength, cancellationToken);
         switch (read.Failure)
         {
