@@ -12,6 +12,9 @@ public enum StepKind
     Correction,
     Rework,
     Review,
+
+    /// <summary>One command of the Project's Validation, run by the runtime in a container with no credential and no Agent (AD-13). Never checkpointed.</summary>
+    Validation,
 }
 
 public static class StepKinds
@@ -25,6 +28,7 @@ public static class StepKinds
         StepKind.Correction => "correction",
         StepKind.Rework => "rework",
         StepKind.Review => "review",
+        StepKind.Validation => "validation",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

@@ -8,8 +8,11 @@ using Hephaestus.Core.Limits;
 using Hephaestus.Core.Ports;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Readiness;
+using Hephaestus.Core.Runs;
 using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
+using Hephaestus.Core.Windows;
+using Hephaestus.Core.Workspaces;
 using Hephaestus.Persistence.Model;
 using Microsoft.EntityFrameworkCore;
 
@@ -104,6 +107,81 @@ internal sealed class SqliteReadStore(HephaestusDatabase database) : IReadStore
         var entry = await context.Tasks.FirstOrDefaultAsync(t => t.RepositoryId == repositoryId && t.IssueNumber == issueNumber, cancellationToken);
         return entry is null ? null : ToTask(entry);
     }
+
+    public async Task<TaskRecord?> FindTaskAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entry = await context.Tasks.FirstOrDefaultAsync(t => t.Id == taskId, cancellationToken);
+        return entry is null ? null : ToTask(entry);
+    }
+
+    public async Task<IReadOnlyList<TaskRecord>> ListTasksAsync(TaskState state, CancellationToken cancellationToken)
+    {
+        var tag = state.Tag();
+        await using var context = database.OpenReader();
+        var entries = await context.Tasks.Where(t => t.State == tag).OrderBy(t => t.IssueNumber).ThenBy(t => t.RepositoryId).ToListAsync(cancellationToken);
+        return [.. entries.Select(ToTask)];
+    }
+
+    public async Task<TaskSnapshot?> FindTaskSnapshotAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entry = await context.TaskSnapshots.FirstOrDefaultAsync(s => s.TaskId == taskId, cancellationToken);
+        return entry is null
+            ? null
+            : TaskSnapshot.TryParse(entry.TaskId, entry.TakenAt, entry.Document, out var snapshot)
+                ? snapshot
+                : throw new InvalidOperationException($"The stored snapshot of Task {taskId} is not one this version wrote.");
+    }
+
+    public async Task<IReadOnlyList<StepRun>> ListStepRunsAsync(Guid taskId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.StepRuns.Where(s => s.TaskId == taskId).OrderBy(s => s.Sequence).ToListAsync(cancellationToken);
+        return [.. entries.Select(ToStepRun)];
+    }
+
+    public async Task<StepRun?> FindStepRunAsync(Guid stepRunId, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entry = await context.StepRuns.FirstOrDefaultAsync(s => s.Id == stepRunId, cancellationToken);
+        return entry is null ? null : ToStepRun(entry);
+    }
+
+    public async Task<IReadOnlyList<Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken)
+    {
+        await using var context = database.OpenReader();
+        var entries = await context.Windows.Where(w => !openOnly || w.ClosedAt == null).ToListAsync(cancellationToken);
+        return [.. entries.OrderBy(w => w.OpenedAt).ThenBy(w => w.Id).Select(w => new Window(w.Id, w.RepositoryId, w.OpenedAt, w.ClosedAt, WindowEnds.TryParse(w.End, out var end) ? end : null))];
+    }
+
+    internal static StepRun ToStepRun(StepRunEntry entry) => new(
+        entry.Id,
+        entry.TaskId,
+        entry.Sequence,
+        StepKindOf(entry.Kind, entry.Id),
+        entry.Round,
+        StepRunStatuses.TryParse(entry.Status, out var status) ? status : throw new InvalidOperationException($"The stored step run {entry.Id} has the unknown status '{entry.Status}'."),
+        entry.Deadline,
+        entry.PlannedAt,
+        entry.TipBefore,
+        entry.StartedAt,
+        entry.EndedAt,
+        Agents.TryParse(entry.Agent, out var agent) ? agent : null,
+        entry.Model,
+        Efforts.TryParse(entry.Effort, out var effort) ? effort : null,
+        entry.Methodology,
+        entry.Template,
+        entry.CommandIndex,
+        entry.ExitCode,
+        StepExitCauses.TryParse(entry.Cause, out var cause) ? cause : null,
+        entry.Failure,
+        entry.Outcome,
+        entry.Result,
+        entry.TipAfter);
+
+    private static StepKind StepKindOf(string tag, Guid id) =>
+        Enum.GetValues<StepKind>().Cast<StepKind?>().FirstOrDefault(kind => kind!.Value.Tag() == tag) ?? throw new InvalidOperationException($"The stored step run {id} has the unknown kind '{tag}'.");
 
     public async Task<IssueSnapshot?> FindIssueSnapshotAsync(Guid taskId, CancellationToken cancellationToken)
     {

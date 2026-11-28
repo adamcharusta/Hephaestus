@@ -29,6 +29,12 @@ public enum SignalKind
 
     /// <summary>A step container ended; the runtime appends it once for each step run (AD-18).</summary>
     StepExited,
+
+    /// <summary>The Owner asked, through the control API, to start work on a Project outside its Schedule (FR-16).</summary>
+    StartRequested,
+
+    /// <summary>The Owner asked, through the control API, to stop working a Project's window.</summary>
+    StopRequested,
 }
 
 public static class SignalKinds
@@ -43,6 +49,8 @@ public static class SignalKinds
         SignalKind.CommentCreated => "comment-created",
         SignalKind.CommentEdited => "comment-edited",
         SignalKind.StepExited => "step-exited",
+        SignalKind.StartRequested => "start-requested",
+        SignalKind.StopRequested => "stop-requested",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 
@@ -109,6 +117,18 @@ public sealed record Signal(
     /// <summary>The source of the Signals the runtime appends.</summary>
     public const string RuntimeSource = "runtime";
 
+    /// <summary>The source of the Signals the control API appends: the Owner's own requests, which reach the socket only through the host's own container (AD-17).</summary>
+    public const string ControlSource = "control";
+
+    /// <summary>The Owner's request to start work on a Project. Each request is its own event, so two requests are two Signals; the loop opens one window for both (FR-16).</summary>
+    public static Signal Start(long repositoryId, Guid requestId, DateTimeOffset occurredAt) => Request(SignalKind.StartRequested, repositoryId, requestId, occurredAt);
+
+    /// <summary>The Owner's request to stop working a Project's window.</summary>
+    public static Signal Stop(long repositoryId, Guid requestId, DateTimeOffset occurredAt) => Request(SignalKind.StopRequested, repositoryId, requestId, occurredAt);
+
+    private static Signal Request(SignalKind kind, long repositoryId, Guid requestId, DateTimeOffset occurredAt) =>
+        new(ControlSource, requestId.ToString("D"), kind, repositoryId, 0, null, null, null, null, null, occurredAt);
+
     /// <summary>
     /// The one Signal that reports the end of a step run's container (AD-18). Its source event id is the step run, so a second append, which a
     /// restart can make, is the no-op the inbox makes of every duplicate: the loop hears of a step's end exactly once. It concerns no
@@ -123,6 +143,6 @@ public sealed record Signal(
 /// orchestrator loop moves a Signal out of <see cref="SignalStatus.Pending"/> (AD-1).
 /// </summary>
 /// <param name="Status">Pending until the loop has applied it in one transaction, then applied or rejected.</param>
-/// <param name="Reason">Why a rejected Signal was rejected, as one of the <see cref="SignalRejections"/>; null otherwise.</param>
+/// <param name="Reason">Why a rejected Signal was rejected, as one of the <see cref="SignalRejections"/>; for an applied one, a note from <see cref="SignalNotes"/> when it changed nothing for a reason worth saying; null otherwise.</param>
 /// <param name="TaskId">The Task the Signal created or concerned, when the loop found one; null otherwise.</param>
 public sealed record StoredSignal(long Sequence, Signal Signal, SignalStatus Status = SignalStatus.Pending, string? Reason = null, Guid? TaskId = null);

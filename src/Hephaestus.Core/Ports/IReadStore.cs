@@ -4,8 +4,10 @@ using Hephaestus.Core.Escalations;
 using Hephaestus.Core.Limits;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Readiness;
+using Hephaestus.Core.Runs;
 using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
+using Hephaestus.Core.Windows;
 
 namespace Hephaestus.Core.Ports;
 
@@ -68,4 +70,22 @@ public interface IReadStore
 
     /// <summary>The capacity records of the Agent credentials that were probed, ascending by Agent and then mode (AD-20).</summary>
     Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken);
+
+    /// <summary>The Task with the id, or null when there is none.</summary>
+    Task<TaskRecord?> FindTaskAsync(Guid taskId, CancellationToken cancellationToken);
+
+    /// <summary>The Tasks that are in the state, by issue number and then repository id.</summary>
+    Task<IReadOnlyList<TaskRecord>> ListTasksAsync(TaskState state, CancellationToken cancellationToken);
+
+    /// <summary>What the Task started with, or null when it has not started (FR-2).</summary>
+    Task<TaskSnapshot?> FindTaskSnapshotAsync(Guid taskId, CancellationToken cancellationToken);
+
+    /// <summary>The step runs of the Task, in the order they were planned.</summary>
+    Task<IReadOnlyList<StepRun>> ListStepRunsAsync(Guid taskId, CancellationToken cancellationToken);
+
+    /// <summary>The step run with the id, or null when there is none.</summary>
+    Task<StepRun?> FindStepRunAsync(Guid stepRunId, CancellationToken cancellationToken);
+
+    /// <summary>The windows of the Projects, oldest first: the open ones only, or all of them.</summary>
+    Task<IReadOnlyList<Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken);
 }

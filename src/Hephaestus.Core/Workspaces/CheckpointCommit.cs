@@ -41,7 +41,7 @@ public sealed record CheckpointCommit
     /// Composes the commit of the step run <paramref name="stepRunId"/> of the Task, which performed a step of <paramref name="kind"/>. <paramref name="model"/> is opaque to Hephaestus and is
     /// written as it is, so it must have the shape an Alias allows a Model.
     /// </summary>
-    public static CheckpointCommit Compose(CommitIdentity identity, Language language, StepKind kind, Guid taskId, Guid stepRunId, Agent agent, string model, Effort effort)
+    public static CheckpointCommit Compose(CommitIdentity identity, Language language, StepKind kind, Guid taskId, Guid stepRunId, Agent agent, string model, Effort? effort)
     {
         ArgumentNullException.ThrowIfNull(identity);
         if (!kind.IsCheckpointed())
@@ -63,7 +63,7 @@ public sealed record CheckpointCommit
             $"{StepTrailer}: {stepRunId.ToString("D", CultureInfo.InvariantCulture)}",
             $"{AgentTrailer}: {agent.Tag()}",
             $"{ModelTrailer}: {model}",
-            $"{EffortTrailer}: {effort.Tag()}") + "\n";
+            $"{EffortTrailer}: {effort?.Tag() ?? "default"}") + "\n";
         return new CheckpointCommit(identity, message, taskId, stepRunId, kind);
     }
 }

@@ -8,6 +8,7 @@ using Hephaestus.Core.Projects;
 using Hephaestus.Core.Signals;
 using Hephaestus.Core.Tasks;
 using Hephaestus.Core.Trust;
+using Hephaestus.Core.Windows;
 
 namespace Hephaestus.Core.Loop;
 
@@ -20,6 +21,8 @@ namespace Hephaestus.Core.Loop;
 /// <param name="EffectsEnded">How many effects on GitHub ended in a result this tick.</param>
 /// <param name="EffectsRetried">How many attempts at an effect failed, or met GitHub's wait, and were scheduled again.</param>
 /// <param name="Problems">The effects that could not be completed, for the host to log as errors with the Task's id.</param>
+/// <param name="TasksStarted">How many Tasks the tick started: moved from <c>Queued</c> to <c>Running</c>.</param>
+/// <param name="TaskProblems">One line for each Task the tick could not start, with its id and what was wrong; the Task stays <c>Queued</c> and is tried again after a while (Story 3.15 says so on its issue).</param>
 public sealed record TickReport(
     int Applied,
     int Rejected,
@@ -28,7 +31,9 @@ public sealed record TickReport(
     IReadOnlyList<string> Rejections,
     int EffectsEnded = 0,
     int EffectsRetried = 0,
-    IReadOnlyList<EffectProblem>? Problems = null);
+    IReadOnlyList<EffectProblem>? Problems = null,
+    int TasksStarted = 0,
+    IReadOnlyList<string>? TaskProblems = null);
 
 /// <summary>An effect that ended without being made: the far side stayed unreachable until the bound, or refused for good. A Task whose label could not be made waits for the Owner.</summary>
 /// <param name="TaskId">The Task the effect was for; null for a comment on an issue that is no Task, which the key then names the Project of.</param>
@@ -45,9 +50,16 @@ public sealed record EffectProblem(Guid? TaskId, string Key, EffectResult Result
 /// actor-attributed Signals and never from the labels an issue has now (AD-2), and one admission function decides trust by numeric
 /// id (AD-15). Startup recovery is the first tick: a Signal appended and not yet applied when the host stopped is still pending, and
 /// so is an effect whose intent was journaled and whose result was not (AD-5). The loop is also where an Escalation is raised
-/// (<see cref="RaiseEscalationAsync"/>), because it moves the Task.
+/// (<see cref="RaiseEscalationAsync"/>), because it moves the Task. It is also where a Task is started and its steps are driven (Story 3.14): each tick
+/// dispatches the one eligible Task of a Project with an open window, and carries the <c>Running</c> Task a step further from what is recorded, never
+/// waiting for a step (AD-18).
 /// </summary>
 /// <param name="fallbackLanguage">The installation's language when the Owner has stored none: the one the environment names.</param>
+/// <param name="runtime">The Docker runtime that runs the steps; without it, and without the ports below, no Task is started.</param>
+/// <param name="mirrors">The bare mirrors, from which the bundles that a checkout is made of are written.</param>
+/// <param name="methodologies">The Methodologies this release ships, which the context of a step is assembled from.</param>
+/// <param name="output">The stored output of the steps, which the Agent's adapter parses when a step ends.</param>
+/// <param name="adapters">The adapters of the Agents this release can drive.</param>
 public sealed partial class OrchestratorLoop(
     ISignalInbox inbox,
     IReadStore reads,
@@ -59,7 +71,12 @@ public sealed partial class OrchestratorLoop(
     Func<TimeSpan, CancellationToken, Task>? delay = null,
     Language fallbackLanguage = Language.English,
     ITaskBranches? branches = null,
-    IPullRequests? pullRequests = null)
+    IPullRequests? pullRequests = null,
+    IWorkspaceRuntime? runtime = null,
+    IRepositoryMirrors? mirrors = null,
+    IMethodologyCatalog? methodologies = null,
+    IOutputStore? output = null,
+    IEnumerable<IAgentAdapter>? adapters = null)
 {
     /// <summary>How long the loop waits when no Signal is pending.</summary>
     public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
@@ -161,11 +178,16 @@ public sealed partial class OrchestratorLoop(
                             covered = showing.Contains(existing.Id);
                         }
 
-                        var application = Decide(stored, context, existing, covered, await FindOpenEscalationAsync(stored.Signal, existing, cancellationToken));
+                        var application = stored.Signal.Kind == SignalKind.StepExited
+                            ? await DecideStepExitedAsync(stored, cancellationToken)
+                            : Decide(stored, context, existing, covered, await FindOpenEscalationAsync(stored.Signal, existing, cancellationToken));
                         if (await work.ApplyAsync(application, cancellationToken) is false)
                         {
                             continue;
                         }
+
+                        // The windows this batch has opened or closed are what the next Signal of it is decided against.
+                        TrackWindows(context, application);
 
                         if (application.NewEffects is { Count: > 0 } && (application.NewTask?.Task.Id ?? application.TaskId) is { } taskId)
                         {
@@ -213,6 +235,20 @@ public sealed partial class OrchestratorLoop(
             failure = exception;
         }
 
+        // The Tasks: the one that runs is carried a step further, and, when none runs, the next is started (Story 3.14). What they journal is made in the phase below.
+        try
+        {
+            await RunTasksAsync(effects, cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            failure ??= exception;
+        }
+
         // The effects the Signals caused, and any that was left unfinished, are made only after the transactions that journaled them. A
         // Signal that fails to apply does not hold them back: they are not its business.
         try
@@ -235,7 +271,7 @@ public sealed partial class OrchestratorLoop(
             heartbeat.Beat();
         }
 
-        return new TickReport(applied, rejections.Count, created, failure, rejections, effects.Ended, effects.Retried, effects.Problems);
+        return new TickReport(applied, rejections.Count, created, failure, rejections, effects.Ended, effects.Retried, effects.Problems, effects.Started, effects.TaskProblems);
     }
 
     private static string RejectionLine(StoredSignal stored, string? reason) =>
@@ -265,7 +301,8 @@ public sealed partial class OrchestratorLoop(
         var trusted = (await reads.ListTrustedUsersAsync(cancellationToken)).Select(user => user.UserId).ToHashSet();
         var projects = (await reads.ListProjectsAsync(includeRemoved: false, cancellationToken)).Select(project => project.RepositoryId).ToHashSet();
         var slug = await reads.GetGitHubAppSlugAsync(cancellationToken);
-        return new Context(trusted, projects, slug is null ? null : GitHubLogin.BotOf(slug));
+        var windows = (await reads.ListWindowsAsync(openOnly: true, cancellationToken)).ToDictionary(window => window.RepositoryId);
+        return new Context(trusted, projects, slug is null ? null : GitHubLogin.BotOf(slug), windows);
     }
 
     /// <summary>The Tasks that have an effect, journaled and not ended, that shows the state they have now.</summary>
@@ -293,11 +330,10 @@ public sealed partial class OrchestratorLoop(
             return DecideLeaving(stored, context, existing);
         }
 
-        // A step's container ended, as the runtime reports (AD-18). The step run it belongs to is written by the story that dispatches steps
-        // (3.14), so for now it is applied with no change; because the loop never waits for a step, it is applied within a tick of its append.
-        if (signal.Kind == SignalKind.StepExited)
+        // The Owner asked to start or stop working a Project (FR-16).
+        if (signal.Kind is SignalKind.StartRequested or SignalKind.StopRequested)
         {
-            return new SignalApplication(stored.Sequence, SignalStatus.Applied);
+            return DecideWindow(stored, context);
         }
 
         // What the later stories of the epic act on (the rest of withdrawal and close, commands, edits) is applied with no change for now: the
@@ -457,6 +493,47 @@ public sealed partial class OrchestratorLoop(
 
     private static SignalApplication Reject(StoredSignal stored, string reason) => new(stored.Sequence, SignalStatus.Rejected, reason);
 
+    /// <summary>
+    /// The Owner's request to start or stop working a Project (FR-16, AD-17). A start opens the Project's window, or, when one is open, is applied with the note that says so and opens no second; a stop closes it, or is applied
+    /// with the note that none was open. A Project that is not registered rejects both. The request comes through the control socket, so there is no actor to admit: it is the Owner's.
+    /// </summary>
+    private SignalApplication DecideWindow(StoredSignal stored, Context context)
+    {
+        var signal = stored.Signal;
+        if (!context.Projects.Contains(signal.RepositoryId))
+        {
+            return Reject(stored, SignalRejections.ProjectNotRegistered);
+        }
+
+        context.OpenWindows.TryGetValue(signal.RepositoryId, out var open);
+        if (signal.Kind == SignalKind.StartRequested)
+        {
+            return open is not null
+                ? new SignalApplication(stored.Sequence, SignalStatus.Applied, SignalNotes.WindowAlreadyOpen)
+                : new SignalApplication(stored.Sequence, SignalStatus.Applied, OpenWindow: new Window(EntityId.New(time), signal.RepositoryId, time.GetUtcNow()));
+        }
+
+        return open is null
+            ? new SignalApplication(stored.Sequence, SignalStatus.Applied, SignalNotes.WindowNotOpen)
+            : new SignalApplication(stored.Sequence, SignalStatus.Applied, CloseWindow: new WindowClosing(open.Id, WindowEnd.Stopped));
+    }
+
+    private static void TrackWindows(Context context, SignalApplication application)
+    {
+        if (application.OpenWindow is { } opened)
+        {
+            context.OpenWindows[opened.RepositoryId] = opened;
+        }
+
+        if (application.CloseWindow is { } closing)
+        {
+            foreach (var repository in context.OpenWindows.Where(pair => pair.Value.Id == closing.WindowId).Select(pair => pair.Key).ToList())
+            {
+                context.OpenWindows.Remove(repository);
+            }
+        }
+    }
+
     /// <summary>Counts a failure of the Signal and, once it has failed often enough and for long enough, rejects it. Returns whether it was rejected.</summary>
     private async Task<bool> SetAsideAfterRepeatedFailureAsync(StoredSignal stored, CancellationToken cancellationToken)
     {
@@ -484,5 +561,5 @@ public sealed partial class OrchestratorLoop(
         return false;
     }
 
-    private sealed record Context(IReadOnlySet<long> TrustedUserIds, IReadOnlySet<long> Projects, string? OwnLogin);
+    private sealed record Context(IReadOnlySet<long> TrustedUserIds, IReadOnlySet<long> Projects, string? OwnLogin, Dictionary<long, Window> OpenWindows);
 }

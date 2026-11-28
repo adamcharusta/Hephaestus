@@ -12,6 +12,7 @@ public class StepKindTests
     [InlineData(StepKind.Readiness, false)]
     [InlineData(StepKind.Planning, false)]
     [InlineData(StepKind.Review, false)]
+    [InlineData(StepKind.Validation, false)]
     public void Only_implementation_correction_and_rework_are_checkpointed(StepKind kind, bool expected)
     {
         Assert.Equal(expected, kind.IsCheckpointed());

@@ -39,6 +39,13 @@ internal sealed class SqliteSignalInbox(HephaestusDatabase database) : ISignalIn
         return appended;
     }
 
+    public async Task<long> AppendOneAsync(Signal signal, CancellationToken cancellationToken)
+    {
+        await AppendAsync([signal], cancellationToken);
+        await using var context = database.OpenReader();
+        return await context.Signals.Where(s => s.Source == signal.Source && s.SourceEventId == signal.SourceEventId).Select(s => s.Sequence).SingleAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<StoredSignal>> ReadAsync(long afterSequence, int limit, CancellationToken cancellationToken)
     {
         await using var context = database.OpenReader();
