@@ -409,4 +409,19 @@ public static class MessageIds
     public const string AgentProbeNotRun = "agent.probe.not-run";
     public const string AgentProbeSuperseded = "agent.probe.superseded";
     public const string WorkspaceProbeDocker = "workspace.probe.docker";
+    public const string CliProjectStartDescription = "cli.project.start.description";
+    public const string CliProjectStopDescription = "cli.project.stop.description";
+    public const string CliOptionNoWait = "cli.option.no-wait";
+    public const string CliSignalDescription = "cli.signal.description";
+    public const string CliSignalShowDescription = "cli.signal.show.description";
+    public const string CliSignalAppended = "cli.signal.appended";
+    public const string CliSignalPending = "cli.signal.pending";
+    public const string CliSignalRejected = "cli.signal.rejected";
+    public const string CliSignalApplied = "cli.signal.applied";
+    public const string CliProjectWindowOpened = "cli.project.window.opened";
+    public const string CliProjectWindowAlreadyOpen = "cli.project.window.already-open";
+    public const string CliProjectWindowClosed = "cli.project.window.closed";
+    public const string CliProjectWindowNotOpen = "cli.project.window.not-open";
+    public const string ProblemSignalNotFoundTitle = "problem.signal-not-found.title";
+    public const string ProblemSignalNotFoundDetail = "problem.signal-not-found.detail";
 }

@@ -54,6 +54,18 @@ internal sealed class FakeStores : ISecretStore, IReadStore, IInstallationConfig
 
     public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Tasks.TaskRecord>> ListTasksAsync(Hephaestus.Core.Tasks.TaskState state, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Runs.TaskSnapshot?> FindTaskSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Runs.StepRun>> ListStepRunsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Runs.StepRun?> FindStepRunAsync(Guid stepRunId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Windows.Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     /// <summary>The protected paths: the entries a new installation starts with.</summary>
@@ -166,6 +178,8 @@ internal sealed class FakeInbox : Hephaestus.Core.Ports.ISignalInbox
 
     /// <summary>When set, an append fails with it, as a crash between the append and the cursor would not be seen: nothing is stored.</summary>
     public Exception? Fail { get; set; }
+
+    public Task<long> AppendOneAsync(Hephaestus.Core.Signals.Signal signal, CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<int> AppendAsync(IReadOnlyList<Hephaestus.Core.Signals.Signal> signals, CancellationToken cancellationToken)
     {

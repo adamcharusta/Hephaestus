@@ -13,8 +13,11 @@ namespace Hephaestus.Host.Cli;
 /// detail; exit code 0 is success, 1 a failure, 2 a command that was not understood. A secret's value is read from standard
 /// input and nowhere else (UX "Command Line").
 /// </summary>
-internal sealed partial class CliApplication(HostSettings settings, ControlApiClient client, TextReader input, TextWriter output, TextWriter error)
+internal sealed partial class CliApplication(HostSettings settings, ControlApiClient client, TextReader input, TextWriter output, TextWriter error, TimeSpan? signalWait = null, TimeSpan? signalPoll = null)
 {
+    private readonly TimeSpan _signalWait = signalWait ?? DefaultSignalWait;
+    private readonly TimeSpan _signalPoll = signalPoll ?? DefaultSignalPoll;
+
     public const int Success = 0;
     public const int Failure = 1;
     public const int NotUnderstood = 2;
@@ -133,6 +136,11 @@ internal sealed partial class CliApplication(HostSettings settings, ControlApiCl
         if (await RunAgentAsync(command, parse, tree, json, cancellationToken) is { } agent)
         {
             return agent;
+        }
+
+        if (command == tree.SignalShow)
+        {
+            return await RunSignalCommandAsync(command, parse, tree, json, cancellationToken) ?? Failure;
         }
 
         HelpWriter.Write(command, tree.Help, output, language);

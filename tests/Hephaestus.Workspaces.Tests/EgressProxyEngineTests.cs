@@ -257,6 +257,8 @@ public sealed class EgressProxyEngineTests(EngineFixture engine) : IClassFixture
     {
         public List<Hephaestus.Core.Signals.Signal> Appended { get; } = [];
 
+        public Task<long> AppendOneAsync(Hephaestus.Core.Signals.Signal signal, CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<int> AppendAsync(IReadOnlyList<Hephaestus.Core.Signals.Signal> signals, CancellationToken cancellationToken)
         {
             lock (Appended)

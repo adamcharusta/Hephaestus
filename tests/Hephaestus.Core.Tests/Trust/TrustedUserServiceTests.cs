@@ -114,6 +114,18 @@ public class TrustedUserServiceTests
 
     public Task<IReadOnlyList<AgentCapacity>> ListAgentCapacitiesAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
+    public Task<Hephaestus.Core.Tasks.TaskRecord?> FindTaskAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Tasks.TaskRecord>> ListTasksAsync(Hephaestus.Core.Tasks.TaskState state, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Runs.TaskSnapshot?> FindTaskSnapshotAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Runs.StepRun>> ListStepRunsAsync(Guid taskId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<Hephaestus.Core.Runs.StepRun?> FindStepRunAsync(Guid stepRunId, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+    public Task<IReadOnlyList<Hephaestus.Core.Windows.Window>> ListWindowsAsync(bool openOnly, CancellationToken cancellationToken) => throw new NotSupportedException();
+
     public Task<InstallationLimits> GetLimitsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
     public Task<IReadOnlyList<string>> ListProtectedPathsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();

@@ -40,6 +40,17 @@ internal sealed class OrchestratorService(OrchestratorLoop loop, ILoggerFactory 
                 problem.MovedToWaitingForOwner ? "the Task moved to waiting-for-owner" : problem.TaskId is null ? "no Task is affected" : "the Task keeps its state");
         }
 
+        foreach (var problem in report.TaskProblems ?? [])
+        {
+            // Until a Task's issue says so (Story 3.15), the log is how the Owner learns that a Task could not be started, or that one ended because a step could not be carried out.
+            _log.LogWarning("{Problem}", problem);
+        }
+
+        if (report.TasksStarted > 0)
+        {
+            _log.LogInformation("Started {Started} Task(s).", report.TasksStarted);
+        }
+
         if (report.EffectsRetried > 0)
         {
             _log.LogWarning("{Retried} attempt(s) at an effect on GitHub did not succeed and will be tried again.", report.EffectsRetried);

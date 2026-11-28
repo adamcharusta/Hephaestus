@@ -6,6 +6,7 @@ using Hephaestus.Core.Localization;
 using Hephaestus.Core.Projects;
 using Hephaestus.Core.Readiness;
 using Hephaestus.Core.Settings;
+using Hephaestus.Core.Signals;
 using Hephaestus.Core.Trust;
 
 namespace Hephaestus.Host.Api;
@@ -47,6 +48,8 @@ internal static class Documents
         project.RemovedAt is { } removed ? Time(removed) : null,
         change switch { ProjectChange.Registered => "registered", ProjectChange.Updated => "updated", ProjectChange.Unchanged => "unchanged", _ => null },
         baseBranchProtected);
+
+    public static SignalDocument Signal(StoredSignal stored) => new(stored.Sequence, stored.Signal.Kind.Tag(), stored.Status.Tag(), stored.Reason);
 
     public static ConfigurationCheckDocument ConfigurationCheck(Project project, ConfigurationStatus status, string commitId, IReadOnlyList<ConfigurationIssue> issues, ProjectConfiguration? configuration) => new(
         project.RepositoryId,

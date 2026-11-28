@@ -51,6 +51,14 @@ public class OrchestratorServiceTests
         public Task<bool> RecordEffectAsync(Hephaestus.Core.Effects.EffectRecording recording, CancellationToken cancellationToken) => Task.FromResult(false);
 
         public Task<bool> EscalateAsync(Hephaestus.Core.Escalations.EscalationPlan plan, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> DispatchAsync(Hephaestus.Core.Runs.TaskDispatch dispatch, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> PlanStepRunAsync(Hephaestus.Core.Runs.NewStepRun run, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> ChangeStepRunAsync(Hephaestus.Core.Runs.StepRunChange change, CancellationToken cancellationToken) => Task.FromResult(false);
+
+        public Task<bool> CloseWindowAsync(Hephaestus.Core.Ports.WindowClosing closing, CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
     [Fact]
